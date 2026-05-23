@@ -33,7 +33,16 @@ function absUrl(path) {
   return `${process.env.REACT_APP_BACKEND_URL}${path}`;
 }
 
-export function buildEmailHtml({ estimate, totals, company, branding, message }) {
+// Add 30 days to the estimate date (or today, if missing) and return e.g. "Mar 16, 2026".
+function computeExpiry(estimateDate) {
+  const base = estimateDate ? new Date(estimateDate) : new Date();
+  if (Number.isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + 30);
+  return base.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+
+export function buildEmailHtml({ estimate, totals, company, branding, message, acceptEmail }) {
   const linesByCat = (estimate.lines || [])
     .filter((l) => (l.qty || 0) > 0)
     .reduce((acc, l) => {
@@ -45,6 +54,17 @@ export function buildEmailHtml({ estimate, totals, company, branding, message })
   const supplierName = branding?.supplier_name || "Alside Supply";
   const companyName = company?.name || "Your Contractor";
   const logoUrl = company?.logo_url ? absUrl(company.logo_url) : null;
+  const expiryStr = computeExpiry(estimate.estimate_date);
+  const estNumDisplay = estimate.estimate_number ? `#${estimate.estimate_number}` : "";
+
+  // Accept-CTA mailto: pre-fills a reply addressed back to the contractor.
+  const acceptHref = acceptEmail
+    ? `mailto:${encodeURIComponent(acceptEmail)}` +
+      `?subject=${encodeURIComponent(`Accepting estimate ${estimate.estimate_number || ""} — ${estimate.customer_name || ""}`)}` +
+      `&body=${encodeURIComponent(
+        `Hi,\n\nI'd like to accept the estimate ${estNumDisplay} for ${$(totals.sell)} as quoted.\nPlease let me know the next steps.\n\nThanks,\n${estimate.customer_name || ""}`
+      )}`
+    : null;
 
   // ---- Builders -----------------------------------------------------------
   const cell = (content, extra = "") =>
@@ -129,6 +149,9 @@ export function buildEmailHtml({ estimate, totals, company, branding, message })
               <div style="font-family:${FONT};font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:${C.faint};font-weight:bold;">Estimate</div>
               <div style="font-family:${FONT};font-size:18px;font-weight:700;color:${C.ink};letter-spacing:0.5px;">${esc(estimate.estimate_number || "—")}</div>
               <div style="font-family:${FONT};font-size:12px;color:${C.muted};">${esc(estimate.estimate_date || "")}</div>
+              ${expiryStr
+                ? `<div style="margin-top:8px;display:inline-block;padding:4px 10px;background:#FFF7ED;border:1px solid ${C.accent};color:${C.accent};font-family:${FONT};font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;border-radius:2px;">Valid through ${esc(expiryStr)}</div>`
+                : ""}
             </td>
           </tr></table>
         </td></tr>
@@ -173,14 +196,28 @@ export function buildEmailHtml({ estimate, totals, company, branding, message })
             <td align="right" style="font-family:${FONT};font-size:34px;font-weight:900;color:${C.ink};letter-spacing:-0.5px;">${$(totals.sell)}</td>
           </tr></table>
           <div style="margin-top:10px;font-family:${FONT};font-size:12px;color:${C.muted};line-height:1.5;">
-            Valid for 30 days from the date above. Final price may vary based on site conditions discovered after work begins.
+            ${expiryStr
+              ? `This estimate is valid through <strong style="color:${C.ink};">${esc(expiryStr)}</strong>. Final price may vary based on site conditions discovered after work begins.`
+              : `Valid for 30 days from the date above. Final price may vary based on site conditions discovered after work begins.`}
           </div>
         </td></tr>
 
-        <!-- Footer -->
+        ${acceptHref
+          ? `<!-- Accept CTA -->
+        <tr><td align="center" style="padding:24px 32px 8px 32px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="${C.accent}" style="border-radius:2px;">
+            <a href="${acceptHref}" style="display:inline-block;padding:14px 28px;font-family:${FONT};font-size:14px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;background:${C.accent};border-radius:2px;">
+              Accept this Estimate &nbsp;→
+            </a>
+          </td></tr></table>
+          <div style="margin-top:10px;font-family:${FONT};font-size:11px;color:${C.muted};">
+            Or just reply to this email with any questions.
+          </div>
+        </td></tr>`
+          : `<!-- Footer -->
         <tr><td style="padding:18px 32px;font-family:${FONT};font-size:12px;color:${C.muted};text-align:center;border-top:1px solid ${C.line};">
           Questions about this estimate? Reply to this email and we'll get right back to you.
-        </td></tr>
+        </td></tr>`}
 
         ${showSupplierFooter
           ? `<tr><td style="padding:10px 32px;font-family:${FONT};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${C.faint};text-align:center;border-top:1px solid ${C.line};">

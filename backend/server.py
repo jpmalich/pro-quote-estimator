@@ -805,9 +805,17 @@ async def email_quote(est_id: str, body: EmailQuoteIn, user: dict = Depends(get_
             {"id": user["company_id"]}, {"_id": 0, "name": 1}
         )
         company_name = (company or {}).get("name") or "your contractor"
+        # Replies should go back to the contractor — not the shared Resend sending address.
+        # Prefer the company owner so a teammate's quote still hits the right inbox.
+        owner = await db.users.find_one(
+            {"company_id": user["company_id"], "role": "owner"},
+            {"_id": 0, "email": 1, "name": 1},
+        )
+        reply_to_email = (owner or {}).get("email") or user.get("email")
         params = {
             "from": SENDER_EMAIL,
             "to": [body.recipient_email],
+            "reply_to": reply_to_email,
             "subject": body.subject or f"Your siding estimate from {company_name}",
             "html": body.html_quote,
         }

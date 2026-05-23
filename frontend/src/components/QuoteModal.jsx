@@ -30,7 +30,14 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
     if (!email) return;
     setSending(true);
     // Build an email-safe HTML (inline styles, table layout) instead of dumping the on-screen DOM.
-    const html = buildEmailHtml({ estimate, totals, company, branding, message });
+    const html = buildEmailHtml({
+      estimate,
+      totals,
+      company,
+      branding,
+      message,
+      acceptEmail: user?.email,
+    });
     const ok = await onEmail({ recipient_email: email, html, subject });
     setSending(false);
     if (ok) onClose();
@@ -225,3 +232,4 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
     </div>
   );
 }
+
