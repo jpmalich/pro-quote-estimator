@@ -1,17 +1,24 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { fmt } from "@/lib/api";
 import { useCompany } from "@/lib/company";
 import { useBranding } from "@/lib/branding";
 import CompanyLogo from "@/components/CompanyLogo";
 import { X, Printer, Send } from "lucide-react";
+import { buildEmailHtml, buildEmailSubject, defaultEmailGreeting } from "@/lib/emailQuote";
 
 export default function QuoteModal({ estimate, totals, onClose, emailConfigured, onEmail }) {
   const { company } = useCompany();
   const branding = useBranding();
   const [email, setEmail] = useState("");
+  const [message, setMessage] = useState(() => defaultEmailGreeting({ estimate, company }));
   const [sending, setSending] = useState(false);
   const printRef = useRef();
   const showSupplierFooter = company?.quote_footer_enabled !== false;
+
+  const subject = useMemo(
+    () => buildEmailSubject({ estimate, company }),
+    [estimate, company]
+  );
 
   const linesWithQty = (estimate.lines || []).filter((l) => (l.qty || 0) > 0);
   const linesBySection = linesWithQty.reduce((acc, l) => {
@@ -22,8 +29,9 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
   const handleEmail = async () => {
     if (!email) return;
     setSending(true);
-    const html = printRef.current?.outerHTML || "";
-    const ok = await onEmail(email, html);
+    // Build an email-safe HTML (inline styles, table layout) instead of dumping the on-screen DOM.
+    const html = buildEmailHtml({ estimate, totals, company, branding, message });
+    const ok = await onEmail({ recipient_email: email, html, subject });
     setSending(false);
     if (ok) onClose();
   };
@@ -60,6 +68,29 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
             <button className="btn-ghost text-white hover:text-white" onClick={onClose} data-testid="quote-close-btn">
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Editable email preamble — Phase 1 polish */}
+        <div className="no-print w-full max-w-3xl mb-4 bg-white border border-[#E4E4E7] p-4" data-testid="email-preamble">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-1">
+            Subject
+          </div>
+          <div className="text-sm font-mono-num text-[#09090B] mb-3 break-words">{subject}</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-1">
+            Personal note (appears above the quote)
+          </div>
+          <textarea
+            className="input w-full"
+            rows={4}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Hi [Customer], thanks for the opportunity to quote your project…"
+            data-testid="email-message"
+            style={{ resize: "vertical", minHeight: 96 }}
+          />
+          <div className="text-[11px] text-[#71717A] mt-1">
+            The customer will see this note first, then the estimate below.
           </div>
         </div>
         {!emailConfigured && (

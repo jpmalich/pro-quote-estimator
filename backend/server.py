@@ -800,10 +800,15 @@ async def email_quote(est_id: str, body: EmailQuoteIn, user: dict = Depends(get_
     try:
         import resend
         resend.api_key = RESEND_API_KEY
+        # Look up the contractor's actual company name for the subject fallback.
+        company = await db.companies.find_one(
+            {"id": user["company_id"]}, {"_id": 0, "name": 1}
+        )
+        company_name = (company or {}).get("name") or "your contractor"
         params = {
             "from": SENDER_EMAIL,
             "to": [body.recipient_email],
-            "subject": body.subject or f"Your Estimate from {user.get('name', 'Wolf and Son Renovations')}",
+            "subject": body.subject or f"Your siding estimate from {company_name}",
             "html": body.html_quote,
         }
         result = await asyncio.to_thread(resend.Emails.send, params)

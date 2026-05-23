@@ -110,12 +110,12 @@ export default function EstimateEditor() {
           totals={totals}
           onClose={() => setShowQuote(false)}
           emailConfigured={emailStatus.configured}
-          onEmail={async (recipient_email, html) => {
+          onEmail={async ({ recipient_email, html, subject }) => {
             try {
               await api.post(`/estimates/${id}/email`, {
                 recipient_email,
                 html_quote: html,
-                subject: `Estimate ${est.estimate_number} from Wolf and Son Renovations`,
+                subject,
               });
               toast.success("Email sent");
               return true;
