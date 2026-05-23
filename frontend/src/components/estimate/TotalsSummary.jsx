@@ -12,7 +12,7 @@ export default function TotalsSummary({ est, totals, saving, onSave, onOpenQuote
         <Stat label={`Tax (${est.tax_enabled ? est.tax_rate : 0}%)`} val={fmt(totals.tax)} />
         <Stat label="Labor" val={fmt(totals.subLab)} />
         <Stat label="Base Cost" val={fmt(totals.base)} bold />
-        <Stat label={`Sell (${est.margin_pct}%)`} val={fmt(totals.sell)} orange />
+        <Stat label={`Sell (${est.margin_pct}% ${est.pricing_mode === "markup" ? "markup" : "margin"})`} val={fmt(totals.sell)} orange />
       </div>
       <div className="flex flex-wrap gap-3">
         <button className="btn-primary" onClick={onSave} disabled={saving} data-testid="save-btn">

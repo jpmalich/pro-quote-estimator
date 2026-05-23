@@ -54,7 +54,15 @@ export default function Dashboard() {
     const wasted = subMat * (1 + (e.waste_pct || 0) / 100);
     const tax = e.tax_enabled ? wasted * ((e.tax_rate || 0) / 100) : 0;
     const base = wasted + tax + subLab;
-    const sell = base * (1 + (e.margin_pct || 0) / 100);
+    const pct = (e.margin_pct || 0) / 100;
+    const mode = e.pricing_mode || "markup";
+    let sell;
+    if (mode === "margin") {
+      const denom = 1 - Math.min(pct, 0.99);
+      sell = denom > 0 ? base / denom : base;
+    } else {
+      sell = base * (1 + pct);
+    }
     return { base, sell };
   };
 

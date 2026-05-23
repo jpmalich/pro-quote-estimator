@@ -55,6 +55,7 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - **Iter 4** — Per-company uploadable logo via Team page
 - **Iter 5** — **Supplier-distributed pivot**: public branding endpoint, signup-code gating, Alside Pittsburgh dealer prices seeded, /branding-admin route, quote footer toggle, 45/45 tests pass
 - **Iter 6** — **4-Tier Material Pricing Architecture** (Feb 2026): 4 supplier-controlled tiers seeded (`one-opp`, `whole-sale`, `Contractor`, `Builder-Dealer`). Material prices locked at backend (PUT /api/catalog strips `mat`) AND at UI (Catalog inputs disabled, EstimateEditor renders mat as static text). Labor remains contractor-editable with orange override + reset. Admin can assign tier per-company via /branding-admin → PUT /api/admin/companies/{id}/tier. 23/23 new pytest tests pass; Playwright validated Catalog tier badge + locked material + BrandingAdmin tier dropdown.
+- **Iter 7** — **Margin / Markup toggle on every estimate** (Feb 2026): contractors pick "Margin" (sell = base ÷ (1 − pct)) or "Markup" (sell = base × (1 + pct)) per estimate via a toggle in the Profit settings card. New estimates default to `margin`. Legacy estimates backfilled to `markup` on startup so their historic sell prices are preserved. Live formula preview shows the effective multiplier (e.g. "×1.429" at 30% margin vs "×1.300" at 30% markup). CSV exports include the mode + percent. Verified via curl: $1500 base @ 30% → $2142.86 margin, $1950.00 markup.
 
 ## Configuration (`backend/.env`)
 - `SUPPLIER_NAME=Alside Supply`

@@ -103,6 +103,7 @@ export default function useEstimate(id) {
         tax_enabled: !!est.tax_enabled,
         tax_rate: est.tax_rate || 0,
         margin_pct: est.margin_pct || 0,
+        pricing_mode: est.pricing_mode || "margin",
         lines: est.lines.filter((l) => (l.qty || 0) > 0),
         misc_labor: est.misc_labor || [],
         misc_material: est.misc_material || [],

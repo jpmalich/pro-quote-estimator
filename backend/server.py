@@ -179,6 +179,7 @@ class EstimateIn(BaseModel):
     tax_enabled: bool = True
     tax_rate: float = 7.0
     margin_pct: float = 30.0
+    pricing_mode: str = "margin"  # "margin" => sell = base / (1 - pct/100); "markup" => sell = base * (1 + pct/100)
     lines: List[EstimateLine] = []
     misc_labor: List[MiscLine] = []
     misc_material: List[MiscLine] = []
@@ -649,7 +650,15 @@ def _calc_totals(est: dict) -> dict:
     wasted = sub_mat * (1 + (est.get("waste_pct", 0) or 0) / 100)
     tax = wasted * ((est.get("tax_rate", 0) or 0) / 100) if est.get("tax_enabled") else 0
     base = wasted + tax + sub_lab
-    sell = base * (1 + (est.get("margin_pct", 0) or 0) / 100)
+    pct = (est.get("margin_pct", 0) or 0) / 100
+    # Legacy estimates without pricing_mode were created under the old markup behavior.
+    mode = est.get("pricing_mode") or "markup"
+    if mode == "margin":
+        # True margin: cap at 99% to avoid divide-by-zero / negative denominator.
+        denom = 1 - min(pct, 0.99)
+        sell = base / denom if denom > 0 else base
+    else:
+        sell = base * (1 + pct)
     profit = sell - base
     return {"sub_mat": sub_mat, "sub_lab": sub_lab, "wasted": wasted, "tax": tax, "base": base, "sell": sell, "profit": profit}
 
@@ -662,7 +671,7 @@ async def export_estimates_csv(user: dict = Depends(get_current_user)):
     writer = csv.writer(buf)
     writer.writerow([
         "Estimate #", "Customer", "Address", "Date", "Estimator",
-        "Material", "Labor", "Tax", "Base", "Margin %", "Sell Price", "Profit",
+        "Material", "Labor", "Tax", "Base", "Pricing Mode", "Margin/Markup %", "Sell Price", "Profit",
         "Created By", "Updated At",
     ])
     for e in estimates:
@@ -671,7 +680,8 @@ async def export_estimates_csv(user: dict = Depends(get_current_user)):
             e.get("estimate_number", ""), e.get("customer_name", ""),
             e.get("address", ""), e.get("estimate_date", ""), e.get("estimator", ""),
             f"{t['sub_mat']:.2f}", f"{t['sub_lab']:.2f}", f"{t['tax']:.2f}",
-            f"{t['base']:.2f}", e.get("margin_pct", 0), f"{t['sell']:.2f}", f"{t['profit']:.2f}",
+            f"{t['base']:.2f}", e.get("pricing_mode") or "markup", e.get("margin_pct", 0),
+            f"{t['sell']:.2f}", f"{t['profit']:.2f}",
             e.get("created_by_name", ""), e.get("updated_at", ""),
         ])
     buf.seek(0)
@@ -701,7 +711,8 @@ async def export_estimate_csv(est_id: str, user: dict = Depends(get_current_user
         ("Waste %", est.get("waste_pct", 0)),
         ("Tax Enabled", est.get("tax_enabled", True)),
         ("Tax Rate %", est.get("tax_rate", 0)),
-        ("Margin %", est.get("margin_pct", 0)),
+        ("Pricing Mode", est.get("pricing_mode") or "markup"),
+        ("Margin/Markup %", est.get("margin_pct", 0)),
     ]:
         writer.writerow([k, v])
     writer.writerow([])
@@ -900,6 +911,13 @@ async def on_start():
             {"price_tier_id": {"$exists": False}},
             {"$set": {"price_tier_id": default_tier_id}},
         )
+
+    # Backfill pricing_mode on legacy estimates to "markup" (preserves their existing
+    # sell prices; new estimates default to "margin" via EstimateIn.pricing_mode).
+    await db.estimates.update_many(
+        {"pricing_mode": {"$exists": False}},
+        {"$set": {"pricing_mode": "markup"}},
+    )
 
     if not SUPPLIER_ADMIN_TOKEN:
         logger.warning(
