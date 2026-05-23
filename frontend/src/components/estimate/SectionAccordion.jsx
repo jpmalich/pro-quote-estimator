@@ -16,6 +16,8 @@ export default function SectionAccordion({
   isOpen,
   onToggle,
   onQty,
+  onField,
+  onResetLine,
   est,
   update,
 }) {
@@ -75,6 +77,7 @@ export default function SectionAccordion({
           </div>
           {lines.map((l) => {
             const total = (l.qty || 0) * ((l.mat || 0) + (l.lab || 0));
+            const labOverridden = l.defaultLab != null && Number(l.lab) !== Number(l.defaultLab);
             return (
               <div
                 key={l.name}
@@ -100,8 +103,29 @@ export default function SectionAccordion({
                     data-testid={`qty-${section.title}-${l.name}`}
                   />
                 </div>
-                <div className="col-span-6 md:col-span-1 text-right text-sm font-mono-num text-[#52525B]">
-                  {fmt(l.lab)}
+                <div className="col-span-6 md:col-span-1 relative">
+                  <input
+                    className={`input num h-10 sm:h-9 ${labOverridden ? "border-[#F97316] bg-orange-50" : ""}`}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.25"
+                    min="0"
+                    value={l.lab ?? 0}
+                    onChange={(e) => onField(l.section, l.name, "lab", e.target.value)}
+                    title={labOverridden ? `Catalog default: $${l.defaultLab}` : ""}
+                    data-testid={`lab-${section.title}-${l.name}`}
+                  />
+                  {labOverridden && (
+                    <button
+                      type="button"
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#F97316] text-white text-[10px] leading-none flex items-center justify-center"
+                      onClick={() => onResetLine(l.section, l.name)}
+                      title={`Reset to catalog default ($${l.defaultLab})`}
+                      data-testid={`reset-lab-${section.title}-${l.name}`}
+                    >
+                      ↺
+                    </button>
+                  )}
                 </div>
                 <div className="col-span-12 md:col-span-2 text-right font-mono-num text-sm font-semibold text-[#09090B]">
                   {fmt(total)}

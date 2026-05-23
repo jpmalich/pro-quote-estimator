@@ -152,7 +152,7 @@ class TestCatalogPerCompany:
         # B should still have default
         b = company_b_owner.get(f"{API}/catalog").json()
         # iteration-5: default catalog reseeded with Alside Pittsburgh dealer prices
-        assert b["sections"][0]["items"][0]["mat"] == 75.71
+        assert b["sections"][0]["items"][0]["mat"] == 92.19
 
         # A should have the edited value
         a2 = company_a_owner.get(f"{API}/catalog").json()

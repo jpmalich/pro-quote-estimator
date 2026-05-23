@@ -140,19 +140,19 @@ class TestAlsideDefaultCatalog:
         sections = cat.get("sections", [])
         assert len(sections) > 0, "catalog has no sections"
         first = sections[0]
-        assert first["title"] == "Vinyl Siding"
+        assert first["title"] == "Install Vinyl Siding"
         assert first["items"], "first section has no items"
         first_item = first["items"][0]
-        assert first_item["name"] == 'Conquest Dutchlap & Double 4.5" Siding .040'
+        assert first_item["name"] == "Conquest"
         assert first_item["unit"] == "SQ"
-        assert abs(first_item["mat"] - 75.71) < 1e-6
-        assert first_item["lab"] == 0
+        assert abs(first_item["mat"] - 92.19) < 1e-6
+        assert first_item["lab"] == 125
 
     def test_default_catalog_has_ascend_section(self, new_owner):
         cat = new_owner["session"].get(f"{API}/catalog").json()
         ascend = [s for s in cat["sections"] if s.get("ascend") is True]
         assert ascend, "no ASCEND section flagged"
-        assert ascend[0]["title"] == "ASCEND Composite Cladding"
+        assert ascend[0]["title"] == "Ascend Accessories"
 
 
 # --------------------------------------------------------------------------- #
@@ -304,8 +304,8 @@ class TestRegressionIteration3:
             "tax_rate": 7,
             "margin_pct": 30,
             "lines": [
-                {"section": "Vinyl Siding", "name": "Conquest", "unit": "SQ",
-                 "qty": 10, "mat": 75.71, "lab": 50},
+                {"section": "Install Vinyl Siding", "name": "Conquest", "unit": "SQ",
+                 "qty": 10, "mat": 92.19, "lab": 125},
             ],
             "misc_labor": [],
             "misc_material": [],

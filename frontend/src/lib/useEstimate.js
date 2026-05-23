@@ -18,21 +18,26 @@ export default function useEstimate(id) {
           api.get(`/email/status`),
         ]);
         if (cancelled) return;
+        // Preserve any per-line overrides (qty, lab, mat) that were saved on this estimate
         const savedByKey = {};
         (e.data.lines || []).forEach((l) => {
-          savedByKey[`${l.section}::${l.name}`] = l.qty;
+          savedByKey[`${l.section}::${l.name}`] = l;
         });
         const merged = [];
         c.data.sections.forEach((s) =>
           s.items.forEach((it) => {
             const key = `${s.title}::${it.name}`;
+            const saved = savedByKey[key];
             merged.push({
               section: s.title,
               name: it.name,
               unit: it.unit,
-              mat: it.mat,
-              lab: it.lab,
-              qty: savedByKey[key] || 0,
+              mat: saved && saved.mat != null ? saved.mat : it.mat,
+              lab: saved && saved.lab != null ? saved.lab : it.lab,
+              qty: saved ? saved.qty || 0 : 0,
+              // Catalog defaults — used to flag overrides in the UI
+              defaultMat: it.mat,
+              defaultLab: it.lab,
             });
           })
         );
@@ -60,6 +65,26 @@ export default function useEstimate(id) {
       ...e,
       lines: e.lines.map((l) =>
         l.section === section && l.name === name ? { ...l, qty: Number(qty) || 0 } : l
+      ),
+    }));
+  }, []);
+
+  const updateLineField = useCallback((section, name, field, value) => {
+    setEst((e) => ({
+      ...e,
+      lines: e.lines.map((l) =>
+        l.section === section && l.name === name ? { ...l, [field]: Number(value) || 0 } : l
+      ),
+    }));
+  }, []);
+
+  const resetLineToDefault = useCallback((section, name) => {
+    setEst((e) => ({
+      ...e,
+      lines: e.lines.map((l) =>
+        l.section === section && l.name === name
+          ? { ...l, mat: l.defaultMat, lab: l.defaultLab }
+          : l
       ),
     }));
   }, []);
@@ -92,5 +117,5 @@ export default function useEstimate(id) {
     }
   }, [est, id]);
 
-  return { est, catalog, loading, emailStatus, update, updateLineQty, save };
+  return { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, save };
 }

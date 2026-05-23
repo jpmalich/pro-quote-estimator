@@ -2,6 +2,10 @@
 
 > **Main agent: read this file at the start of every session and surface these to the user when relevant.**
 
+## ✅ Completed this session
+- Per-customer labor overrides on every line item (with orange highlight + ↺ reset button when overridden)
+- Default catalog reverted to Wolf and Son sheet (material + reasonable labor defaults baked in)
+
 ## Pending from previous session(s)
 
 ### From iteration-5 wrap-up (Alside Supply pivot)

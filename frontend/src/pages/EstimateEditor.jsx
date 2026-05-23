@@ -16,7 +16,7 @@ import QuoteModal from "@/components/QuoteModal";
 export default function EstimateEditor() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { est, catalog, loading, emailStatus, update, updateLineQty, save } = useEstimate(id);
+  const { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, save } = useEstimate(id);
   const [openSections, setOpenSections] = useState({});
   const [saving, setSaving] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
@@ -83,6 +83,8 @@ export default function EstimateEditor() {
             isOpen={!!openSections[s.title]}
             onToggle={() => setOpenSections((o) => ({ ...o, [s.title]: !o[s.title] }))}
             onQty={updateLineQty}
+            onField={updateLineField}
+            onResetLine={resetLineToDefault}
             est={est}
             update={update}
           />
