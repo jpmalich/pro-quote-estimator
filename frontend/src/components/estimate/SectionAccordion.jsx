@@ -31,7 +31,10 @@ export default function SectionAccordion({
   const filledCount = lines.filter((l) => (l.qty || 0) > 0).length + miscRows.length;
 
   const addMisc = () => {
-    update({ [miscKey]: [...miscRows, { desc: "", mat: 0, lab: 0 }] });
+    const newRow = isMiscMat
+      ? { _id: crypto.randomUUID(), desc: "", mat: 0, lab: 0 }
+      : { _id: crypto.randomUUID(), desc: "", lab: 0 };
+    update({ [miscKey]: [...miscRows, newRow] });
   };
   const updateMisc = (idx, key, val) => {
     const next = miscRows.map((r, i) =>
@@ -122,7 +125,7 @@ export default function SectionAccordion({
                 const rowTotal = (r.mat || 0) + (r.lab || 0);
                 return (
                   <div
-                    key={i}
+                    key={r._id || i}
                     className="grid grid-cols-12 gap-3 px-5 py-2 border-b border-[#E4E4E7] items-center bg-[#FAFAFA]"
                     data-testid={`misc-row-${section.title}-${i}`}
                   >

@@ -61,7 +61,7 @@ export default function EstimateEditor() {
       a.href = url;
       a.download = `estimate_${est.estimate_number || id}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       toast.error(formatApiError(e.response?.data?.detail));
     }
