@@ -739,6 +739,18 @@ async def on_start():
         {"$set": {"company_id": admin_company["id"]}},
     )
 
+    # Backfill quote_footer_enabled on legacy companies so GET /api/company is uniform
+    await db.companies.update_many(
+        {"quote_footer_enabled": {"$exists": False}},
+        {"$set": {"quote_footer_enabled": True}},
+    )
+
+    if not SUPPLIER_ADMIN_TOKEN:
+        logger.warning(
+            "SUPPLIER_ADMIN_TOKEN is not set — /api/admin/* endpoints will reject all requests. "
+            "Set it in backend/.env to enable the /branding-admin page."
+        )
+
 
 @app.on_event("shutdown")
 async def shutdown():

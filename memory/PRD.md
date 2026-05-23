@@ -1,87 +1,83 @@
-# Vinyl Siding Estimator — PRD
+# Siding Estimator — PRD (Alside Supply Edition)
 
-## Original Problem
-User uploaded a self-contained HTML "Vinyl Siding Estimator" used by Wolf and Son Renovations LLC and asked: "what do i need to do with the attached html to make it an app". Selected: installable PWA + Web app (React/FastAPI/MongoDB), persistence + saved estimate list, multi-user JWT login, edit catalog from UI, photo uploads (local disk), email quote via Resend, modernize design.
+## Original Problem & Pivot
+User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it into an app. After initial build, user revealed they work for **Alside Supply** and intend to distribute this tool to their contractor customers as a value-add. Architecture pivoted to a **supplier-distributed B2B SaaS**:
+
+- **Supplier (Alside Supply / Howard Hunt)** = the platform owner. Provides the app, sets branding, controls signup, ships product catalog.
+- **Contractors** = end users. Get an access code from Alside, register their company, upload their own logo, build estimates for homeowners.
+- **Homeowners** = see the contractor's branded quote with an optional "Materials supplied by Alside Supply" footer.
 
 ## Architecture
-- **Backend**: FastAPI + MongoDB (motor), bcrypt + PyJWT cookie auth (httpOnly, secure, samesite=none), Resend SDK lazy-loaded for email, multi-tenant via `Company` model
-- **Frontend**: React 19 + react-router-dom v7 + Tailwind + sonner + lucide-react, installable PWA, Archivo + JetBrains Mono fonts, Swiss/Industrial brutalist design (stark white + safety-orange + black)
-- **Tenancy model**: `User → Company (1:N)` → `Catalog (1:1 per company)` + `Estimates (1:N per company)`. Catalog seeded with the 60+ items from the original HTML on company creation. Users join by invite code or create a new company on register.
-- **Storage**: MongoDB collections `users`, `companies`, `catalogs`, `estimates`. Photos on disk under `/app/backend/uploads/`, served via `/api/uploads/{name}`.
-- **Routing**: All backend endpoints under `/api`; frontend uses `${REACT_APP_BACKEND_URL}/api`.
+- **Backend**: FastAPI + MongoDB. JWT cookie auth (httpOnly, secure, samesite=none). Multi-tenant per Company. Resend for email. Branding stored in `settings` singleton.
+- **Frontend**: React 19 + react-router + Tailwind + sonner + lucide. Installable PWA. `BrandingProvider` (public) + `CompanyProvider` (auth'd) share state.
+- **Routing**: `/api/branding` public · `/api/admin/*` token-gated · everything else cookie-auth.
 
-## User Personas
-- **Contractor / Estimator** (primary): on a phone/tablet at jobsite typing quantities; live Sell Price & Profit always visible; emails quote to homeowner
-- **Owner / Admin**: edits price catalog, invites teammates, exports CSV for accounting
-- **Teammate**: joins existing company via invite code, sees shared catalog + estimates
+## Personas
+- **Howard Hunt / Alside sales team** — visits `/branding-admin?token=XXX` to update supplier logo, name, tagline; hands out the contractor access code via email/sales calls.
+- **Contractor owner** — registers with access code → uploads own logo → builds estimates → emails quotes to homeowners.
+- **Contractor estimator** (teammate) — joins owner's company via 8-char invite code → shares catalog + estimates.
+- **Homeowner** — receives a branded quote with optional "Materials supplied by Alside Supply" footer.
 
 ## Core Requirements
-1. Multi-user JWT email/password authentication
-2. Multi-tenant: each user belongs to a Company; catalog & estimates scoped to company
-3. Editable per-company price catalog seeded with the 60+ items from original HTML
-4. Live recalculation: Base, Sell Price, Profit update on every keystroke
-5. Customer-facing printable + emailable quote (via Resend)
-6. Photo uploads attached to a job
-7. Installable PWA (mobile-first, sticky totals bar)
-8. CSV export — dashboard summary + per-estimate detail
-9. Ad-hoc "misc line" rows for the two Misc sections (matching original HTML)
-
-## Implemented (2026-05-23)
-### Iteration 1 — MVP build
-- Auth (register/login/logout/me), httpOnly cookies, admin seed
-- Estimates CRUD, catalog seed (60+ items), photo uploads, email stub
-- Modern Swiss/Industrial UI, PWA manifest + service worker
-- **Backend 17/17 tests passed**
-
-### Iteration 2 — E2E hardening
-- Frontend E2E coverage of every flow
-- CORS tightened to explicit origins; logout cookie clearing fixed
-- **Frontend 16/16 scenarios passed**
-
-### Iteration 4 — Branding
-- **Uploadable company logo**: `PUT /api/company` accepts `{name?, logo_url?}`. Team page has Logo panel with preview + Upload/Replace/Remove. Logo renders in the top nav and on the printable customer-quote header via shared `CompanyContext` + `<CompanyLogo>` component (falls back to the company-name initial when no logo set).
-- Rename company also exposed on the Team page.
-- **Resend email** wired with real API key — quote send works end-to-end
-- **Multi-tenant Companies**: `/api/auth/register` accepts `company_name` (creates) OR `invite_code` (joins); `/api/company` returns invite code; catalogs + estimates auto-scoped via `company_id`
-- **Ad-hoc misc lines** in "Misc. Labor Only" (lab only) and "Misc. Labor & Material" (mat + lab) sections, persisted via `misc_labor` and `misc_material` arrays
-- **CSV export**: `/api/exports/estimates.csv` (all) + `/api/exports/estimates/{id}.csv` (detailed) with Save/Print/Quote/Export buttons
-- **EstimateEditor refactor**: extracted `useEstimate` hook + 6 sub-components (StickyBar / JobInfoPanel / SettingsRow / PhotosPanel / SectionAccordion / TotalsSummary) + `calc.js` util
-- **Team page** showing company name + invite code with copy-to-clipboard
-- Stable `_id` keys on misc rows; blob URL revoke race fix on CSV downloads
-- **Backend 21/21 tests passed**, **Frontend 95% (no app bugs, only Playwright click flake)**
+1. **Invite-only signup** — new companies require `SIGNUP_CODE` (rotatable from `.env`)
+2. **Default catalog pre-loaded with Alside Pittsburgh dealer prices** (60+ SKUs from the 2026 5-11 price sheet)
+3. **Per-company logo + name + catalog** (each contractor brands their own quotes)
+4. **Multi-user companies** — owner can invite teammates via 8-char invite code
+5. **Per-company "Powered by Alside Supply" footer toggle** on customer quotes
+6. **Hidden supplier-admin URL** (`/branding-admin?token=...`) for Alside to manage their own branding
+7. **Quote email via Resend** (configured)
+8. **CSV exports** (dashboard summary + per-estimate)
+9. **Installable PWA** with mobile-first sticky totals bar
 
 ## Live Endpoints
-### Auth
-- `POST /api/auth/register` `{email, password, name?, company_name?, invite_code?}`
-- `POST /api/auth/login` `{email, password}` — sets httpOnly cookie
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
+### Public
+- `GET /api/branding` — supplier name, tagline, logo (used on Login page)
 
-### Company / Catalog / Estimates
-- `GET /api/company`
+### Supplier Admin (token gated via `X-Admin-Token` header OR `?token=`)
+- `GET /api/admin/signup-code`
+- `PUT /api/admin/branding` `{supplier_name?, supplier_tagline?, supplier_logo_url?}`
+- `POST /api/admin/upload-logo` multipart `file`
+
+### Contractor (cookie auth)
+- `POST /api/auth/register` `{email, password, name?, company_name?, invite_code?, signup_code?}` — needs `signup_code` to create a new company OR `invite_code` to join one
+- `POST /api/auth/login` / `logout` / `GET /me`
+- `GET /api/company` · `PUT /api/company` `{name?, logo_url?, quote_footer_enabled?}`
 - `GET|PUT /api/catalog` · `POST /api/catalog/reset`
 - `GET|POST /api/estimates` · `GET|PUT|DELETE /api/estimates/{id}`
-
-### Files / Email / Exports
-- `POST /api/uploads` (multipart) · `GET /api/uploads/{name}`
+- `POST /api/uploads` · `GET /api/uploads/{name}`
 - `GET /api/email/status` · `POST /api/estimates/{id}/email`
 - `GET /api/exports/estimates.csv` · `GET /api/exports/estimates/{id}.csv`
 
-## Prioritized Backlog
+## Implementation Timeline
+- **Iter 1** — MVP build, 17/17 backend tests
+- **Iter 2** — Frontend E2E hardening, 16/16 scenarios
+- **Iter 3** — Multi-tenant companies, ad-hoc misc lines, CSV exports, Resend live, EstimateEditor refactor, 21/21 tests
+- **Iter 4** — Per-company uploadable logo via Team page
+- **Iter 5** — **Supplier-distributed pivot**: public branding endpoint, signup-code gating, Alside Pittsburgh dealer prices seeded, /branding-admin route, quote footer toggle, 45/45 tests pass
+
+## Configuration (`backend/.env`)
+- `SUPPLIER_NAME=Alside Supply`
+- `SUPPLIER_TAGLINE=Howard Hunt · Territory Sales Manager · (724) 640-4333`
+- `SIGNUP_CODE=ALSIDE-JR47Q8`     ← rotate this whenever you want
+- `SUPPLIER_ADMIN_TOKEN=OXSp1EX...` ← used in `/branding-admin?token=...`
+- `RESEND_API_KEY=re_15w1DRpa...`
+- `ADMIN_EMAIL=admin@wolfandson.com` / `ADMIN_PASSWORD=Admin123!`
+
+## Backlog
 ### P1
-- [ ] PWA app icons designed (currently programmatic placeholder)
-- [ ] Internal PDF export (server-side render so it's identical across browsers)
-- [ ] Estimate duplicate / template
+- Real PWA app icons (still programmatic placeholder)
+- Server-side PDF rendering of customer quote (perfectly identical output across browsers)
+- "Sync to latest supplier catalog" admin action to push price updates to opt-in companies
 
 ### P2
-- [ ] Role-based catalog edit (only owners/admins)
-- [ ] Customer / contact directory
-- [ ] Lead-source field + simple "$ profit closed by channel" dashboard
-- [ ] Estimate status workflow (draft → sent → won/lost)
-- [ ] Quote signature & e-sign capture
-- [ ] Cloudinary swap for photo storage (CDN delivery)
+- Role-based catalog editing (owner-only)
+- Customer / contact directory + e-sign capture
+- Quote status workflow (draft → sent → won/lost)
+- Cloudinary photo CDN
+- Stripe billing if Alside ever monetizes the tool
+- Lead-source field + "$ profit closed by channel" dashboard (contractor analytics)
 
 ### Nice-to-haves
-- [ ] Migrate `@app.on_event` to lifespan context manager (deprecation warning)
-- [ ] MIME validation on uploads (currently extension-only)
-- [ ] Per-row stable id + collision-retry on invite_code creation
+- Reject unsupported MIME on logo uploads with 415 instead of silently coercing
+- `hmac.compare_digest` for admin token check
+- Migrate deprecated `@app.on_event` → lifespan
