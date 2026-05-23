@@ -8,9 +8,15 @@ import requests
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@wolfandson.com"
-ADMIN_PASSWORD = "Admin123!"
-SIGNUP_CODE = "ALSIDE-JR47Q8"  # iteration-5 invite-only gating
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "admin@wolfandson.com")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
+SIGNUP_CODE = os.environ.get("TEST_SIGNUP_CODE") or os.environ.get("SIGNUP_CODE", "")
+
+if not SIGNUP_CODE:
+    pytest.skip(
+        "SIGNUP_CODE not set — export SIGNUP_CODE (or TEST_SIGNUP_CODE) before running.",
+        allow_module_level=True,
+    )
 
 
 # ---------------- Fixtures ----------------

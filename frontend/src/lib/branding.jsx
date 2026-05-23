@@ -15,8 +15,10 @@ export function BrandingProvider({ children }) {
       try {
         const { data } = await api.get("/branding");
         setBranding(data);
-      } catch {
-        // Fall back to defaults
+      } catch (e) {
+        // Public endpoint should always be reachable; log so misconfig is visible
+        // eslint-disable-next-line no-console
+        console.warn("Failed to load /api/branding — using defaults", e);
       }
     })();
   }, []);

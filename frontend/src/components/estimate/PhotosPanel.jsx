@@ -39,8 +39,10 @@ export default function PhotosPanel({ est, update }) {
         {(est.photos || []).length === 0 && (
           <div className="col-span-full text-sm text-[#A1A1AA] py-4">No photos yet.</div>
         )}
-        {(est.photos || []).map((p, i) => (
-          <div key={i} className="relative aspect-square bg-[#FAFAFA] border border-[#E4E4E7]">
+        {(est.photos || []).map((p) => {
+          const i = est.photos.indexOf(p);
+          return (
+          <div key={`${p}-${i}`} className="relative aspect-square bg-[#FAFAFA] border border-[#E4E4E7]">
             <img
               src={`${process.env.REACT_APP_BACKEND_URL}${p}`}
               alt=""
@@ -54,7 +56,8 @@ export default function PhotosPanel({ est, update }) {
               <X className="w-3 h-3" />
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

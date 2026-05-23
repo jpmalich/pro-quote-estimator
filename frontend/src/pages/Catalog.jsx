@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import api, { fmt, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Save, RotateCcw, Plus, Trash2 } from "lucide-react";
@@ -8,20 +8,25 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/catalog");
-      setSections(data.sections || []);
+      // Tag each item with a stable client-side id so list keys survive reorder/remove
+      const tagged = (data.sections || []).map((s) => ({
+        ...s,
+        items: (s.items || []).map((it) => ({ ...it, _uid: crypto.randomUUID() })),
+      }));
+      setSections(tagged);
     } catch (e) {
       toast.error(formatApiError(e.response?.data?.detail));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const updateItem = (si, ii, key, val) => {
     setSections((arr) => {
@@ -33,7 +38,7 @@ export default function Catalog() {
   const addItem = (si) => {
     setSections((arr) => {
       const next = JSON.parse(JSON.stringify(arr));
-      next[si].items.push({ name: "New item", unit: "Each", mat: 0, lab: 0 });
+      next[si].items.push({ _uid: crypto.randomUUID(), name: "New item", unit: "Each", mat: 0, lab: 0 });
       return next;
     });
   };
@@ -86,8 +91,10 @@ export default function Catalog() {
       </div>
 
       <div className="space-y-8">
-        {sections.map((s, si) => (
-          <div key={si} className="card">
+        {sections.map((s) => {
+          const si = sections.indexOf(s);
+          return (
+            <div key={s.title} className="card">
             <div className="flex items-center justify-between px-5 py-3 border-b border-[#E4E4E7]">
               <div className="section-tag">{s.title}</div>
               <button className="btn-ghost" onClick={() => addItem(si)} data-testid={`add-item-${si}`}>
@@ -101,8 +108,10 @@ export default function Catalog() {
               <div className="col-span-2 text-right">Labor</div>
               <div className="col-span-1"></div>
             </div>
-            {s.items.map((it, ii) => (
-              <div key={ii} className="grid grid-cols-12 gap-3 px-5 py-2 border-b border-[#E4E4E7] items-center">
+            {s.items.map((it) => {
+              const ii = s.items.indexOf(it);
+              return (
+              <div key={it._uid || `${s.title}-${ii}`} className="grid grid-cols-12 gap-3 px-5 py-2 border-b border-[#E4E4E7] items-center">
                 <input
                   className="input col-span-12 md:col-span-5"
                   value={it.name}
@@ -135,9 +144,11 @@ export default function Catalog() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
-        ))}
+          );
+        })}
       </div>
     </main>
   );

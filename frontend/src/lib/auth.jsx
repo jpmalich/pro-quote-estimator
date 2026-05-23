@@ -49,7 +49,11 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch {}
+    } catch (e) {
+      // Server-side logout best-effort; clear local state regardless
+      // eslint-disable-next-line no-console
+      console.warn("Logout call failed; clearing local session anyway", e);
+    }
     setUser(false);
   };
 

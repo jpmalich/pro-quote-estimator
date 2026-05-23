@@ -24,10 +24,17 @@ BASE_URL = os.environ.get(
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@wolfandson.com"
-ADMIN_PASSWORD = "Admin123!"
-SIGNUP_CODE = "ALSIDE-JR47Q8"
-ADMIN_TOKEN = "OXSp1EXqp1rPLsQfeEoZyDbFCLZ3D6B2D55HyO1LFoE"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "admin@wolfandson.com")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Admin123!")
+SIGNUP_CODE = os.environ.get("TEST_SIGNUP_CODE") or os.environ.get("SIGNUP_CODE", "")
+ADMIN_TOKEN = os.environ.get("TEST_ADMIN_TOKEN") or os.environ.get("SUPPLIER_ADMIN_TOKEN", "")
+
+if not SIGNUP_CODE or not ADMIN_TOKEN:
+    pytest.skip(
+        "Test secrets missing: export SIGNUP_CODE and SUPPLIER_ADMIN_TOKEN "
+        "(or TEST_SIGNUP_CODE / TEST_ADMIN_TOKEN) before running.",
+        allow_module_level=True,
+    )
 
 # --------------------------------------------------------------------------- #
 # Fixtures

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { fmt, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ export default function Dashboard() {
   const [q, setQ] = useState("");
   const nav = useNavigate();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/estimates");
@@ -20,10 +20,10 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const createEstimate = async () => {
     try {

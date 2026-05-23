@@ -144,7 +144,7 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
               <div className="grid grid-cols-3 gap-3">
                 {estimate.photos.map((p, i) => (
                   <img
-                    key={i}
+                    key={`${p}-${i}`}
                     src={`${process.env.REACT_APP_BACKEND_URL}${p}`}
                     alt=""
                     className="aspect-square object-cover border border-[#E4E4E7]"
