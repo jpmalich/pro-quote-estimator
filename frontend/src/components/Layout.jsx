@@ -25,8 +25,8 @@ export default function Layout() {
           <Link to="/" className="flex items-center gap-3" data-testid="brand-link">
             <CompanyLogo company={company} size={36} testid="nav-logo" />
             <div className="leading-tight">
-              <div className="font-heading text-base text-[#09090B]">
-                {company?.name || "Wolf & Son"}
+              <div className="font-heading text-base text-[#09090B]" style={{ minHeight: "1em" }}>
+                {company?.name || "\u00A0"}
               </div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA]">Estimator</div>
             </div>

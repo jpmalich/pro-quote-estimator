@@ -118,8 +118,8 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
             <div className="flex items-center gap-4">
               <CompanyLogo company={company} size={56} />
               <div>
-                <div className="font-heading text-2xl text-[#09090B]">
-                  {company?.name || "Wolf and Son"}
+                <div className="font-heading text-2xl text-[#09090B]" style={{ minHeight: "1em" }}>
+                  {company?.name || "\u00A0"}
                 </div>
                 <div className="text-xs uppercase tracking-[0.25em] text-[#52525B]">
                   Estimate · Quote
