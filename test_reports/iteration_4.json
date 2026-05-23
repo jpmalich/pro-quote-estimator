@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 4 frontend testing of multi-tenant company support, Team page, CSV exports, and ad-hoc misc-line UI. Core iteration-3 frontend features VERIFIED WORKING: register tabs (new company / join with code, uppercase + monospace invite input), Team page (company name + invite code + copy-to-clipboard with toast), Dashboard CSV export (network 200), Estimate Editor CSV export (network 200), Summary section now has 4 buttons (Save / Customer Quote / Print / Export CSV), Misc. Labor Only add-custom-line works (labor-only column, no material field), Misc. Labor & Material UI rendered, live sticky bar updates ($1,118 -> $1,168 after adding $50 labor), save returns 200 and misc rows persist across reload (verified via post-reload '1 items / $50.00' badge on Misc. Labor Only section), customer quote modal opens, logout works, qty input live recalculates.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "EstimateEditor — SectionAccordion misc rows", "issues": ["Misc-row remove button (btn-danger) is placed in the same grid as the inputs but uses `col-span-1 justify-self-end` after a `col-span-3 md:col-span-1` total cell. On narrow viewports the row total + remove may overflow or wrap inconsistently. Minor — not a blocker."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_estimator_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SectionAccordion.jsx — addMisc seeds {desc:'', mat:0, lab:0} even for Misc. Labor Only where mat is ignored. Harmless (backend stores it, CSV doesn't surface it for labor-only section), but slightly noisy in payloads. Consider omitting `mat` for the labor-only branch for cleanliness.",
+    "SectionAccordion.jsx — misc rows use `key={i}` (the array index). If a user deletes a middle row and quickly edits another, React may reuse DOM nodes incorrectly. Use a stable id (e.g. crypto.randomUUID() when adding) to avoid subtle input-focus loss when removing rows.",
+    "SectionAccordion.jsx — the dynamic Tailwind class strings `col-span-${isMiscMat ? 2 : 4}` rely on those exact class names being generated. Since the template is constant per-render and both possibilities are referenced literally elsewhere, Tailwind JIT will likely include them, but it's fragile. Prefer explicit conditional class strings.",
+    "Login.jsx — when `joinMode === 'create'` the `companyName` input is NOT marked `required`. A user can submit with both fields blank and rely on the backend default. Not a bug per se (backend supplies a default), but the UX intent is to require one.",
+    "Team.jsx — `navigator.clipboard.writeText` is not awaited and has no fallback for browsers that block clipboard access (e.g. when iframe not allowed). Consider try/catch + manual-select fallback.",
+    "Dashboard.jsx — Export CSV blob download uses `URL.createObjectURL` then immediately `revokeObjectURL` after `a.click()`. In some browsers (Safari) the click is async and revoke can race the download. Adding a small `setTimeout(()=>URL.revokeObjectURL(url), 1000)` is safer.",
+    "TotalsSummary.jsx — onExportCsv prop not type-checked; if parent forgets to pass it the button silently no-ops. Consider PropTypes or TS.",
+    "Layout.jsx — mobile nav at the bottom now has 3 links (Estimates/Catalog/Team) but no responsive squeeze for small phones; the labels stay text-only and OK."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not retested this iteration (iteration_3 covered 21/21)",
+    "frontend": "~95% — every requested user-visible behavior verified in-browser; only the automated Playwright accordion-toggle click is flaky, app itself works"
+  },
+  "test_credentials": "admin@wolfandson.com / Admin123! — works.",
+  "seed_data_creation": "Used existing admin's estimate (cca4b701-f7fc-4c4b-9e6e-e10c14a5351c). Added one misc_labor row 'Custom debris removal' $50 which now persists in MongoDB. Recommend cleanup if running regression — delete via admin UI or remove via the misc-remove button.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Playwright tip: the SectionAccordion toggle is a <button> wrapping a chevron + section-tag <span>. Using `page.get_by_text(title, exact=True).click()` lands on the inner span and does NOT bubble to the React onClick reliably. Instead, query the section by data-testid and click its first child button: `await page.locator('[data-testid=\"section-Misc. Labor Only\"] > button').first.click(force=True)`. If even that misses, fall back to `await page.evaluate(() => document.querySelector('[data-testid=\"section-Misc. Labor Only\"] > button').click())` which triggers the synthetic React event reliably. The data-testid attribute values contain dots and spaces (e.g. 'section-Misc. Labor Only'), which is fine inside attribute-selector quotes but does NOT work as a CSS class. Verified persistence via post-reload section-header badge ('1 items / $50.00') without needing to expand the accordion.",
+  "rca of the issue": "No app issues. The only test-side flakiness was the accordion toggle (Playwright click on text span vs React button onClick). Documented workaround above."
+}
