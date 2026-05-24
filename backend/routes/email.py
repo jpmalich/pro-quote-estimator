@@ -61,6 +61,11 @@ async def email_quote(est_id: str, body: EmailQuoteIn, user: dict = Depends(get_
             "reply_to": reply_to_email,
             "subject": body.subject or f"Your siding estimate from {company_name}",
             "html": body.html_quote,
+            # Tags let Resend's webhooks correlate open/click events back to this estimate.
+            "tags": [
+                {"name": "estimate_id", "value": est_id},
+                {"name": "company_id", "value": user["company_id"]},
+            ],
             "attachments": [
                 {
                     "filename": pdf_name,

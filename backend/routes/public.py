@@ -1,6 +1,7 @@
 """Public (no-auth) endpoints for customer-side actions:
 - GET /api/public/accept/{token}   — render the accept page data
 - POST /api/public/accept/{token}  — record acceptance + notify contractor
+- POST /api/public/resend-webhook  — receive Resend open/click events
 """
 import asyncio
 from datetime import datetime, timezone
