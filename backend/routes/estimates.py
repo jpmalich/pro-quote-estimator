@@ -47,6 +47,45 @@ async def create_estimate(body: EstimateIn, user: dict = Depends(get_current_use
     return doc
 
 
+@router.post("/estimates/{est_id}/duplicate")
+async def duplicate_estimate(est_id: str, user: dict = Depends(get_current_user)):
+    """Clone an existing estimate. Keeps line items, labor overrides, settings,
+    and pricing mode — but clears customer-specific fields and assigns a fresh
+    estimate number so the contractor can't accidentally email duplicates."""
+    src = await db.estimates.find_one(
+        {"id": est_id, "company_id": user["company_id"]}, {"_id": 0}
+    )
+    if not src:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    new_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    # Strip everything that's customer-specific or post-send state.
+    for key in (
+        "id", "_id",
+        "customer_name", "address",
+        "accept_token", "accepted_at", "accepted_ip", "accepted_note",
+        "last_sent_at", "recipient_email",
+    ):
+        src.pop(key, None)
+
+    src.update({
+        "id": new_id,
+        "company_id": user["company_id"],
+        "created_by": user["id"],
+        "created_by_name": user.get("name"),
+        "created_at": now,
+        "updated_at": now,
+        "estimate_number": f"EST-{int(__import__('time').time()) % 1_000_000:06d}",
+        "estimate_date": now[:10],
+        "status_label": "draft",
+        "notes": (src.get("notes") or ""),  # carry scope forward; contractor can edit
+    })
+    await db.estimates.insert_one(src)
+    src.pop("_id", None)
+    return src
+
+
 # ---------------------------------------------------------------------------
 # CSV Export — define BEFORE the /estimates/{est_id} param routes so the
 # literal "/exports/..." paths match first.

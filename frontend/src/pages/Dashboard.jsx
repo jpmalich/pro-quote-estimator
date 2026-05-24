@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { fmt, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
-import { Plus, Trash2, FileText, Search, Download } from "lucide-react";
+import { Plus, Trash2, FileText, Search, Download, Copy } from "lucide-react";
 
 export default function Dashboard() {
   const [items, setItems] = useState([]);
@@ -43,6 +43,16 @@ export default function Dashboard() {
     await api.delete(`/estimates/${id}`);
     setItems((x) => x.filter((e) => e.id !== id));
     toast.success("Estimate deleted");
+  };
+
+  const duplicate = async (id) => {
+    try {
+      const { data } = await api.post(`/estimates/${id}/duplicate`);
+      toast.success("Estimate duplicated — customer fields cleared");
+      nav(`/estimate/${data.id}`);
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail));
+    }
   };
 
   const calcTotals = (e) => {
@@ -178,7 +188,19 @@ export default function Dashboard() {
                 <div className="col-span-8 md:col-span-2 text-right font-mono-num text-lg font-bold text-[#09090B]">
                   {fmt(sell)}
                 </div>
-                <div className="col-span-4 md:col-span-1 text-right">
+                <div className="col-span-4 md:col-span-1 text-right flex items-center justify-end gap-1">
+                  <button
+                    className="btn-ghost"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      duplicate(e.id);
+                    }}
+                    aria-label="Duplicate"
+                    title="Duplicate this estimate"
+                    data-testid={`duplicate-${e.id}`}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
                   <button
                     className="btn-danger"
                     onClick={(ev) => {
