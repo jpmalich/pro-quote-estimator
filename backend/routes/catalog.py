@@ -152,3 +152,23 @@ async def admin_assign_tier(company_id: str, body: CompanyTierAssign, request: R
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Company not found")
     return await db.companies.find_one({"id": company_id}, {"_id": 0})
+
+
+@router.delete("/admin/companies/{company_id}")
+async def admin_delete_company(company_id: str, request: Request):
+    """Cascade-delete a contractor company along with everything it owns:
+    users, estimates, and the per-company catalog overrides doc."""
+    check_admin_token(request)
+    company = await db.companies.find_one({"id": company_id}, {"_id": 0, "id": 1, "name": 1})
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    estimates_deleted = (await db.estimates.delete_many({"company_id": company_id})).deleted_count
+    users_deleted = (await db.users.delete_many({"company_id": company_id})).deleted_count
+    await db.catalogs.delete_many({"company_id": company_id})
+    await db.companies.delete_one({"id": company_id})
+    return {
+        "ok": True,
+        "company_name": company["name"],
+        "estimates_deleted": estimates_deleted,
+        "users_deleted": users_deleted,
+    }

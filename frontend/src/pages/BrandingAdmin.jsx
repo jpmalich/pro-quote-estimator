@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Upload, Shield, Copy, ArrowLeft, Tags, Building2, Percent } from "lucide-react";
+import { Upload, Shield, Copy, ArrowLeft, Tags, Building2, Percent, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -475,6 +475,32 @@ function CompaniesPanel({ token }) {
     }
   };
 
+  const remove = async (company) => {
+    const typed = window.prompt(
+      `This will permanently delete "${company.name}", its ${company.estimate_count} estimate(s), and all of its team accounts.\n\n` +
+      `Type the company name exactly to confirm:`
+    );
+    if (typed === null) return; // user cancelled
+    if (typed.trim() !== company.name) {
+      toast.error("Name did not match. Nothing was deleted.");
+      return;
+    }
+    setBusy((b) => ({ ...b, [company.id]: true }));
+    try {
+      const { data } = await axios.delete(
+        `${API}/admin/companies/${company.id}?token=${encodeURIComponent(token)}`
+      );
+      toast.success(
+        `Deleted ${data.company_name} (${data.estimates_deleted} estimates, ${data.users_deleted} users)`
+      );
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message);
+    } finally {
+      setBusy((b) => ({ ...b, [company.id]: false }));
+    }
+  };
+
   return (
     <div className="card p-6 mt-6" data-testid="companies-panel">
       <div className="flex items-center gap-3 mb-4">
@@ -487,14 +513,15 @@ function CompaniesPanel({ token }) {
       </p>
       <div className="border border-[#E4E4E7] max-h-[500px] overflow-y-auto">
         <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold bg-[#FAFAFA] sticky top-0">
-          <div className="col-span-5">Company</div>
+          <div className="col-span-4">Company</div>
           <div className="col-span-3">Tier</div>
           <div className="col-span-2 text-right">Estimates</div>
           <div className="col-span-2 text-right">Created</div>
+          <div className="col-span-1 text-right">&nbsp;</div>
         </div>
         {companies.map((c) => (
           <div key={c.id} className="grid grid-cols-12 gap-3 px-3 py-2 border-t border-[#E4E4E7] items-center text-sm">
-            <div className="col-span-5">
+            <div className="col-span-4">
               <div className="font-semibold text-[#09090B]">{c.name}</div>
               <div className="text-[10px] text-[#A1A1AA] font-mono-num">{c.invite_code}</div>
             </div>
@@ -514,6 +541,18 @@ function CompaniesPanel({ token }) {
             <div className="col-span-2 text-right font-mono-num">{c.estimate_count}</div>
             <div className="col-span-2 text-right text-xs text-[#A1A1AA]">
               {new Date(c.created_at).toLocaleDateString()}
+            </div>
+            <div className="col-span-1 text-right">
+              <button
+                type="button"
+                onClick={() => remove(c)}
+                disabled={busy[c.id]}
+                className="p-1.5 text-[#A1A1AA] hover:text-[#DC2626] hover:bg-[#FEF2F2] rounded-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+                title={`Delete ${c.name}`}
+                data-testid={`delete-company-${c.id}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}
