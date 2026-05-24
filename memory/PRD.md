@@ -77,12 +77,19 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - `ADMIN_EMAIL=admin@wolfandson.com` / `ADMIN_PASSWORD=Admin123!`
 
 ## Backlog
+### P0 (next up)
+- **Stripe deposit on Accept page** — when a homeowner clicks "I accept", optionally route them to Stripe Checkout to lock in the job with a configurable deposit (Emergent test Stripe key already in pod env)
+- **Email Phase 4 — custom sending domain DNS** — BLOCKED on user finishing Resend DNS setup; once verified, update `SENDER_EMAIL` in `backend/.env`
+
 ### P1
+- Resend open + click tracking via webhook (`email.opened`, `email.clicked`) → show contractors which quotes are being viewed
 - Real PWA app icons (still programmatic placeholder)
-- Server-side PDF rendering of customer quote (perfectly identical output across browsers)
 - "Sync to latest supplier catalog" admin action to push price updates to opt-in companies
 
 ### P2
+- SKU-level conversion dashboard (which products get quoted vs won, supplier view)
+- Job Complexity Preset dropdown on estimate (Standard 1.0× / Hard Access 1.25× / Steep Pitch 1.5× / Cut-up 1.75× labor multiplier)
+- Editable per-line material cost override (for one-off odd lots, not catalog-wide)
 - Role-based catalog editing (owner-only)
 - Customer / contact directory + e-sign capture
 - Quote status workflow (draft → sent → won/lost)
