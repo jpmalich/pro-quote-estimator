@@ -1,7 +1,8 @@
 import React from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { fmt } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
+import { tSection, tItem, tUnit } from "@/lib/catalogTranslations";
 
 /**
  * Renders one collapsible section.
@@ -23,6 +24,7 @@ export default function SectionAccordion({
   update,
 }) {
   const t = useT();
+  const { lang } = useLang();
   const isMiscLab = section.title === MISC_LABOR_SECTION;
   const isMiscMat = section.title === MISC_MATERIAL_SECTION;
   const miscKey = isMiscLab ? "misc_labor" : isMiscMat ? "misc_material" : null;
@@ -58,7 +60,7 @@ export default function SectionAccordion({
       >
         <div className="flex items-center gap-3">
           {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <span className="section-tag">{section.title}</span>
+          <span className="section-tag">{tSection(section.title, lang)}</span>
           {filledCount > 0 && (
             <span className="text-[10px] font-bold px-2 py-0.5 border border-[#F97316] text-[#F97316]">
               {t("est.itemsBadge", { n: filledCount })}
@@ -85,10 +87,10 @@ export default function SectionAccordion({
                 key={l.name}
                 className="grid grid-cols-12 gap-3 px-4 md:px-5 py-3 md:py-2 border-b border-[#E4E4E7] items-center"
               >
-                <div className="col-span-12 md:col-span-5 text-sm font-semibold md:font-normal text-[#09090B]">{l.name}</div>
+                <div className="col-span-12 md:col-span-5 text-sm font-semibold md:font-normal text-[#09090B]">{tItem(l.name, lang)}</div>
                 <div className="col-span-3 md:col-span-1 text-xs text-[#A1A1AA] uppercase tracking-wider">
                   <span className="md:hidden text-[10px] text-[#A1A1AA] block">{t("est.col.unit")}</span>
-                  {l.unit}
+                  {tUnit(l.unit, lang)}
                 </div>
                 <div className="col-span-3 md:col-span-2 text-right text-sm font-mono-num text-[#52525B]">
                   <span className="md:hidden text-[10px] text-[#A1A1AA] block text-right">{t("est.col.mat")}</span>

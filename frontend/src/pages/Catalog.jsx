@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api, { formatApiError } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
+import { tSection, tItem, tUnit } from "@/lib/catalogTranslations";
 import { toast } from "sonner";
 import { Save, RotateCcw, Lock } from "lucide-react";
 
@@ -10,6 +11,7 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const t = useT();
+  const { lang } = useLang();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,7 +111,7 @@ export default function Catalog() {
         {sections.map((s) => (
           <div key={s.title} className="card">
             <div className="px-5 py-3 border-b border-[#E4E4E7]">
-              <div className="section-tag">{s.title}</div>
+              <div className="section-tag">{tSection(s.title, lang)}</div>
             </div>
             <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-2 text-[10px] uppercase tracking-[0.18em] text-[#A1A1AA] font-bold border-b border-[#E4E4E7]">
               <div className="col-span-5">{t("cat.col.item")}</div>
@@ -123,9 +125,9 @@ export default function Catalog() {
               const si = sections.indexOf(s);
               return (
                 <div key={it.name} className="grid grid-cols-12 gap-3 px-5 py-2 border-b border-[#E4E4E7] items-center">
-                  <div className="col-span-12 md:col-span-5 text-sm text-[#09090B]">{it.name}</div>
+                  <div className="col-span-12 md:col-span-5 text-sm text-[#09090B]">{tItem(it.name, lang)}</div>
                   <div className="col-span-3 md:col-span-1 text-xs text-[#A1A1AA] uppercase tracking-wider">
-                    {it.unit}
+                    {tUnit(it.unit, lang)}
                   </div>
                   <div className="col-span-4 md:col-span-2 text-right text-sm font-mono-num text-[#52525B] flex items-center justify-end gap-1.5">
                     <Lock className="w-3 h-3 text-[#A1A1AA]" />

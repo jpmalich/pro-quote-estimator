@@ -2,6 +2,7 @@
 // Uses table-based layout and inline styles only — required for Gmail / Outlook / Apple Mail.
 // Tailwind class names do not survive email clients; everything must be inlined.
 import { tFor } from "./i18n";
+import { tSection, tItem, tUnit } from "./catalogTranslations";
 
 const $ = (n) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
@@ -77,7 +78,7 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
     `<td style="padding:0;font-family:${FONT};color:${C.ink};${extra}">${content}</td>`;
 
   const sectionBlock = ([section, items]) => `
-    <tr><td style="padding:18px 0 6px 0;font-family:${FONT};font-size:11px;font-weight:bold;letter-spacing:1.8px;text-transform:uppercase;color:${C.accent};border-bottom:1px solid ${C.ink};">${esc(section)}</td></tr>
+    <tr><td style="padding:18px 0 6px 0;font-family:${FONT};font-size:11px;font-weight:bold;letter-spacing:1.8px;text-transform:uppercase;color:${C.accent};border-bottom:1px solid ${C.ink};">${esc(tSection(section, lang))}</td></tr>
     ${items
       .map(
         (l) => `
@@ -85,8 +86,8 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
         <td style="padding:6px 0;font-family:${FONT};font-size:14px;color:${C.ink};border-bottom:1px solid ${C.line};">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
             <tr>
-              <td style="padding:0;font-family:${FONT};font-size:14px;color:${C.ink};">${esc(l.name)}</td>
-              <td align="right" style="padding:0;font-family:${FONT};font-size:13px;color:${C.muted};white-space:nowrap;">${esc(l.qty)} ${esc(l.unit)}</td>
+              <td style="padding:0;font-family:${FONT};font-size:14px;color:${C.ink};">${esc(tItem(l.name, lang))}</td>
+              <td align="right" style="padding:0;font-family:${FONT};font-size:13px;color:${C.muted};white-space:nowrap;">${esc(l.qty)} ${esc(tUnit(l.unit, lang))}</td>
             </tr>
           </table>
         </td>

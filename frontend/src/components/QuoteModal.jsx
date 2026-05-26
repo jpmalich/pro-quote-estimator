@@ -7,6 +7,7 @@ import { useLang, useT } from "@/lib/i18n";
 import CompanyLogo from "@/components/CompanyLogo";
 import { X, Printer, Send } from "lucide-react";
 import { buildEmailHtml, buildEmailSubject, defaultEmailGreeting } from "@/lib/emailQuote";
+import { tSection, tItem, tUnit } from "@/lib/catalogTranslations";
 
 export default function QuoteModal({ estimate, totals, onClose, emailConfigured, onEmail }) {
   const { company } = useCompany();
@@ -270,13 +271,13 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
             {Object.entries(linesBySection).map(([section, items]) => (
               <div key={section} className="mb-5">
                 <div className="text-xs uppercase tracking-[0.18em] font-bold text-[#F97316] border-b border-[#09090B] pb-1 mb-2">
-                  {section}
+                  {tSection(section, sendLang)}
                 </div>
                 {items.map((l) => (
                   <div key={l.name} className="flex justify-between py-1 text-sm">
-                    <span className="text-[#09090B]">{l.name}</span>
+                    <span className="text-[#09090B]">{tItem(l.name, sendLang)}</span>
                     <span className="text-[#52525B] font-mono-num">
-                      {l.qty} {l.unit}
+                      {l.qty} {tUnit(l.unit, sendLang)}
                     </span>
                   </div>
                 ))}
