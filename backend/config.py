@@ -10,7 +10,7 @@ JWT_ALG = "HS256"
 
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@wolfandson.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
-ADMIN_COMPANY = os.environ.get("ADMIN_COMPANY", "Wolf and Son Renovations LLC")
+ADMIN_COMPANY = os.environ.get("ADMIN_COMPANY", "Howard's Estimating Tool")
 
 SUPPLIER_NAME = os.environ.get("SUPPLIER_NAME", "Alside Supply")
 SUPPLIER_TAGLINE = os.environ.get(
