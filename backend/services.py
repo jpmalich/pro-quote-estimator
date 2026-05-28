@@ -51,23 +51,47 @@ async def ensure_tiers_seeded():
             })
             logger.info("Seeded price tier %s", name)
 
-    # Backfill ami_part on existing tiers whenever the seed map gains new SKUs.
-    # Cheap to run on every boot — only writes when an item is missing the field.
-    async for tier in db.price_tiers.find({}, {"_id": 0, "id": 1, "sections": 1}):
+    # Migrate existing tier docs whenever SECTION_LAYOUT changes shape.
+    # We compare the item list inside "Install Vinyl Siding" — if it differs
+    # from the latest seed (e.g. siding was split into 12 profiles), rebuild
+    # JUST that section using the fresh tier prices, preserving every other
+    # section (so contractor labor overrides on other categories survive).
+    fresh_by_name = {name: build_tier_sections(name) for name in TIER_NAMES}
+    async for tier in db.price_tiers.find({}, {"_id": 0, "id": 1, "name": 1, "sections": 1}):
+        fresh = fresh_by_name.get(tier["name"])
+        if not fresh:
+            continue
         sections = tier.get("sections") or []
         dirty = False
-        for sec in sections:
-            for item in sec.get("items", []):
-                want = ITEM_AMI.get(item.get("name"))
-                if want and item.get("ami_part") != want:
-                    item["ami_part"] = want
-                    dirty = True
+        for i, sec in enumerate(sections):
+            fresh_sec = next((s for s in fresh if s["title"] == sec["title"]), None)
+            if not fresh_sec:
+                continue
+            current_items = {it.get("name") for it in sec.get("items", [])}
+            fresh_items = {it["name"] for it in fresh_sec["items"]}
+            if current_items != fresh_items:
+                # Item set diverged — replace the whole section with fresh data
+                logger.info(
+                    "Rebuilding section %s on tier %s (added=%s removed=%s)",
+                    sec["title"], tier["name"],
+                    sorted(fresh_items - current_items),
+                    sorted(current_items - fresh_items),
+                )
+                sections[i] = fresh_sec
+                dirty = True
+            else:
+                # Same item set — just backfill ami_part on each item
+                for item in sec.get("items", []):
+                    want = ITEM_AMI.get(item.get("name"))
+                    if want and item.get("ami_part") != want:
+                        item["ami_part"] = want
+                        dirty = True
         if dirty:
             await db.price_tiers.update_one(
                 {"id": tier["id"]},
                 {"$set": {"sections": sections, "updated_at": datetime.now(timezone.utc).isoformat()}},
             )
-            logger.info("Backfilled AMI part numbers on tier %s", tier["id"])
+            logger.info("Updated tier %s with latest catalog structure", tier["name"])
 
 
 async def get_default_tier_id() -> str | None:

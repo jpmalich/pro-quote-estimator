@@ -11,8 +11,25 @@ Tiers (cheapest → most expensive):
 # Section structure shared across all tiers (order + section titles)
 SECTION_LAYOUT = [
     ("Install Vinyl Siding", False, [
-        "Conquest .040", "Coventry .042", "Odyssey .044", "Charter Oak .046",
-        "vertical board and batten", "Architectural color upcharge Vinyl",
+        # Conquest (.040) — 2 profiles
+        'Conquest Clap 4.5" .040',
+        'Conquest Dutch Lap 4.5" .040',
+        # Coventry (.042) — 4 profiles
+        'Coventry Clap 4" .042',
+        'Coventry Dutch Lap 4" .042',
+        'Coventry Clap 5" .042',
+        'Coventry Dutch Lap 5" .042',
+        # Odyssey (.044) — 4 profiles
+        'Odyssey Clap 4" .044',
+        'Odyssey Dutch Lap 4" .044',
+        'Odyssey Clap 5" .044',
+        'Odyssey Dutch Lap 5" .044',
+        # Charter Oak (.046) — 2 profiles
+        'Charter Oak Clap 4.5" .046',
+        'Charter Oak Dutch Lap 4.5" .046',
+        # Vertical / accent profiles
+        "vertical board and batten",
+        "Architectural color upcharge Vinyl",
         "Shakes and Scallops",
     ]),
     ("Ascend Cladding/Accessories", True, [
@@ -67,8 +84,20 @@ SECTION_LAYOUT = [
 # Units & default labor are the same across tiers (labor defaults — contractor can override)
 ITEM_META = {
     # name: (unit, lab_default)
-    "Conquest .040": ("SQ", 125), "Coventry .042": ("SQ", 125), "Odyssey .044": ("SQ", 125),
-    "Charter Oak .046": ("SQ", 125), "vertical board and batten": ("SQ", 125),
+    # All siding profiles use SQ unit and $125/SQ default labor.
+    'Conquest Clap 4.5" .040': ("SQ", 125),
+    'Conquest Dutch Lap 4.5" .040': ("SQ", 125),
+    'Coventry Clap 4" .042': ("SQ", 125),
+    'Coventry Dutch Lap 4" .042': ("SQ", 125),
+    'Coventry Clap 5" .042': ("SQ", 125),
+    'Coventry Dutch Lap 5" .042': ("SQ", 125),
+    'Odyssey Clap 4" .044': ("SQ", 125),
+    'Odyssey Dutch Lap 4" .044': ("SQ", 125),
+    'Odyssey Clap 5" .044': ("SQ", 125),
+    'Odyssey Dutch Lap 5" .044': ("SQ", 125),
+    'Charter Oak Clap 4.5" .046': ("SQ", 125),
+    'Charter Oak Dutch Lap 4.5" .046': ("SQ", 125),
+    "vertical board and batten": ("SQ", 125),
     "Architectural color upcharge Vinyl": ("SQ", 0), "Shakes and Scallops": ("SQ", 125),
     "Ascend Composite Lap Siding": ("SQ", 150), "Ascend Composite B&B (add 30% Waste)": ("SQ", 150),
     'Ascend 3.5" Outside Corner — MATTE': ("PCS", 0), 'Ascend 5.5" Outside Corner — MATTE': ("PCS", 0),
@@ -112,8 +141,14 @@ ITEM_META = {
 # Material prices per tier (name → mat $)
 TIER_PRICES = {
     "one-opp": {
-        "Conquest .040": 75.71, "Coventry .042": 81.17, "Odyssey .044": 100.11,
-        "Charter Oak .046": 113.57, "vertical board and batten": 113.57,
+        # Siding — each series has identical material price across its profiles
+        'Conquest Clap 4.5" .040': 75.71, 'Conquest Dutch Lap 4.5" .040': 75.71,
+        'Coventry Clap 4" .042': 81.17, 'Coventry Dutch Lap 4" .042': 81.17,
+        'Coventry Clap 5" .042': 81.17, 'Coventry Dutch Lap 5" .042': 81.17,
+        'Odyssey Clap 4" .044': 100.11, 'Odyssey Dutch Lap 4" .044': 100.11,
+        'Odyssey Clap 5" .044': 100.11, 'Odyssey Dutch Lap 5" .044': 100.11,
+        'Charter Oak Clap 4.5" .046': 113.57, 'Charter Oak Dutch Lap 4.5" .046': 113.57,
+        "vertical board and batten": 113.57,
         "Architectural color upcharge Vinyl": 15, "Shakes and Scallops": 419.94,
         "Ascend Composite Lap Siding": 309.64, "Ascend Composite B&B (add 30% Waste)": 366.96,
         'Ascend 3.5" Outside Corner — MATTE': 40.42, 'Ascend 5.5" Outside Corner — MATTE': 59.36,
@@ -151,8 +186,13 @@ TIER_PRICES = {
         "Cut out 4x4 section of wall and insulate": 100,
     },
     "Builder-Dealer": {
-        "Conquest .040": 92.19, "Coventry .042": 95.03, "Odyssey .044": 116.22,
-        "Charter Oak .046": 125.46, "vertical board and batten": 136.56,
+        'Conquest Clap 4.5" .040': 92.19, 'Conquest Dutch Lap 4.5" .040': 92.19,
+        'Coventry Clap 4" .042': 95.03, 'Coventry Dutch Lap 4" .042': 95.03,
+        'Coventry Clap 5" .042': 95.03, 'Coventry Dutch Lap 5" .042': 95.03,
+        'Odyssey Clap 4" .044': 116.22, 'Odyssey Dutch Lap 4" .044': 116.22,
+        'Odyssey Clap 5" .044': 116.22, 'Odyssey Dutch Lap 5" .044': 116.22,
+        'Charter Oak Clap 4.5" .046': 125.46, 'Charter Oak Dutch Lap 4.5" .046': 125.46,
+        "vertical board and batten": 136.56,
         "Architectural color upcharge Vinyl": 20, "Shakes and Scallops": 419.94,
         "Ascend Composite Lap Siding": 332.6, "Ascend Composite B&B (add 30% Waste)": 408.66,
         'Ascend 3.5" Outside Corner — MATTE': 40.42, 'Ascend 5.5" Outside Corner — MATTE': 59.36,
@@ -190,8 +230,13 @@ TIER_PRICES = {
         "Cut out 4x4 section of wall and insulate": 100,
     },
     "Contractor": {
-        "Conquest .040": 97.04, "Coventry .042": 100.03, "Odyssey .044": 116.22,
-        "Charter Oak .046": 136.22, "vertical board and batten": 143.74,
+        'Conquest Clap 4.5" .040': 97.04, 'Conquest Dutch Lap 4.5" .040': 97.04,
+        'Coventry Clap 4" .042': 100.03, 'Coventry Dutch Lap 4" .042': 100.03,
+        'Coventry Clap 5" .042': 100.03, 'Coventry Dutch Lap 5" .042': 100.03,
+        'Odyssey Clap 4" .044': 116.22, 'Odyssey Dutch Lap 4" .044': 116.22,
+        'Odyssey Clap 5" .044': 116.22, 'Odyssey Dutch Lap 5" .044': 116.22,
+        'Charter Oak Clap 4.5" .046': 136.22, 'Charter Oak Dutch Lap 4.5" .046': 136.22,
+        "vertical board and batten": 143.74,
         "Architectural color upcharge Vinyl": 23, "Shakes and Scallops": 419.94,
         "Ascend Composite Lap Siding": 332.6, "Ascend Composite B&B (add 30% Waste)": 408.66,
         'Ascend 3.5" Outside Corner — MATTE': 40.42, 'Ascend 5.5" Outside Corner — MATTE': 59.36,
@@ -229,8 +274,13 @@ TIER_PRICES = {
         "Cut out 4x4 section of wall and insulate": 100,
     },
     "whole-sale": {
-        "Conquest .040": 102.15, "Coventry .042": 105.3, "Odyssey .044": 122.34,
-        "Charter Oak .046": 151.31, "vertical board and batten": 151.31,
+        'Conquest Clap 4.5" .040': 102.15, 'Conquest Dutch Lap 4.5" .040': 102.15,
+        'Coventry Clap 4" .042': 105.30, 'Coventry Dutch Lap 4" .042': 105.30,
+        'Coventry Clap 5" .042': 105.30, 'Coventry Dutch Lap 5" .042': 105.30,
+        'Odyssey Clap 4" .044': 122.34, 'Odyssey Dutch Lap 4" .044': 122.34,
+        'Odyssey Clap 5" .044': 122.34, 'Odyssey Dutch Lap 5" .044': 122.34,
+        'Charter Oak Clap 4.5" .046': 151.31, 'Charter Oak Dutch Lap 4.5" .046': 151.31,
+        "vertical board and batten": 151.31,
         "Architectural color upcharge Vinyl": 23, "Shakes and Scallops": 419.94,
         "Ascend Composite Lap Siding": 332.6, "Ascend Composite B&B (add 30% Waste)": 408.66,
         'Ascend 3.5" Outside Corner — MATTE': 40.42, 'Ascend 5.5" Outside Corner — MATTE': 59.36,
@@ -274,10 +324,19 @@ TIER_PRICES = {
 # so contractors can order/pull materials by SKU. Items without an AMI # (most
 # labor-only lines, some accessories) just show blank on the list.
 ITEM_AMI = {
-    "Conquest .040": "015456",
-    "Coventry .042": "016061",
-    "Odyssey .044": "015406",
-    "Charter Oak .046": "015451",
+    # Siding profiles — each gets its own SKU per Alside's price sheet
+    'Conquest Clap 4.5" .040': "015456",
+    'Conquest Dutch Lap 4.5" .040': "015457",
+    'Coventry Clap 4" .042': "016061",
+    'Coventry Dutch Lap 4" .042': "016062",
+    'Coventry Clap 5" .042': "016066",
+    'Coventry Dutch Lap 5" .042': "016067",
+    'Odyssey Clap 4" .044': "015406",
+    'Odyssey Dutch Lap 4" .044': "015408",
+    'Odyssey Clap 5" .044': "015506",
+    'Odyssey Dutch Lap 5" .044': "015508",
+    'Charter Oak Clap 4.5" .046': "015451",
+    'Charter Oak Dutch Lap 4.5" .046': "015452",
     "vertical board and batten": "016021",
     "Shakes and Scallops": "655052",
     "Ascend Composite Lap Siding": "018001",
