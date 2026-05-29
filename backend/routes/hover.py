@@ -128,7 +128,9 @@ HOVER_MAPPING_SPEC = [
         "extract": lambda m: round((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)),
         "note": "Eaves LF + Rakes LF",
     },
-    # MISC LABOR & MATERIAL — caps from HOVER window/door counts
+    # MISC LABOR & MATERIAL — caps from HOVER window/door counts. We use the
+    # classified counts (entry/patio/garage) from the LLM so the contractor
+    # doesn't have to manually rebalance.
     {
         "section": "Misc. Labor & Material",
         "item": "Cap window",
@@ -140,10 +142,22 @@ HOVER_MAPPING_SPEC = [
         "section": "Misc. Labor & Material",
         "item": "Cap entry door",
         "unit": "Each",
-        # We can't tell entry vs patio vs garage from HOVER, so default all
-        # doors to entry. Contractor adjusts in editor if there's a patio/garage.
-        "extract": lambda m: int(m.get("door_count") or 0),
-        "note": "1 per door (split to patio/garage manually if needed)",
+        "extract": lambda m: int(m.get("entry_door_count") or 0),
+        "note": "1 per entry door (D-N prefix, < 72in wide)",
+    },
+    {
+        "section": "Misc. Labor & Material",
+        "item": "Cap patio door",
+        "unit": "Each",
+        "extract": lambda m: int(m.get("patio_door_count") or 0),
+        "note": "1 per sliding glass / patio door (SGD-N / FD-N prefix)",
+    },
+    {
+        "section": "Misc. Labor & Material",
+        "item": "Cap single garage door",
+        "unit": "Each",
+        "extract": lambda m: int(m.get("garage_door_count") or 0),
+        "note": "1 per garage door (OHD-N or ≥72×84in)",
     },
 ]
 
@@ -192,10 +206,21 @@ PROMPT_TEMPLATE = """Extract from this HOVER report:
   "opening_count": <Openings Quantity total — windows + doors>,
   "opening_perimeter_lf": <sum of all opening perimeters if shown, else null>,
   "window_count": <number of windows>,
-  "door_count": <number of doors>,
+  "door_count": <total number of doors of all types>,
+  "entry_door_count": <number of single/double entry doors — `D-N` IDs that are NOT garage-sized (<72in wide OR <84in tall)>,
+  "patio_door_count": <number of sliding/patio doors — typically `SGD-N` IDs (Sliding Glass Door), or `FD-N` (French Door)>,
+  "garage_door_count": <number of garage/overhead doors — `OHD-N` prefix, or any door with width >= 96in (8ft, the smallest standard garage door). Most garage doors are 96-216in wide.>,
   "stories": <"1" | ">1" | "2" etc as printed>,
   "address": <property address if shown, else null>
 }}
+
+Door classification rules (apply in this order):
+  1. Any door with prefix `SGD-` or `FD-` → patio_door_count
+  2. Any door with prefix `OHD-` → garage_door_count
+  3. Any door with width >= 96in (8ft) → garage_door_count (standard garage door size starts at 96in; 72in is too narrow to be a garage)
+  4. All other doors (single front doors at 36in wide, double doors at 72in wide × 80in tall, etc.) → entry_door_count
+
+The three counts (entry + patio + garage) must sum to door_count.
 
 Convert all `7' 5"` style values to decimal feet. Example: `7' 5"` → 7.42.
 
