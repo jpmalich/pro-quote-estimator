@@ -118,6 +118,13 @@ HOVER_MAPPING_SPEC = [
         "extract": lambda m: max(1, round((m.get("siding_sqft") or 0) / 100.0 / 15)),
         "note": "1 box per 15 SQ of siding",
     },
+    {
+        "section": "Siding Accessories",
+        "item": "1 1/4\" Trim Nails",
+        "unit": "Box",
+        "extract": lambda m: 1,
+        "note": "1 box per job (standard)",
+    },
     # SOFFIT & FASCIA — auto-populate from HOVER soffit + eaves + rakes
     {
         "section": "Vinyl Soffit with Siding",
