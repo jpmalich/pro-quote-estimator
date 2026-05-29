@@ -70,7 +70,7 @@ export default function JobInfoPanel({ est, update }) {
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-2">
             {t("est.colors")}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="label">{t("est.color.siding")}</label>
               <input
@@ -109,6 +109,16 @@ export default function JobInfoPanel({ est, update }) {
                 placeholder={t("est.color.placeholder")}
                 onChange={(e) => update({ soffit_fascia_color: e.target.value })}
                 data-testid="color-soffit-fascia"
+              />
+            </div>
+            <div>
+              <label className="label">{t("est.color.windowWrap")}</label>
+              <input
+                className="input"
+                value={est.window_wrap_color || ""}
+                placeholder={t("est.color.placeholder")}
+                onChange={(e) => update({ window_wrap_color: e.target.value })}
+                data-testid="color-window-wrap"
               />
             </div>
           </div>

@@ -86,6 +86,7 @@ class EstimateIn(BaseModel):
     accessories_color: str = ""
     outside_corner_color: str = ""
     soffit_fascia_color: str = ""
+    window_wrap_color: str = ""
     waste_pct: float = 0
     tax_enabled: bool = True
     tax_rate: float = 7.0
