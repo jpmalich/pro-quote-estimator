@@ -72,6 +72,29 @@ async def ensure_tiers_seeded():
     # in DB at $0 because TIER_PRICES wasn't fully populated yet. Backfill the
     # correct mat prices from TIER_PRICES, idempotent (only updates items that
     # are currently $0 and have a real price in TIER_PRICES).
+    # Iter 27: drop the "(1 per 50' fascia)" suffix from the 3 siding-accessories
+    # coil entries — the fascia variants now live in Vinyl Soffit with Siding as
+    # separate items, so the Siding Accessories names should just describe their
+    # one usage. Rename in tier docs + historical estimate line items.
+    COIL_RENAMES = [
+        (".019 Coil (1 per 5 Sq Siding) (1 per 50' fascia)",
+         ".019 Coil (1 per 5 Sq Siding)"),
+        ("PVC Trim Coil (1 per 5 Sq Siding) (1 per 50' fascia)",
+         "PVC Trim Coil (1 per 5 Sq Siding)"),
+        ("Performance G8 Trim Coil (1 per 5 Sq Siding) (1 per 50' fascia)",
+         "Performance G8 Trim Coil (1 per 5 Sq Siding)"),
+    ]
+    for old_name, new_name in COIL_RENAMES:
+        await db.price_tiers.update_many(
+            {"sections.items.name": old_name},
+            {"$set": {"sections.$[].items.$[it].name": new_name}},
+            array_filters=[{"it.name": old_name}],
+        )
+        await db.estimates.update_many(
+            {"lines.name": old_name},
+            {"$set": {"lines.$[l].name": new_name}},
+            array_filters=[{"l.name": old_name}],
+        )
     BACKFILL = [
         TRIM, "ASCEND Finish Trim", "Ascend - Starter",
         ".019 Coil (1 per 50' fascia)",
