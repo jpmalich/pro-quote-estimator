@@ -224,14 +224,24 @@ def calc_totals(est: dict) -> dict:
         + sum((m.get("lab", 0) or 0) for m in misc_material)
         + sum((m.get("lab", 0) or 0) for m in misc_labor)
     )
-    # Waste factor only inflates the Vinyl Siding material (cut-offs from
-    # 12.5'/16' panels). Trim, accessories, soffit, gutter, dumpster, etc. are
-    # ordered to actual piece-count so they should not be padded.
-    vinyl_mat = sum(
+    # Waste factor inflates only the actual siding material (cut-offs from
+    # panel cuts). Trim, accessories, soffit, gutter, etc. are ordered to
+    # actual count and should not be padded. Ascend Composite Lap + B&B are
+    # treated as siding material alongside the Vinyl Siding section.
+    WASTE_ASCEND = {
+        "Ascend Composite Lap Siding 7\"",
+        "Ascend Composite B&B 12\" (add 30% Waste)",
+    }
+    def _is_waste_line(ln: dict) -> bool:
+        if ln.get("section") == "Vinyl Siding":
+            return True
+        return (ln.get("section") == "Ascend Cladding/Accessories"
+                and ln.get("name") in WASTE_ASCEND)
+    waste_base = sum(
         (ln.get("qty", 0) or 0) * (ln.get("mat", 0) or 0)
-        for ln in lines if ln.get("section") == "Vinyl Siding"
+        for ln in lines if _is_waste_line(ln)
     )
-    waste_add = vinyl_mat * ((est.get("waste_pct", 0) or 0) / 100)
+    waste_add = waste_base * ((est.get("waste_pct", 0) or 0) / 100)
     wasted = sub_mat + waste_add
     tax = wasted * ((est.get("tax_rate", 0) or 0) / 100) if est.get("tax_enabled") else 0
     base = wasted + tax + sub_lab

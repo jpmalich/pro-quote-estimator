@@ -64,9 +64,14 @@ export function buildMaterialListHtml({ estimate, company, branding, lang = "en"
       items
         .map((l) => {
           const rawQty = Number(l.qty) || 0;
-          // Waste only applies to Vinyl Siding line items. Everything else
-          // is ordered to actual piece-count.
-          const applyWaste = sectionName === "Vinyl Siding";
+          // Waste applies to actual siding material: Vinyl Siding section +
+          // the 2 Ascend Composite siding products. Trim/accessories/etc. ship
+          // to actual count.
+          const isAscendWaste =
+            sectionName === "Ascend Cladding/Accessories" &&
+            (l.name === 'Ascend Composite Lap Siding 7"' ||
+              l.name === 'Ascend Composite B&B 12" (add 30% Waste)');
+          const applyWaste = sectionName === "Vinyl Siding" || isAscendWaste;
           const wasteQty = applyWaste
             ? roundUpHalf(rawQty * (1 + wastePct / 100))
             : rawQty;
