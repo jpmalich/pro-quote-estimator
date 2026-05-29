@@ -6,8 +6,7 @@ import { useT } from "@/lib/i18n";
 import { toast } from "sonner";
 import LangToggle from "@/components/LangToggle";
 
-const BG =
-  "https://static.prod-images.emergentagent.com/jobs/f5ca1a54-7ada-4d85-b160-76d5daf2760b/images/d36a236ce8a57df40cb284a048570a3dc3ace340beaf7bd71fddadefd9427f32.png";
+const BG = "/login-ascend.png";
 
 export default function Login() {
   const { user, login, register, error } = useAuth();
@@ -244,7 +243,7 @@ export default function Login() {
         </div>
       </div>
       <div
-        className="hidden md:block bg-cover bg-center"
+        className="hidden md:block bg-contain bg-center bg-no-repeat bg-white"
         style={{ backgroundImage: `url(${BG})` }}
         aria-hidden="true"
       />
