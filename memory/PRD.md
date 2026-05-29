@@ -96,6 +96,14 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - "Sync to latest supplier catalog" admin action to push price updates to opt-in companies
 
 ### P2
+- **Multi-Location support** (3–10 locations, e.g. Pittsburgh + Cleveland):
+  - New `Location` model + `locations` collection; `location_id` on `Company` and admin `User`
+  - **Same catalog pricing across all locations** (user confirmed — no per-location price tiers needed)
+  - **Per-location signup codes** (e.g. `ALSIDE-PGH-XXX`, `ALSIDE-CLE-XXX`) — code auto-assigns contractor to that location at signup
+  - **Strict isolation**: each location admin only sees their own contractors + pipeline analytics; cannot see other locations
+  - Corporate root admin (Howard) sees all locations + can switch via location picker on `/branding-admin`
+  - Each location admin gets their own login (e.g. `pittsburgh@pro-quotes.com`, `cleveland@pro-quotes.com`)
+  - Estimated effort: ~1–1.5 days
 - SKU-level conversion dashboard (which products get quoted vs won, supplier view)
 - Job Complexity Preset dropdown on estimate (Standard 1.0× / Hard Access 1.25× / Steep Pitch 1.5× / Cut-up 1.75× labor multiplier)
 - Editable per-line material cost override (for one-off odd lots, not catalog-wide)
