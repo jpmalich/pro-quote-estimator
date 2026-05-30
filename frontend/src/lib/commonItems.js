@@ -37,6 +37,7 @@ export const COMMONLY_NEEDED_ITEMS = new Set([
   'Soffit & fascia up to 13" wide Charter Oak',
   '3/4" Soffit J-Channel (Charter Oak)',
   'Gutter 6"',
+  ".019 Coil (1 per 50' fascia)",
   "Cap window",
   "Cap entry door",
   "Cap patio door",
