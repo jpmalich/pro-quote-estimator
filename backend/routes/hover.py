@@ -114,8 +114,13 @@ HOVER_MAPPING_SPEC = [
         "section": "Siding Accessories",
         "item": "House Wrap",
         "unit": "SQ",
-        "extract": lambda m: round((m.get("siding_sqft") or 0) / 100.0, 1),
-        "note": "Same SQ as siding",
+        # House wrap covers the same wall area as siding — use the same
+        # HOVER "SIDING WASTE TOTALS → + Openings < 20ft² +10%" value.
+        "extract": lambda m: round(
+            ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
+            1,
+        ),
+        "note": "Matches HOVER 'SIDING WASTE TOTALS → + Openings < 20ft² +10%' (same as siding SQ)",
     },
     {
         "section": "Siding Accessories",
