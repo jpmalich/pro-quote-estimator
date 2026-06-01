@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from catalog_seed import DEFAULT_TIER_NAME
+from catalog_seed import DEFAULT_TIER_NAME, product_lines_for
 from db import db
 from deps import check_admin_token, get_company_for, get_current_user
 from models import CatalogOverridesIn, CompanyTierAssign, TierUpdate
@@ -48,7 +48,16 @@ async def _resolve_catalog_for_company(company: dict) -> dict:
                 "lab_overridden": "lab" in ov,
                 "ami_part": it.get("ami_part"),    # carry SKU through for material list
             })
-        sections.append({"title": s["title"], "ascend": s.get("ascend", False), "items": items_out})
+        sections.append({
+            "title": s["title"],
+            "ascend": s.get("ascend", False),
+            # product_lines is the source of truth for which "tab" (vinyl /
+            # ascend / lp_smart) this section appears under. Compute from the
+            # title so legacy tier docs (seeded before this field existed)
+            # still render correctly without a DB migration.
+            "product_lines": s.get("product_lines") or product_lines_for(s["title"]),
+            "items": items_out,
+        })
     return {"sections": sections, "tier_id": tier["id"], "tier_name": tier["name"]}
 
 

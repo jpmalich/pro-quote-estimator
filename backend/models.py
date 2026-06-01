@@ -28,6 +28,11 @@ class CatalogItem(BaseModel):
 class CatalogSection(BaseModel):
     title: str
     ascend: bool = False
+    # Which tab(s) this section belongs to in the multi-product estimator.
+    # Values: "vinyl" | "ascend" | "lp_smart". Sections shared between
+    # product lines (e.g. Siding Accessories, Soffit, Gutter, Tear-Off,
+    # Misc Labor) appear in multiple tabs.
+    product_lines: List[str] = ["vinyl", "ascend"]
     items: List[CatalogItem]
 
 
@@ -65,12 +70,19 @@ class EstimateLine(BaseModel):
     mat: float = 0
     lab: float = 0
     ami_part: Optional[str] = None  # Snapshotted at quote time so re-runs are reproducible
+    # Which "tab" (product-line option) in the estimator this line belongs to.
+    # "vinyl" (default — backward compat), "ascend", or "lp_smart".
+    # Lets one estimate carry three parallel option sets — e.g. Vinyl vs.
+    # Ascend vs. LP Smart Siding — so the homeowner can compare them on
+    # one quote.
+    tab: str = "vinyl"
 
 
 class MiscLine(BaseModel):
     desc: str = ""
     mat: float = 0
     lab: float = 0
+    tab: str = "vinyl"  # same tab semantics as EstimateLine
 
 
 class EstimateIn(BaseModel):

@@ -408,6 +408,28 @@ ITEM_AMI = {
 }
 
 
+# Which "tab" each catalog section appears under in the multi-product
+# estimator. A section can appear in more than one tab (shared accessories
+# like J-Channel, Soffit, Tear-Off, etc. show up on both Vinyl and Ascend
+# tabs because both job types use them).
+#
+# Section titles not in this map default to ["vinyl", "ascend"] — i.e. they
+# are treated as shared between the two existing siding lines. LP Smart
+# Siding gets its own dedicated sections once the catalog is populated, so
+# nothing shared bleeds into the LP tab by accident.
+SECTION_PRODUCT_LINES = {
+    "Vinyl Siding": ["vinyl"],
+    "Ascend Cladding/Accessories": ["ascend"],
+}
+
+
+def product_lines_for(section_title: str) -> list:
+    """Return the list of tab IDs (vinyl / ascend / lp_smart) that this
+    catalog section should appear under. Single source of truth used by the
+    catalog endpoint and the estimate save/merge logic."""
+    return SECTION_PRODUCT_LINES.get(section_title, ["vinyl", "ascend"])
+
+
 def build_tier_sections(tier_name: str) -> list:
     """Build the full sections list for a given tier name using SECTION_LAYOUT + TIER_PRICES."""
     prices = TIER_PRICES[tier_name]
@@ -422,7 +444,12 @@ def build_tier_sections(tier_name: str) -> list:
                 "lab": float(lab),  # labor default — contractor can override
                 "ami_part": ITEM_AMI.get(n),
             })
-        out.append({"title": title, "ascend": ascend, "items": items})
+        out.append({
+            "title": title,
+            "ascend": ascend,
+            "product_lines": product_lines_for(title),
+            "items": items,
+        })
     return out
 
 

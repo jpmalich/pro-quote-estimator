@@ -2,6 +2,41 @@ import { useEffect, useState, useCallback } from "react";
 import api, { formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 
+// ---------------------------------------------------------------------------
+// Tab model
+// ---------------------------------------------------------------------------
+// The estimator now supports three parallel "tabs" so the contractor can quote
+// the same property in three product lines on one estimate:
+//   - vinyl    → traditional Alside Vinyl Siding
+//   - ascend   → Ascend Composite Cladding
+//   - lp_smart → LP SmartSide engineered wood (catalog populated later)
+//
+// Each catalog section declares which tabs it belongs to (product_lines from
+// the catalog API). Sections shared across product lines (e.g. Tear-Off,
+// Gutter, Misc. Labor) appear in MULTIPLE tabs — and each tab holds its own
+// independent line items + quantities so the homeowner can see real apples-
+// to-apples options side-by-side.
+//
+// Saved estimate lines carry a `tab` field. Legacy lines (saved before this
+// feature) get backfilled based on their section name on first load.
+export const TAB_IDS = ["vinyl", "ascend", "lp_smart"];
+
+// Back-compat: legacy Ascend lines → ascend tab; everything else → vinyl.
+function legacyTabForSection(sectionTitle) {
+  return sectionTitle === "Ascend Cladding/Accessories" ? "ascend" : "vinyl";
+}
+
+function inferTab(line) {
+  if (line?.tab && TAB_IDS.includes(line.tab)) return line.tab;
+  return legacyTabForSection(line?.section);
+}
+
+// Compose key used to look up a saved line: tab + section + name uniquely
+// identifies a row across all tabs.
+function lineKey(tab, section, name) {
+  return `${tab}::${section}::${name}`;
+}
+
 export default function useEstimate(id) {
   const [est, setEst] = useState(null);
   const [catalog, setCatalog] = useState([]);
@@ -18,32 +53,55 @@ export default function useEstimate(id) {
           api.get(`/email/status`),
         ]);
         if (cancelled) return;
-        // Preserve any per-line overrides (qty, lab, mat) that were saved on this estimate
+
+        // Index saved lines by (tab, section, name). Backfill tab for legacy
+        // lines that pre-date this field so existing quotes load correctly.
         const savedByKey = {};
         (e.data.lines || []).forEach((l) => {
-          savedByKey[`${l.section}::${l.name}`] = l;
+          const tab = inferTab(l);
+          savedByKey[lineKey(tab, l.section, l.name)] = { ...l, tab };
         });
+
+        // Build the merged line set: one entry per (tab, section, name) tuple
+        // for every catalog item × every tab that section belongs to. This is
+        // what powers the UI — each tab gets its own editable rows.
         const merged = [];
-        c.data.sections.forEach((s) =>
+        c.data.sections.forEach((s) => {
+          const productLines = s.product_lines || ["vinyl", "ascend"];
           s.items.forEach((it) => {
-            const key = `${s.title}::${it.name}`;
-            const saved = savedByKey[key];
-            merged.push({
-              section: s.title,
-              name: it.name,
-              unit: it.unit,
-              mat: saved && saved.mat != null ? saved.mat : it.mat,
-              lab: saved && saved.lab != null ? saved.lab : it.lab,
-              qty: saved ? saved.qty || 0 : 0,
-              // SKU snapshot — taken from catalog so re-saves keep history consistent
-              ami_part: it.ami_part || (saved ? saved.ami_part : null) || null,
-              // Catalog defaults — used to flag overrides in the UI
-              defaultMat: it.mat,
-              defaultLab: it.lab,
+            productLines.forEach((tab) => {
+              const k = lineKey(tab, s.title, it.name);
+              const saved = savedByKey[k];
+              merged.push({
+                tab,
+                section: s.title,
+                name: it.name,
+                unit: it.unit,
+                mat: saved && saved.mat != null ? saved.mat : it.mat,
+                lab: saved && saved.lab != null ? saved.lab : it.lab,
+                qty: saved ? saved.qty || 0 : 0,
+                ami_part: it.ami_part || (saved ? saved.ami_part : null) || null,
+                // Catalog defaults — used to flag overrides in the UI.
+                defaultMat: it.mat,
+                defaultLab: it.lab,
+              });
             });
-          })
-        );
-        setEst({ ...e.data, lines: merged });
+          });
+        });
+
+        // Backfill tab on misc rows too — legacy misc rows go to vinyl.
+        const backfillMisc = (rows) =>
+          (rows || []).map((m) => ({
+            ...m,
+            tab: TAB_IDS.includes(m.tab) ? m.tab : "vinyl",
+          }));
+
+        setEst({
+          ...e.data,
+          lines: merged,
+          misc_labor: backfillMisc(e.data.misc_labor),
+          misc_material: backfillMisc(e.data.misc_material),
+        });
         setCatalog(c.data.sections);
         setEmailStatus(em.data);
       } catch (err) {
@@ -62,29 +120,34 @@ export default function useEstimate(id) {
     setEst((e) => ({ ...e, ...patch }));
   }, []);
 
-  const updateLineQty = useCallback((section, name, qty) => {
+  // Matchers now take the tab too — a section + name can exist on multiple
+  // tabs with independent quantities, so we must scope updates to one tab.
+  const matchLine = (l, tab, section, name) =>
+    l.tab === tab && l.section === section && l.name === name;
+
+  const updateLineQty = useCallback((tab, section, name, qty) => {
     setEst((e) => ({
       ...e,
       lines: e.lines.map((l) =>
-        l.section === section && l.name === name ? { ...l, qty: Number(qty) || 0 } : l
+        matchLine(l, tab, section, name) ? { ...l, qty: Number(qty) || 0 } : l
       ),
     }));
   }, []);
 
-  const updateLineField = useCallback((section, name, field, value) => {
+  const updateLineField = useCallback((tab, section, name, field, value) => {
     setEst((e) => ({
       ...e,
       lines: e.lines.map((l) =>
-        l.section === section && l.name === name ? { ...l, [field]: Number(value) || 0 } : l
+        matchLine(l, tab, section, name) ? { ...l, [field]: Number(value) || 0 } : l
       ),
     }));
   }, []);
 
-  const resetLineToDefault = useCallback((section, name) => {
+  const resetLineToDefault = useCallback((tab, section, name) => {
     setEst((e) => ({
       ...e,
       lines: e.lines.map((l) =>
-        l.section === section && l.name === name
+        matchLine(l, tab, section, name)
           ? { ...l, mat: l.defaultMat, lab: l.defaultLab }
           : l
       ),
@@ -111,9 +174,27 @@ export default function useEstimate(id) {
         tax_rate: est.tax_rate || 0,
         margin_pct: est.margin_pct || 0,
         pricing_mode: est.pricing_mode || "margin",
-        lines: est.lines.filter((l) => (l.qty || 0) > 0),
-        misc_labor: est.misc_labor || [],
-        misc_material: est.misc_material || [],
+        lines: est.lines
+          .filter((l) => (l.qty || 0) > 0)
+          .map((l) => ({
+            // Persist the tab so multi-product quotes round-trip cleanly.
+            tab: l.tab || "vinyl",
+            section: l.section,
+            name: l.name,
+            unit: l.unit,
+            qty: l.qty,
+            mat: l.mat,
+            lab: l.lab,
+            ami_part: l.ami_part || null,
+          })),
+        misc_labor: (est.misc_labor || []).map((m) => ({
+          ...m,
+          tab: m.tab || "vinyl",
+        })),
+        misc_material: (est.misc_material || []).map((m) => ({
+          ...m,
+          tab: m.tab || "vinyl",
+        })),
         photos: est.photos || [],
         status_label: est.status_label || "draft",
       };

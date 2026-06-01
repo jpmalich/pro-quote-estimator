@@ -23,13 +23,18 @@ export default function SectionAccordion({
   onResetLine,
   est,
   update,
+  activeTab = "vinyl",
 }) {
   const t = useT();
   const { lang } = useLang();
   const isMiscLab = section.title === MISC_LABOR_SECTION;
   const isMiscMat = section.title === MISC_MATERIAL_SECTION;
   const miscKey = isMiscLab ? "misc_labor" : isMiscMat ? "misc_material" : null;
-  const miscRows = miscKey ? est[miscKey] || [] : [];
+  // Misc rows are scoped per tab — each tab keeps its own custom labor /
+  // custom material entries so multi-product quotes don't bleed into each
+  // other.
+  const allMiscRows = miscKey ? est[miscKey] || [] : [];
+  const miscRows = allMiscRows.filter((r) => (r.tab || "vinyl") === activeTab);
 
   const sectionSell =
     lines.reduce((sum, l) => sum + (l.qty || 0) * ((l.mat || 0) + (l.lab || 0)), 0) +
@@ -42,18 +47,23 @@ export default function SectionAccordion({
 
   const addMisc = () => {
     const newRow = isMiscMat
-      ? { _id: crypto.randomUUID(), desc: "", mat: 0, lab: 0 }
-      : { _id: crypto.randomUUID(), desc: "", lab: 0 };
-    update({ [miscKey]: [...miscRows, newRow] });
+      ? { _id: crypto.randomUUID(), desc: "", mat: 0, lab: 0, tab: activeTab }
+      : { _id: crypto.randomUUID(), desc: "", lab: 0, tab: activeTab };
+    update({ [miscKey]: [...allMiscRows, newRow] });
   };
   const updateMisc = (idx, key, val) => {
-    const next = miscRows.map((r, i) =>
-      i === idx ? { ...r, [key]: key === "desc" ? val : Number(val) || 0 } : r
+    // `idx` is an index into the FILTERED (tab-scoped) rows. Translate it
+    // back to the full array before mutating so other tabs' misc rows are
+    // not disturbed.
+    const target = miscRows[idx];
+    const next = allMiscRows.map((r) =>
+      r === target ? { ...r, [key]: key === "desc" ? val : Number(val) || 0 } : r
     );
     update({ [miscKey]: next });
   };
   const removeMisc = (idx) => {
-    update({ [miscKey]: miscRows.filter((_, i) => i !== idx) });
+    const target = miscRows[idx];
+    update({ [miscKey]: allMiscRows.filter((r) => r !== target) });
   };
 
   return (
@@ -100,7 +110,7 @@ export default function SectionAccordion({
             const isUnfilledCommon = isCommon && (l.qty || 0) <= 0;
             return (
               <div
-                key={l.name}
+                key={`${l.tab}::${l.name}`}
                 className={`grid grid-cols-12 gap-3 px-4 md:px-5 py-3 md:py-2 border-b border-[#E4E4E7] items-center ${
                   isUnfilledCommon ? "bg-yellow-50" : ""
                 }`}
@@ -144,7 +154,7 @@ export default function SectionAccordion({
                     min="0"
                     value={l.qty || ""}
                     placeholder="0"
-                    onChange={(e) => onQty(l.section, l.name, e.target.value)}
+                    onChange={(e) => onQty(l.tab, l.section, l.name, e.target.value)}
                     data-testid={`qty-${section.title}-${l.name}`}
                   />
                 </div>
@@ -157,7 +167,7 @@ export default function SectionAccordion({
                     step="0.25"
                     min="0"
                     value={l.lab ?? 0}
-                    onChange={(e) => onField(l.section, l.name, "lab", e.target.value)}
+                    onChange={(e) => onField(l.tab, l.section, l.name, "lab", e.target.value)}
                     title={labOverridden ? `Catalog default: $${l.defaultLab}` : ""}
                     data-testid={`lab-${section.title}-${l.name}`}
                   />
@@ -165,7 +175,7 @@ export default function SectionAccordion({
                     <button
                       type="button"
                       className="absolute -top-1 -right-1 w-5 h-5 md:w-4 md:h-4 rounded-full bg-[#F97316] text-white text-xs md:text-[10px] leading-none flex items-center justify-center"
-                      onClick={() => onResetLine(l.section, l.name)}
+                      onClick={() => onResetLine(l.tab, l.section, l.name)}
                       title={`Reset to catalog default ($${l.defaultLab})`}
                       data-testid={`reset-lab-${section.title}-${l.name}`}
                     >

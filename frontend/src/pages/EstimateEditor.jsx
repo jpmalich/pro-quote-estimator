@@ -16,6 +16,7 @@ import PhotosPanel from "@/components/estimate/PhotosPanel";
 import SectionAccordion from "@/components/estimate/SectionAccordion";
 import TotalsSummary from "@/components/estimate/TotalsSummary";
 import CatalogSyncBanner from "@/components/estimate/CatalogSyncBanner";
+import EstimatorTabs from "@/components/estimate/EstimatorTabs";
 import QuoteModal from "@/components/QuoteModal";
 
 export default function EstimateEditor() {
@@ -31,6 +32,10 @@ export default function EstimateEditor() {
   const [openSections, setOpenSections] = useState({});
   const [saving, setSaving] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
+  // Active product-line tab. "vinyl" is the default for back-compat with
+  // single-product legacy quotes — opening an existing estimate lands on
+  // the Vinyl tab regardless of what's saved.
+  const [activeTab, setActiveTab] = useState("vinyl");
 
   const totals = useMemo(() => (est ? calcTotals(est) : null), [est]);
 
@@ -45,10 +50,22 @@ export default function EstimateEditor() {
     );
   }
 
-  const linesBySection = est.lines.reduce((acc, l) => {
-    (acc[l.section] = acc[l.section] || []).push(l);
-    return acc;
-  }, {});
+  // Filter catalog sections to those that belong to the active tab. Each
+  // section declares its `product_lines` (vinyl / ascend / lp_smart). Legacy
+  // tier docs without this field default to ["vinyl", "ascend"] server-side.
+  const visibleSections = catalog.filter((s) =>
+    (s.product_lines || ["vinyl", "ascend"]).includes(activeTab)
+  );
+
+  // Lines grouped by section, scoped to the active tab. The catalog merge
+  // in useEstimate creates one line entry per (tab, section, name), so we
+  // just slice by activeTab here.
+  const linesBySection = est.lines
+    .filter((l) => (l.tab || "vinyl") === activeTab)
+    .reduce((acc, l) => {
+      (acc[l.section] = acc[l.section] || []).push(l);
+      return acc;
+    }, {});
 
   const handleSave = async () => {
     setSaving(true);
@@ -110,20 +127,36 @@ export default function EstimateEditor() {
         <SettingsRow est={est} update={update} />
         <PhotosPanel est={est} update={update} />
 
-        {catalog.map((s) => (
-          <SectionAccordion
-            key={s.title}
-            section={s}
-            lines={linesBySection[s.title] || []}
-            isOpen={!!openSections[s.title]}
-            onToggle={() => setOpenSections((o) => ({ ...o, [s.title]: !o[s.title] }))}
-            onQty={updateLineQty}
-            onField={updateLineField}
-            onResetLine={resetLineToDefault}
-            est={est}
-            update={update}
-          />
-        ))}
+        <EstimatorTabs est={est} activeTab={activeTab} onChange={setActiveTab} />
+
+        {visibleSections.length === 0 ? (
+          <div
+            className="card p-8 text-center"
+            data-testid={`empty-tab-${activeTab}`}
+          >
+            <div className="section-tag mb-3">LP Smart Siding</div>
+            <p className="text-sm text-[#52525B] max-w-md mx-auto">
+              The LP SmartSide catalog hasn't been loaded yet. Send Howard your
+              LP Smart Siding price sheet (Excel/CSV) and it'll populate here.
+            </p>
+          </div>
+        ) : (
+          visibleSections.map((s) => (
+            <SectionAccordion
+              key={s.title}
+              section={s}
+              lines={linesBySection[s.title] || []}
+              isOpen={!!openSections[s.title]}
+              onToggle={() => setOpenSections((o) => ({ ...o, [s.title]: !o[s.title] }))}
+              onQty={updateLineQty}
+              onField={updateLineField}
+              onResetLine={resetLineToDefault}
+              est={est}
+              update={update}
+              activeTab={activeTab}
+            />
+          ))
+        )}
 
         <TotalsSummary
           est={est}
