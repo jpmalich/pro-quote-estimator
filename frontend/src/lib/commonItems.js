@@ -42,6 +42,23 @@ export const COMMONLY_NEEDED_ITEMS = new Set([
   "Cap entry door",
   "Cap patio door",
   "Cap single garage door",
+  // ----- Tab-default "headline" siding products (one per tab) -----
+  // Even when a contractor isn't using HOVER, these are the most-quoted
+  // items per product line — surface them so they always catch the eye.
+  'Charter Oak Dutch Lap 4.5" .046',          // Vinyl tab default
+  'Ascend Composite Lap Siding 7"',           // Ascend tab default
+  // ----- LP SmartSide "starter pack" — items quoted on virtually every
+  // LP job. Flagging them ensures the LP tab doesn't ship empty when a
+  // contractor only fills the headline lap product.
+  'LP Strand Lap Siding 3/8" x 8" x 16\'',
+  'LP 440 Trim 3/4" x 4" x 16\'',
+  'LP 540 Trim 3/4" x 4" x 16\'',
+  "LP Color Match Coil",
+  'LP Outside corners 4" x 16\'',
+  "LP Touch-up Kit",
+  "LP Caulking Color Match",
+  'LP J-blocks 1" W/FLASHING',
+  'LP Soffit 3/8" x 16" x 16\' Vented',
 ]);
 
 export function isCommonlyNeeded(itemName) {
