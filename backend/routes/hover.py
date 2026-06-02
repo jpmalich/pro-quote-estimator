@@ -44,48 +44,104 @@ DEFAULT_WASTE_PCT = 10.0  # Howard's preferred default per setup
 # -----------------------------------------------------------------------------
 # Catalog mapping
 # -----------------------------------------------------------------------------
-# Map HOVER measurements → catalog line items. Each entry is:
-#   (section, item_name, unit, qty_callable)
-# qty_callable receives the parsed HOVER dict and returns the raw (pre-waste)
-# qty. The waste factor itself is applied later by calc_totals — we set
-# qty here equal to the *measured* requirement.
+# Map HOVER measurements → catalog line items. Each entry now declares which
+# *tab(s)* it targets (vinyl / ascend / lp_smart) so a single HOVER upload
+# auto-populates all three parallel option sets — the contractor lands with
+# three complete quotes ready to compare.
 #
 # Industry-standard ratios are documented inline so Howard can tune them.
 HOVER_MAPPING_SPEC = [
-    # SIDING — auto-populate as SQ (squares = 100 sqft). Howard sells by SQ.
-    # We add an empty Charter Oak Clap 4.5" .046 row at 0 mat so the contractor
-    # can pick a different profile via the existing line editor.
+    # =====================================================================
+    # HEADLINE SIDING — one per tab. We use HOVER's "+ Openings < 20ft²
+    # +10%" row (from SIDING WASTE TOTALS) so the small-opening adder is
+    # already baked in. Raw facades area is the fallback.
+    # =====================================================================
     {
+        "tabs": ["vinyl"],
         "section": "Vinyl Siding",
         "item": "Charter Oak Clap 4.5\" .046",
         "unit": "SQ",
-        # Prefer HOVER's "SIDING WASTE TOTALS → + Openings < 20ft² +10%" value
-        # (it already bakes in the small-opening waste). Fall back to the raw
-        # facades area if that specific row isn't present in the report.
         "extract": lambda m: round(
             ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
             1,
         ),
-        "note": "From HOVER 'SIDING WASTE TOTALS → + Openings < 20ft² +10%' (already includes +10% small-opening adder)",
+        "note": "From HOVER 'SIDING WASTE TOTALS → + Openings < 20ft² +10%'",
     },
-    # ACCESSORIES — corners, J-channel, starter, finish trim, house wrap, nails
     {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding",
+        "item": "Ascend Composite Lap Siding 7\"",
+        "unit": "SQ",
+        "extract": lambda m: round(
+            ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
+            1,
+        ),
+        "note": "Default Ascend profile — change via edit if needed",
+    },
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Smart Siding",
+        "item": "LP Strand Lap Siding 3/8\" x 8\" x 16'",
+        "unit": "SQ",
+        "extract": lambda m: round(
+            ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
+            1,
+        ),
+        "note": "LP Strand Lap priced per SQ (11 PCS per SQ per LP price sheet)",
+    },
+    # =====================================================================
+    # OUTSIDE CORNERS — count is HOVER outside-corner LF ÷ piece length.
+    # Vinyl/Ascend = 10' pieces, LP = 16' pieces.
+    # =====================================================================
+    {
+        "tabs": ["vinyl"],
         "section": "Siding Accessories",
         "item": "Outside corners",
         "unit": "PCS",
-        # Outside corner posts are 10' pieces. HOVER gives total corner LF.
         "extract": lambda m: max(1, round((m.get("outside_corner_lf") or 0) / 10)),
-        "note": "10' pieces per HOVER outside-corner LF",
+        "note": "Vinyl 10' pieces / outside-corner LF",
     },
     {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding/Accessories",
+        "item": "Ascend 3.5\" Outside Corner  - MATTE",
+        "unit": "PCS",
+        "extract": lambda m: max(1, round((m.get("outside_corner_lf") or 0) / 10)),
+        "note": "Ascend 10' outside-corner pieces / corner LF",
+    },
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": "LP Outside corners 4\" x 16'",
+        "unit": "PCS",
+        "extract": lambda m: max(1, round((m.get("outside_corner_lf") or 0) / 16)),
+        "note": "LP 16' outside-corner pieces / corner LF",
+    },
+    # =====================================================================
+    # INSIDE CORNERS — vinyl + ascend. LP doesn't ship a dedicated inside-
+    # corner item (LP installers use trim/butt joints), so we skip LP here.
+    # =====================================================================
+    {
+        "tabs": ["vinyl"],
         "section": "Siding Accessories",
         "item": "Inside Corners (Siding)",
         "unit": "PCS",
-        # Inside corners use 10' pieces too.
         "extract": lambda m: max(0, round((m.get("inside_corner_lf") or 0) / 10)),
         "note": "10' pieces per HOVER inside-corner LF",
     },
     {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding/Accessories",
+        "item": "Inside Corners",
+        "unit": "PCS",
+        "extract": lambda m: max(0, round((m.get("inside_corner_lf") or 0) / 10)),
+        "note": "Ascend inside-corner pieces / corner LF",
+    },
+    # =====================================================================
+    # STARTER LF — vinyl + ascend. LP has no dedicated starter.
+    # =====================================================================
+    {
+        "tabs": ["vinyl"],
         "section": "Siding Accessories",
         "item": "Starter",
         "unit": "LF",
@@ -93,36 +149,68 @@ HOVER_MAPPING_SPEC = [
         "note": "LF along bottom course",
     },
     {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding/Accessories",
+        "item": "Ascend - Starter",
+        "unit": "LF",
+        "extract": lambda m: round(m.get("starter_lf") or 0),
+        "note": "Ascend starter LF along bottom course",
+    },
+    # =====================================================================
+    # FINISH TRIM — mirrors starter LF (top course). Vinyl + Ascend only.
+    # =====================================================================
+    {
+        "tabs": ["vinyl"],
         "section": "Siding Accessories",
         "item": "Finish Trim",
         "unit": "LF",
-        "extract": lambda m: round(m.get("starter_lf") or 0),  # top = bottom for a typical wall
-        "note": "LF along top course (mirrors starter for typical walls)",
+        "extract": lambda m: round(m.get("starter_lf") or 0),
+        "note": "Mirrors starter LF for top course",
     },
     {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding/Accessories",
+        "item": "ASCEND Finish Trim",
+        "unit": "LF",
+        "extract": lambda m: round(m.get("starter_lf") or 0),
+        "note": "Ascend finish trim along top course",
+    },
+    # =====================================================================
+    # J-CHANNEL (Vinyl only — Ascend J-Channel unit is ambiguous in the
+    # catalog vs how it's actually counted, so we leave Ascend J-Channel
+    # for manual entry. LP doesn't use J-channel.)
+    # =====================================================================
+    {
+        "tabs": ["vinyl"],
         "section": "Siding Accessories",
         "item": "3/4\" J-Channel (2 per Sq of siding)",
         "unit": "PCS",
-        # 2 pieces per SQ siding + opening perimeter ÷ 10'
         "extract": lambda m: max(0, round(
             ((m.get("siding_sqft") or 0) / 100.0) * 2
             + (m.get("opening_perimeter_lf") or 0) / 10
         )),
         "note": "2/SQ siding + perimeter ÷ 10' around openings",
     },
+    # =====================================================================
+    # HOUSE WRAP — vinyl + ascend share the accessories section. LP has
+    # no house wrap line item.
+    # =====================================================================
     {
+        "tabs": ["vinyl", "ascend"],
         "section": "Siding Accessories",
         "item": "House Wrap",
         "unit": "SQ",
-        # House wrap covers the same wall area as siding — use the same
-        # HOVER "SIDING WASTE TOTALS → + Openings < 20ft² +10%" value.
         "extract": lambda m: round(
             ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
             1,
         ),
-        "note": "Matches HOVER 'SIDING WASTE TOTALS → + Openings < 20ft² +10%' (same as siding SQ)",
+        "note": "Matches HOVER 'SIDING WASTE TOTALS → + Openings < 20ft² +10%'",
     },
+    # =====================================================================
+    # NAILS — vinyl + ascend; LP uses different fasteners (manual entry).
+    # =====================================================================
     {
+        "tabs": ["vinyl", "ascend"],
         "section": "Siding Accessories",
         "item": "2\" Nails 30 lbs (1 per 15 Sq)",
         "unit": "JOB",
@@ -130,42 +218,59 @@ HOVER_MAPPING_SPEC = [
         "note": "1 box per 15 SQ of siding",
     },
     {
+        "tabs": ["vinyl", "ascend"],
         "section": "Siding Accessories",
         "item": "1 1/4\" Trim Nails",
         "unit": "Box",
         "extract": lambda m: 1,
         "note": "1 box per job (standard)",
     },
-    # SOFFIT & FASCIA — auto-populate from HOVER soffit + eaves + rakes
+    # =====================================================================
+    # SOFFIT — vinyl + ascend share the standard soffit/fascia line; LP
+    # has its own panel-based soffit (16' boards).
+    # =====================================================================
     {
+        "tabs": ["vinyl", "ascend"],
         "section": "Vinyl Soffit with Siding",
         "item": "Soffit & fascia up to 13\" wide Charter Oak",
         "unit": "LF",
-        # Linear feet of eaves (fascia runs along eaves where soffit attaches).
-        # If HOVER reports both eaves + rakes, we add them since both get soffit.
         "extract": lambda m: round((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)),
         "note": "Eaves LF + Rakes LF",
     },
     {
+        "tabs": ["vinyl", "ascend"],
         "section": "Vinyl Soffit with Siding",
         "item": "3/4\" Soffit J-Channel (Charter Oak)",
         "unit": "LF",
-        # Soffit J-Channel runs the same length as the soffit/fascia it secures.
         "extract": lambda m: round((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)),
         "note": "Matches Soffit & fascia LF",
     },
-    # SEAMLESS GUTTER — eaves are exactly where gutters go (rakes don't get gutter)
     {
+        "tabs": ["lp_smart"],
+        "section": "LP SmartSide Soffit",
+        "item": "LP Soffit 3/8\" x 16\" x 16' Vented",
+        "unit": "PCS",
+        "extract": lambda m: max(
+            1, round(((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 16)
+        ),
+        "note": "LP soffit boards are 16' — (eaves + rakes LF) / 16",
+    },
+    # =====================================================================
+    # GUTTER — all 3 tabs share the Seamless Gutter section.
+    # =====================================================================
+    {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
         "section": "Seamless Gutter",
         "item": "Gutter 6\"",
         "unit": "LF",
         "extract": lambda m: round(m.get("eaves_lf") or 0),
         "note": "Eaves LF (gutters run along eaves, not rakes)",
     },
-    # MISC LABOR & MATERIAL — caps from HOVER window/door counts. We use the
-    # classified counts (entry/patio/garage) from the LLM so the contractor
-    # doesn't have to manually rebalance.
+    # =====================================================================
+    # CAPS — Misc. Labor & Material section is on all 3 tabs.
+    # =====================================================================
     {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
         "section": "Misc. Labor & Material",
         "item": "Cap window",
         "unit": "Each",
@@ -173,6 +278,7 @@ HOVER_MAPPING_SPEC = [
         "note": "1 per window from HOVER",
     },
     {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
         "section": "Misc. Labor & Material",
         "item": "Cap entry door",
         "unit": "Each",
@@ -180,13 +286,15 @@ HOVER_MAPPING_SPEC = [
         "note": "1 per entry door (D-N prefix, < 72in wide)",
     },
     {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
         "section": "Misc. Labor & Material",
         "item": "Cap patio door",
         "unit": "Each",
         "extract": lambda m: int(m.get("patio_door_count") or 0),
-        "note": "1 per sliding glass / patio door (SGD-N / FD-N prefix)",
+        "note": "1 per sliding glass / patio door",
     },
     {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
         "section": "Misc. Labor & Material",
         "item": "Cap single garage door",
         "unit": "Each",
@@ -205,6 +313,10 @@ class HoverLine(BaseModel):
     unit: str
     qty: float
     note: str = ""
+    # Which tab the line belongs to: "vinyl" | "ascend" | "lp_smart". The
+    # importer emits one HoverLine per (mapping × tab) so a single upload
+    # populates all three parallel option sets in the estimator.
+    tab: str = "vinyl"
 
 
 class HoverImportResult(BaseModel):
@@ -327,13 +439,19 @@ def _build_lines(measurements: dict) -> list[dict]:
             qty = 0
         if qty <= 0:
             continue
-        out.append({
-            "section": spec["section"],
-            "name": spec["item"],
-            "unit": spec["unit"],
-            "qty": qty,
-            "note": spec["note"],
-        })
+        # Emit one line per tab the spec targets. The contractor's estimator
+        # already creates parallel entries for every (tab, section, item)
+        # tuple, so we never need to fabricate mat/lab here — the frontend
+        # merge keys by (tab, section, item) and finds the right row.
+        for tab in spec["tabs"]:
+            out.append({
+                "tab": tab,
+                "section": spec["section"],
+                "name": spec["item"],
+                "unit": spec["unit"],
+                "qty": qty,
+                "note": spec["note"],
+            })
     return out
 
 

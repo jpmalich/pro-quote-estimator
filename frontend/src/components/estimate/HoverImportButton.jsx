@@ -33,6 +33,12 @@ const KEY_LABELS = {
   address: "Address",
 };
 
+const TAB_LABELS = {
+  vinyl: "Vinyl",
+  ascend: "Ascend",
+  lp_smart: "LP Smart",
+};
+
 const UNIT_BY_KEY = (k) => {
   if (k.endsWith("_sqft")) return "ft²";
   if (k.endsWith("_lf")) return "LF";
@@ -66,24 +72,30 @@ export default function HoverImportButton({ est, update }) {
 
   const apply = () => {
     if (!result?.lines?.length) return;
-    // Merge: if the contractor already has a line with the same section+name,
-    // overwrite its qty (so re-importing updates instead of duplicating). New
-    // names get appended. We preserve every other existing line untouched.
+    // Merge by (tab, section, name) — same item can exist on multiple tabs
+    // with independent quantities, and the HOVER importer now emits a line
+    // per tab. Overwriting an existing tab+section+name entry preserves its
+    // catalog mat/lab and just updates qty.
     const existing = est.lines || [];
-    const byKey = new Map(existing.map((l, i) => [`${l.section}::${l.name}`, i]));
+    const tabOf = (l) => l.tab || "vinyl";
+    const keyOf = (l) => `${tabOf(l)}::${l.section}::${l.name}`;
+    const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
     const next = [...existing];
     let added = 0;
     let updated = 0;
     for (const ln of result.lines) {
-      const key = `${ln.section}::${ln.name}`;
+      const key = `${ln.tab || "vinyl"}::${ln.section}::${ln.name}`;
       const idx = byKey.get(key);
       if (idx == null) {
+        // Should not happen in practice — useEstimate pre-creates entries
+        // for every (tab, section, item) tuple — but stay defensive.
         next.push({
+          tab: ln.tab || "vinyl",
           section: ln.section,
           name: ln.name,
           unit: ln.unit,
           qty: ln.qty,
-          mat: 0, lab: 0, // contractor's catalog will fill these via useEstimate
+          mat: 0, lab: 0,
         });
         added += 1;
       } else {
@@ -92,7 +104,7 @@ export default function HoverImportButton({ est, update }) {
       }
     }
     update({ lines: next });
-    toast.success(`Imported HOVER: ${added} new + ${updated} updated`);
+    toast.success(`Imported HOVER: ${added} new + ${updated} updated across all tabs`);
     setResult(null);
   };
 
@@ -174,37 +186,59 @@ export default function HoverImportButton({ est, update }) {
                 </div>
               </div>
 
-              {/* Lines block */}
+              {/* Lines block — grouped by tab so the contractor can see at a
+                  glance what each option will look like. */}
               <div className="p-5">
                 <div className="text-[10px] uppercase tracking-wider font-bold text-[#A1A1AA] mb-3">
-                  Auto-generated Line Items ({result.lines?.length || 0})
+                  Auto-generated Line Items ({result.lines?.length || 0} across {Object.keys(TAB_LABELS).filter(t => (result.lines || []).some(l => (l.tab || "vinyl") === t)).length} tabs)
                 </div>
                 {result.lines?.length ? (
-                  <table className="w-full text-sm">
-                    <thead className="border-b border-[#E4E4E7]">
-                      <tr className="text-left text-[10px] uppercase tracking-wider text-[#A1A1AA]">
-                        <th className="py-2 pr-3">Section</th>
-                        <th className="py-2 pr-3">Item</th>
-                        <th className="py-2 pr-3 text-right">Qty</th>
-                        <th className="py-2 pr-3">Unit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.lines.map((l) => (
-                        <tr key={`${l.section}::${l.name}`} className="border-b border-[#F4F4F5]">
-                          <td className="py-2 pr-3 text-xs text-[#52525B]">{l.section}</td>
-                          <td className="py-2 pr-3">
-                            <div className="text-xs text-[#09090B]">{l.name}</div>
-                            {l.note && (
-                              <div className="text-[10px] text-[#A1A1AA] mt-0.5">{l.note}</div>
-                            )}
-                          </td>
-                          <td className="py-2 pr-3 text-right font-mono-num text-sm font-bold">{l.qty}</td>
-                          <td className="py-2 pr-3 text-xs text-[#52525B]">{l.unit}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  ["vinyl", "ascend", "lp_smart"].map((tab) => {
+                    const tabLines = (result.lines || []).filter(
+                      (l) => (l.tab || "vinyl") === tab
+                    );
+                    if (!tabLines.length) return null;
+                    return (
+                      <div key={tab} className="mb-5 last:mb-0">
+                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#09090B]">
+                          <span className="text-xs uppercase tracking-[0.18em] font-bold text-[#F97316]">
+                            {TAB_LABELS[tab]} tab
+                          </span>
+                          <span className="text-[10px] text-[#A1A1AA]">
+                            ({tabLines.length} {tabLines.length === 1 ? "line" : "lines"})
+                          </span>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-[10px] uppercase tracking-wider text-[#A1A1AA]">
+                              <th className="py-1 pr-3">Section</th>
+                              <th className="py-1 pr-3">Item</th>
+                              <th className="py-1 pr-3 text-right">Qty</th>
+                              <th className="py-1 pr-3">Unit</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tabLines.map((l) => (
+                              <tr
+                                key={`${l.tab}::${l.section}::${l.name}`}
+                                className="border-b border-[#F4F4F5]"
+                              >
+                                <td className="py-2 pr-3 text-xs text-[#52525B]">{l.section}</td>
+                                <td className="py-2 pr-3">
+                                  <div className="text-xs text-[#09090B]">{l.name}</div>
+                                  {l.note && (
+                                    <div className="text-[10px] text-[#A1A1AA] mt-0.5">{l.note}</div>
+                                  )}
+                                </td>
+                                <td className="py-2 pr-3 text-right font-mono-num text-sm font-bold">{l.qty}</td>
+                                <td className="py-2 pr-3 text-xs text-[#52525B]">{l.unit}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-sm text-[#52525B]">
                     No line items generated — the report may be missing standard measurements.
