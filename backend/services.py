@@ -108,6 +108,21 @@ async def ensure_tiers_seeded():
             "el.name": "New Exterior Coil Trim",
         }],
     )
+    # Iter 31: "New Exterior Coil Trim" → "Cap window (Windows)" rename.
+    # The "(Windows)" suffix disambiguates from the existing "Cap window"
+    # item in the siding-tab Misc. Labor & Material section. Rename in
+    # tier_doc items AND historical estimate lines so saved estimates
+    # continue to merge against the catalog correctly.
+    await db.price_tiers.update_many(
+        {"sections.items.name": "New Exterior Coil Trim"},
+        {"$set": {"sections.$[].items.$[it].name": "Cap window (Windows)"}},
+        array_filters=[{"it.name": "New Exterior Coil Trim"}],
+    )
+    await db.estimates.update_many(
+        {"lines.name": "New Exterior Coil Trim"},
+        {"$set": {"lines.$[l].name": "Cap window (Windows)"}},
+        array_filters=[{"l.name": "New Exterior Coil Trim"}],
+    )
     # Iter 27: drop the "(1 per 50' fascia)" suffix from the 3 siding-accessories
     # coil entries — the fascia variants now live in Vinyl Soffit with Siding as
     # separate items, so the Siding Accessories names should just describe their

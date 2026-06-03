@@ -359,10 +359,10 @@ HOVER_MAPPING_SPEC = [
     {
         "tabs": ["windows"],
         "section": "Window Installation",
-        "item": "New Exterior Coil Trim",
+        "item": "Cap window (Windows)",
         "unit": "Each",
         "extract": lambda m: int(m.get("window_count") or 0),
-        "note": "1 coil-trim wrap per HOVER window (default exterior trim)",
+        "note": "1 cap per HOVER window (default exterior wrap)",
     },
 ]
 

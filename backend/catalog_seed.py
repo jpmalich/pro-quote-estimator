@@ -171,9 +171,10 @@ SECTION_LAYOUT = [
         "Field Mull Assembly and/or Field Glaze (adder per each opening)",
         "Lead Safe Installation Practices For Window Installation",
         "Lead Safe - Test Fee (all homes 1978 and older are tested)",
-        # Moved from "Window Exterior Trim Work" — coil trim is part of the
-        # standard install package on most window jobs.
-        "New Exterior Coil Trim",
+        # Renamed from "New Exterior Coil Trim" in Iter 30 — matches the
+        # "Cap window" line on the siding tabs (same $20 labor); "(Windows)"
+        # suffix disambiguates from the siding Misc. Labor & Material row.
+        "Cap window (Windows)",
     ]),
     ("Vero Sliding Glass Doors", False, [
         'Vero - Sliding glass door 60" x 80"',
@@ -337,6 +338,7 @@ ITEM_META = {
     "New Exterior Primed Wood Trim": ("Each", 71.04),
     "New Exterior Composite Trim": ("Each", 99.26),
     "New Exterior Coil Trim": ("Each", 75.0),
+    "Cap window (Windows)": ("Each", 20),  # matches siding "Cap window"
     "New Interior Stops or Flat Trim": ("Each", 20.0),
     "New Interior Casing": ("Each", 77.62),
     "New Interior Jamb Extension": ("Each", 89.13),
