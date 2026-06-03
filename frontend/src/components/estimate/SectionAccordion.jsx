@@ -13,6 +13,17 @@ import { isCommonOnTab, unfilledCommonCount } from "@/lib/commonItems";
 const MISC_LABOR_SECTION = "Misc. Labor Only";
 const MISC_MATERIAL_SECTION = "Misc. Labor & Material";
 
+// Sections (other than the dedicated Misc sections above) that opt-in to
+// editable "Add custom line" rows. The custom rows piggy-back on the
+// existing `misc_material` storage but are tagged with `section` so they
+// render under the opted-in section instead of Misc. Labor & Material.
+//
+// Currently: Window Installation only. Add more section titles here when
+// contractors want freeform line items anywhere else.
+const CUSTOM_LINE_SECTIONS = new Set([
+  "Window Installation",
+]);
+
 export default function SectionAccordion({
   section,
   lines,
@@ -29,12 +40,36 @@ export default function SectionAccordion({
   const { lang } = useLang();
   const isMiscLab = section.title === MISC_LABOR_SECTION;
   const isMiscMat = section.title === MISC_MATERIAL_SECTION;
-  const miscKey = isMiscLab ? "misc_labor" : isMiscMat ? "misc_material" : null;
+  const allowsCustomLines = CUSTOM_LINE_SECTIONS.has(section.title);
+  // Whether to show the Material column on the editable misc rows. True
+  // for the dedicated "Misc. Labor & Material" section AND any
+  // CUSTOM_LINE_SECTIONS (Window Installation, etc.). "Misc. Labor Only"
+  // shows labor only.
+  const showMatCol = section.title === MISC_MATERIAL_SECTION || CUSTOM_LINE_SECTIONS.has(section.title);
+  // For Misc sections, miscKey is the legacy storage key. For
+  // CUSTOM_LINE_SECTIONS we use the same misc_material storage so all the
+  // editable mat+lab+desc + add/remove plumbing is shared.
+  const miscKey = isMiscLab
+    ? "misc_labor"
+    : isMiscMat || allowsCustomLines
+    ? "misc_material"
+    : null;
   // Misc rows are scoped per tab — each tab keeps its own custom labor /
   // custom material entries so multi-product quotes don't bleed into each
-  // other.
+  // other. CUSTOM_LINE_SECTIONS are additionally scoped by `section` so
+  // a Window-Installation custom line doesn't leak into the dedicated
+  // Misc. Labor & Material section (or vice-versa).
   const allMiscRows = miscKey ? est[miscKey] || [] : [];
-  const miscRows = allMiscRows.filter((r) => (r.tab || "vinyl") === activeTab);
+  const miscRows = allMiscRows.filter((r) => {
+    if ((r.tab || "vinyl") !== activeTab) return false;
+    const rowSection = r.section || "";
+    if (allowsCustomLines) {
+      return rowSection === section.title;
+    }
+    // Legacy Misc sections claim rows with no section tag (back-compat)
+    // OR rows explicitly tagged with this misc title.
+    return !rowSection || rowSection === section.title;
+  });
 
   const sectionSell =
     lines.reduce((sum, l) => sum + (l.qty || 0) * ((l.mat || 0) + (l.lab || 0)), 0) +
@@ -48,9 +83,28 @@ export default function SectionAccordion({
   const unfilledCommon = unfilledCommonCount(lines, activeTab);
 
   const addMisc = () => {
-    const newRow = isMiscMat
-      ? { _id: crypto.randomUUID(), desc: "", mat: 0, lab: 0, tab: activeTab }
-      : { _id: crypto.randomUUID(), desc: "", lab: 0, tab: activeTab };
+    // CUSTOM_LINE_SECTIONS always emit material+labor rows (Window Install
+    // contractors want to bill both mat and lab for upcharges); legacy
+    // Misc. Labor & Material keeps the same shape. Misc. Labor Only emits
+    // a labor-only row. Section tag stamped so filtering above stays
+    // correct when contractors flip between tabs/sections.
+    const wantsMat = isMiscMat || allowsCustomLines;
+    const newRow = wantsMat
+      ? {
+          _id: crypto.randomUUID(),
+          desc: "",
+          mat: 0,
+          lab: 0,
+          tab: activeTab,
+          section: section.title,
+        }
+      : {
+          _id: crypto.randomUUID(),
+          desc: "",
+          lab: 0,
+          tab: activeTab,
+          section: section.title,
+        };
     update({ [miscKey]: [...allMiscRows, newRow] });
   };
   const updateMisc = (idx, key, val) => {
@@ -199,8 +253,8 @@ export default function SectionAccordion({
               {miscRows.length > 0 && (
                 <div className="hidden md:grid grid-cols-12 gap-3 px-5 pt-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-[#A1A1AA] font-bold">
                   <div className="col-span-6">{t("est.customDesc")}</div>
-                  {isMiscMat && <div className="col-span-2 text-right">{t("cat.col.material")}</div>}
-                  <div className={`col-span-${isMiscMat ? 2 : 4} text-right`}>{t("cat.col.labor")}</div>
+                  {showMatCol && <div className="col-span-2 text-right">{t("cat.col.material")}</div>}
+                  <div className={`col-span-${showMatCol ? 2 : 4} text-right`}>{t("cat.col.labor")}</div>
                   <div className="col-span-2 text-right">{t("est.col.total")}</div>
                 </div>
               )}
@@ -219,7 +273,7 @@ export default function SectionAccordion({
                       onChange={(e) => updateMisc(i, "desc", e.target.value)}
                       data-testid={`misc-desc-${section.title}-${i}`}
                     />
-                    {isMiscMat && (
+                    {showMatCol && (
                       <input
                         className="input num col-span-4 md:col-span-2"
                         type="number"
@@ -230,7 +284,7 @@ export default function SectionAccordion({
                       />
                     )}
                     <input
-                      className={`input num col-span-${isMiscMat ? 4 : 8} md:col-span-${isMiscMat ? 2 : 4}`}
+                      className={`input num col-span-${showMatCol ? 4 : 8} md:col-span-${showMatCol ? 2 : 4}`}
                       type="number"
                       step="0.01"
                       value={r.lab}

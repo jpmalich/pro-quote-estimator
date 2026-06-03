@@ -83,6 +83,13 @@ class MiscLine(BaseModel):
     mat: float = 0
     lab: float = 0
     tab: str = "vinyl"  # same tab semantics as EstimateLine
+    # Optional section anchor — empty string means the row appears under
+    # the default Misc. Labor & Material / Misc. Labor Only sections
+    # (back-compat). When set (e.g. "Window Installation"), the row
+    # appears inline under that catalog section as an "Add custom line"
+    # entry. Lets contractors bill freeform mat+lab inside any whitelisted
+    # section without polluting the Misc. catch-all.
+    section: str = ""
 
 
 class EstimateIn(BaseModel):
