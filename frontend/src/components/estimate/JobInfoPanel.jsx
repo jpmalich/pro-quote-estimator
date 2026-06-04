@@ -1,5 +1,6 @@
 import React from "react";
 import { useT } from "@/lib/i18n";
+import { VINYL_SIDING_COLORS, ASCEND_COLORS } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 
 export default function JobInfoPanel({ est, update }) {
@@ -77,13 +78,31 @@ export default function JobInfoPanel({ est, update }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="label">{t("est.color.siding")}</label>
-              <input
+              <select
                 className="input"
                 value={est.siding_color || ""}
-                placeholder={t("est.color.placeholder")}
                 onChange={(e) => update({ siding_color: e.target.value })}
                 data-testid="color-siding"
-              />
+              >
+                <option value="">— Select —</option>
+                {VINYL_SIDING_COLORS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">{t("est.color.ascend")}</label>
+              <select
+                className="input"
+                value={est.ascend_color || ""}
+                onChange={(e) => update({ ascend_color: e.target.value })}
+                data-testid="color-ascend"
+              >
+                <option value="">— Select —</option>
+                {ASCEND_COLORS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">{t("est.color.accessories")}</label>

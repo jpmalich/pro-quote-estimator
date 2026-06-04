@@ -351,9 +351,10 @@ export function buildMaterialListHtml({ estimate, company, branding, lang = "en"
   </div>
 
   <table class="colors" cellspacing="0" cellpadding="0">
-    <tr class="colors-head"><td colspan="5">Material Colors</td></tr>
+    <tr class="colors-head"><td colspan="6">Material Colors</td></tr>
     <tr>
       ${colorCell("Siding", estimate.siding_color)}
+      ${colorCell("Ascend", estimate.ascend_color)}
       ${colorCell("Accessories", estimate.accessories_color)}
       ${colorCell("Outside Corner", estimate.outside_corner_color)}
       ${colorCell("Soffit / Fascia", estimate.soffit_fascia_color)}

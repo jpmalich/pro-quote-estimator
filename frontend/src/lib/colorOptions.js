@@ -1,0 +1,63 @@
+// Color palettes per product line. Used by the dropdowns on the estimate
+// page (Job Info → Material Colors / Window Colors blocks). One palette
+// per field; the contractor must pick a value from the list — no free-text.
+//
+// Add or edit a palette here and the dropdown updates automatically. Order
+// matters: items are rendered in this order, so put the most common picks
+// at the top.
+
+export const VINYL_SIDING_COLORS = [
+  "Glacier White",
+  "Juniper Ridge",
+  "Platinum Gray",
+  "Monterey Sand",
+  "Tuscan Clay",
+  "Antique Parchment",
+  "Adobe Cream",
+  "Natural Linen",
+  "Cape Cod Gray",
+  "Maple",
+  "Vintage Wicker",
+  "Mystic Blue",
+  "Coastal Sage",
+  "Fired Brick",
+  "Harbor Blue",
+  "Deep Espresso",
+  "Riviera Dusk",
+  "Canyon Drift",
+  "Midnight Blue",
+  "Rustic Timber",
+  "Storm",
+  "Mountain Fern",
+  "Deep Moss",
+  "Sterling Gray",
+  "Ageless Slate",
+  "Flagship Brown",
+  "Laguna Blue",
+  "Charcoal Smoke",
+  "Cast Iron",
+];
+
+export const ASCEND_COLORS = [
+  "Glacier White",
+  "Almond",
+  "Monterey Sand",
+  "Pebble",
+  "Canyon Drift",
+  "Flagship Brown",
+  "Rustic Timber",
+  "Dover Gray",
+  "Cape Cod Gray",
+  "Sterling Gray",
+  "Storm",
+  "Ageless Slate",
+  "Charcoal Smoke",
+  "Cast Iron",
+  "Laguna Blue",
+  "Harbor Blue",
+  "Midnight Blue",
+  "Riviera Dusk",
+  "Mountain Fern",
+  "Deep Moss",
+  "Fired Brick",
+];

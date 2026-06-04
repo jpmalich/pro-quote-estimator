@@ -102,6 +102,7 @@ class EstimateIn(BaseModel):
     # Estimate-level color choices (one per material family). Print on the
     # material list so the supplier knows exactly which colors to pull.
     siding_color: str = ""
+    ascend_color: str = ""
     accessories_color: str = ""
     outside_corner_color: str = ""
     soffit_fascia_color: str = ""
