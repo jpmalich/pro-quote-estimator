@@ -106,23 +106,31 @@ export default function JobInfoPanel({ est, update }) {
             </div>
             <div>
               <label className="label">{t("est.color.accessories")}</label>
-              <input
+              <select
                 className="input"
                 value={est.accessories_color || ""}
-                placeholder={t("est.color.placeholder")}
                 onChange={(e) => update({ accessories_color: e.target.value })}
                 data-testid="color-accessories"
-              />
+              >
+                <option value="">— Select —</option>
+                {VINYL_SIDING_COLORS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">{t("est.color.outsideCorner")}</label>
-              <input
+              <select
                 className="input"
                 value={est.outside_corner_color || ""}
-                placeholder={t("est.color.placeholder")}
                 onChange={(e) => update({ outside_corner_color: e.target.value })}
                 data-testid="color-outside-corner"
-              />
+              >
+                <option value="">— Select —</option>
+                {VINYL_SIDING_COLORS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">{t("est.color.soffitFascia")}</label>
