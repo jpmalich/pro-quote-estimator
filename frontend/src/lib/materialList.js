@@ -362,6 +362,19 @@ export function buildMaterialListHtml({ estimate, company, branding, lang = "en"
   </table>
 
   ${
+    (estimate.window_frame_color || estimate.window_interior_color || estimate.window_exterior_color)
+      ? `<table class="colors" cellspacing="0" cellpadding="0">
+    <tr class="colors-head"><td colspan="3">Window Colors</td></tr>
+    <tr>
+      ${colorCell("Frame", estimate.window_frame_color)}
+      ${colorCell("Interior", estimate.window_interior_color)}
+      ${colorCell("Exterior", estimate.window_exterior_color)}
+    </tr>
+  </table>`
+      : ""
+  }
+
+  ${
     hasLines
       ? `<table class="materials" cellspacing="0" cellpadding="0">
     <colgroup>
