@@ -262,23 +262,50 @@ export default function useEstimate(id) {
     return () => clearTimeout(t);
   }, [userEdits, autosave]);
 
+  // Track whether the user has actually edited anything since mount so
+  // we only flush on unmount when there's something to save. Updated by
+  // an effect on userEdits.
+  const hasEditsRef = useRef(false);
+  useEffect(() => {
+    if (userEdits > 0) hasEditsRef.current = true;
+  }, [userEdits]);
+
+  // SPA back-navigation flush: when the editor unmounts (e.g. the user
+  // clicks Back/Dashboard from the StickyBar instead of closing the tab),
+  // pagehide/beforeunload don't fire. Fire one keepalive PUT on unmount
+  // if there have been any user edits — harmlessly redundant when the
+  // debounced autosave already ran, but covers "type → immediately Back".
+  useEffect(() => {
+    return () => {
+      if (!hasEditsRef.current) return;
+      const source = estRef.current;
+      if (!source) return;
+      try {
+        fetch(`${api.defaults.baseURL}/estimates/${id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildPayload(source)),
+          keepalive: true,
+        }).catch(() => {});
+      } catch { /* best-effort */ }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // unmount-only effect; closures capture latest via refs
+
   // Flush any pending autosave when the tab is closed / hidden so the
   // contractor doesn't lose recent edits when navigating away quickly.
+  // Uses fetch with keepalive instead of sendBeacon because (a) sendBeacon
+  // swallows server-side 401s silently and (b) keepalive carries the
+  // same access_token cookie axios uses elsewhere — keeping auth behavior
+  // identical to the regular save path.
   useEffect(() => {
     if (userEdits === 0) return;
     const flush = () => {
       const source = estRef.current;
       if (!source) return;
       try {
-        // sendBeacon is the only reliable way to fire a request during
-        // pagehide; it's fire-and-forget but the server still persists.
         const url = `${api.defaults.baseURL}/estimates/${id}`;
-        const blob = new Blob([JSON.stringify(buildPayload(source))], {
-          type: "application/json",
-        });
-        // sendBeacon doesn't carry credentials cross-origin by default —
-        // fall back to a synchronous fetch with keepalive when needed.
-        if (navigator.sendBeacon && navigator.sendBeacon(url, blob)) return;
         fetch(url, {
           method: "PUT",
           credentials: "include",
@@ -286,7 +313,7 @@ export default function useEstimate(id) {
           body: JSON.stringify(buildPayload(source)),
           keepalive: true,
         }).catch(() => {});
-      } catch { /* private mode / no beacon support */ }
+      } catch { /* ignore — best-effort flush */ }
     };
     window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);

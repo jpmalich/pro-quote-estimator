@@ -1,0 +1,34 @@
+{
+  "summary": "Retest of autosave-flush-on-navigate-away after switching from navigator.sendBeacon to fetch({keepalive:true, credentials:'include'}) + adding an unmount-time flush effect gated by hasEditsRef. All five requested scenarios PASS. The previously-failing TEST C (type qty=13 then page.goto within ~200ms then return) now persists correctly. Manual save, single-edit reload, debounce coalescing, Vinyl sub-categories, and Vero Windows sub-categories all PASS. Charter Oak qty was reset to 0 at the end of the run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: in useEstimate.js the unmount-flush effect (lines ~278-294) uses an empty deps array so the closure captures the initial `id` and `buildPayload` via refs. If the editor is ever reused for a different estimate id without a remount this could fire against the wrong id — currently safe because routes use the id in the URL so React Router remounts, but worth a code comment."
+  ],
+  "critical_code_review_comments": [
+    "useEstimate.js:278-294 (unmount-flush) — empty dependency array is intentional but the eslint-disable should be paired with a comment explaining why; estRef + buildPayload (memoised on []) make it safe today.",
+    "useEstimate.js:302-324 (pagehide/beforeunload) — switching from sendBeacon to fetch(keepalive:true) is the correct fix; cookies (withCredentials) carry auth identically to axios so the PUT is now authenticated and reliable.",
+    "useEstimate.js:243 — small race remains: if user clicks Save while a debounced autosave is in flight, two PUTs may interleave (savingRef.current already true on entry, both proceed). Low-risk; consider awaiting in-flight save."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "100% (6/6 scenarios PASS)"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123!",
+  "seed_data_creation": "none — used existing estimate EST-405137 (id 2fc4e383-1ef9-423d-b756-df4fc4dfdb47). Charter Oak Standard color Dutch Lap 4.5\" .046 qty was reset to 0 at end of run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Estimate detail route is /estimate/{id}. Sections are collapsed by default — click [data-testid='section-Vinyl Siding'] FIRST to expand, then click [data-testid='subcat-toggle-charter'] to reveal Charter Oak inputs. Save button testid: save-btn. Qty input testid contains an embedded double-quote (use page.get_by_test_id, not a CSS attribute selector). Windows estimates expose: subcat-toggle-ui-0-101, ui-0-45, ui-46-70, ui-71-101, other.",
+  "verified_acceptance_criteria": {
+    "TEST_C_navigate_away_flush": "PASS — typed 13 → page.goto('/dashboard/siding') after 200ms → return → qty still 13. Fetch keepalive PUT during unmount fires reliably.",
+    "TEST_D_manual_save_regression": "PASS — typed 21 → Save → 'Saved' toast → reload → 21.",
+    "TEST_E_vero_windows_subcats": "PASS — Standard (0-101 UI), 0-45 UI, 46-70 UI, 71-101 UI all render; subcat-toggle-ui-* testids present.",
+    "TEST_F1_single_edit_reload": "PASS — qty=9 persisted after 3.5s + reload.",
+    "TEST_F2_coalesce_two_edits": "PASS — 4 then 6 within 0.3s → exactly 1 PUT after debounce window.",
+    "TEST_F3_vinyl_subcats_render": "PASS — 6 subcat toggles rendered under Vinyl Siding."
+  },
+  "rca of the issue": "Previous failure RCA confirmed correct: sendBeacon swallowed auth/CORS errors silently and was unreliable for SPA back-navigation (pagehide doesn't fire on history.pushState). Fix applied by main agent: (1) replace sendBeacon with fetch({keepalive:true, credentials:'include'}) so cookies-based auth works identically to the axios path, AND (2) add a useEffect cleanup (unmount-only) gated by hasEditsRef that fires the same keepalive PUT during React Router SPA unmounts. Both paths now work. Verified by reproducing the exact TEST C scenario from iteration_9 — it now persists 13 correctly."
+}
