@@ -1,6 +1,6 @@
 import React from "react";
 import { useT } from "@/lib/i18n";
-import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS } from "@/lib/colorOptions";
+import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 
 export default function JobInfoPanel({ est, update, save }) {
@@ -170,13 +170,17 @@ export default function JobInfoPanel({ est, update, save }) {
             </div>
             <div>
               <label className="label">{t("est.color.windowWrap")}</label>
-              <input
+              <select
                 className="input"
                 value={est.window_wrap_color || ""}
-                placeholder={t("est.color.placeholder")}
                 onChange={(e) => update({ window_wrap_color: e.target.value })}
                 data-testid="color-window-wrap"
-              />
+              >
+                <option value="">— Select —</option>
+                {WINDOW_WRAP_COLORS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">{t("est.color.gutter")}</label>

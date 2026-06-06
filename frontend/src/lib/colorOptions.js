@@ -215,3 +215,26 @@ export const GUTTER_COLORS = [
   "Musket Brown",
   "Other",
 ];
+
+// Window wrap / cap stock — the full aluminum trim coil palette stocked
+// for capping window frames. Single flat collection (no Std/Arch split)
+// since it's a wide universal palette used across all brands.
+export const WINDOW_WRAP_COLORS = [
+  "Adobe Cream", "Ageless Slate", "Almond", "American Terra",
+  "Antique Parchment", "Architectural Bronze", "Black", "Brown",
+  "Burgundy", "Burnished Red", "Canyon Clay", "Canyon Drift",
+  "Cape Cod Gray", "Cast Iron", "Castle Gray", "Charcoal Gray",
+  "Charcoal Smoke", "Coastal Sage", "Dakota Blue", "Deep Espresso",
+  "Deep Moss", "Desert Clay", "Earthen Tan", "English Red",
+  "Fired Brick", "Flagship Brown", "Forest Green", "Glacier White",
+  "Golden Shadow", "Graphite", "Grecian Green", "Harbor Blue",
+  "Hudson Khaki", "Juniper Ridge", "Laguna Blue", "Linen",
+  "Maize", "Maple", "Midnight Blue", "Monterey Sand",
+  "Mountain Fern", "Musket Brown", "Mystic Blue", "Natural Linen",
+  "Nordic Gray", "Old World Blue", "Pacific Blue", "Pearl",
+  "Pebble", "Platinum Gray", "Red", "Riviera Dusk",
+  "Royal Brown", "Rustic Timber", "Sandstone", "Smokey Ash",
+  "Sterling Gray", "Storm", "Teakwood", "Terratone Bronze",
+  "Tuscan Clay", "Vintage Wicker", "Wedgewood Blue", "Wicker",
+  "Window Beige", "Window Forest Green",
+];
