@@ -158,11 +158,36 @@ HOVER_MAPPING_SPEC = [
         "note": "Ascend Starter qty = HOVER starter LF ÷ 10 (per Howard)",
     },
     # =====================================================================
-    # FINISH TRIM — left for manual entry on BOTH vinyl and Ascend per
-    # Howard's request. HOVER's starter LF often doesn't translate to the
-    # top course cleanly, so contractors prefer to enter Finish Trim
-    # themselves. The yellow Lightbulb on the row still prompts them.
+    # FINISH TRIM — qty = eaves LF + sum of window bottom widths (per
+    # Howard). Defaults to Standard color on vinyl; Architectural color
+    # variant is left for manual selection. Same formula on Ascend.
+    # If the HOVER report doesn't break out per-window widths, that piece
+    # falls back to 0 and the contractor can top-up the qty manually.
     # =====================================================================
+    {
+        "tabs": ["vinyl"],
+        "section": "Siding Accessories",
+        "item": "Finish Trim Standard color",
+        "unit": "PCS",
+        "extract": lambda m: round(
+            (m.get("eaves_lf") or 0)
+            + (m.get("window_bottom_width_total_lf") or 0),
+            2,
+        ),
+        "note": "Eaves LF + sum of window bottom widths (per Howard)",
+    },
+    {
+        "tabs": ["ascend"],
+        "section": "Ascend Cladding/Accessories",
+        "item": "ASCEND Finish Trim",
+        "unit": "PCS",
+        "extract": lambda m: round(
+            (m.get("eaves_lf") or 0)
+            + (m.get("window_bottom_width_total_lf") or 0),
+            2,
+        ),
+        "note": "Eaves LF + sum of window bottom widths (per Howard)",
+    },
     # =====================================================================
     # J-CHANNEL (Vinyl only — Ascend J-Channel unit is ambiguous in the
     # catalog vs how it's actually counted, so we leave Ascend J-Channel
@@ -404,6 +429,7 @@ PROMPT_TEMPLATE = """Extract from this HOVER report:
   "opening_count": <Openings Quantity total — windows + doors>,
   "opening_perimeter_lf": <sum of all opening perimeters if shown, else null>,
   "window_count": <number of windows>,
+  "window_bottom_width_total_lf": <sum of the bottom-edge (sill) width of EVERY window listed in the Doors & Windows table, in feet (decimal). For each window, take its WIDTH dimension (the shorter horizontal measurement, NOT the height) and add them all together. Example: three windows at 36in (3.0ft), 48in (4.0ft) and 60in (5.0ft) → 12.0. If individual window dimensions aren't shown, set to null.>,
   "door_count": <total number of doors of all types>,
   "entry_door_count": <number of single/double entry doors — `D-N` IDs that are NOT garage-sized (<72in wide OR <84in tall)>,
   "patio_door_count": <number of sliding/patio doors — typically `SGD-N` IDs (Sliding Glass Door), or `FD-N` (French Door)>,
