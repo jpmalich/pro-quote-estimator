@@ -8,7 +8,7 @@
 // them read-only above the line list so the contractor can sanity-check before
 // committing.
 import React, { useRef, useState } from "react";
-import { Upload, FileText, Check, X, Loader2 } from "lucide-react";
+import { Upload, FileText, Check, X, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
@@ -51,6 +51,7 @@ export default function HoverImportButton({ est, update, save }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [applying, setApplying] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
 
   const upload = async (f) => {
     if (!f) return;
@@ -137,7 +138,7 @@ export default function HoverImportButton({ est, update, save }) {
       <button
         type="button"
         className="px-3 py-1.5 bg-white text-[#09090B] border border-[#09090B] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => setShowWarning(true)}
         disabled={busy}
         data-testid="hover-import-btn"
         title="Import a HOVER measurement report (.pdf)"
@@ -145,6 +146,52 @@ export default function HoverImportButton({ est, update, save }) {
         {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
         {busy ? "Reading…" : "Import HOVER"}
       </button>
+
+      {showWarning && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setShowWarning(false)}
+          data-testid="hover-warning-backdrop"
+        >
+          <div
+            className="bg-white max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="hover-warning-modal"
+          >
+            <div className="bg-[#F97316] text-white px-5 py-4 flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+              <div className="font-heading text-lg">Quantity Verification Required</div>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-[#3F3F46] leading-relaxed">
+                You are responsible for verifying all quantities before submitting this report.
+              </p>
+            </div>
+            <div className="border-t border-[#E4E4E7] px-5 py-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 bg-white text-[#52525B] border border-[#E4E4E7] hover:bg-[#F4F4F5] text-sm font-bold uppercase tracking-wider"
+                onClick={() => setShowWarning(false)}
+                data-testid="hover-warning-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-[#F97316] text-white border border-[#F97316] hover:bg-[#EA580C] text-sm font-bold uppercase tracking-wider"
+                onClick={() => {
+                  setShowWarning(false);
+                  fileRef.current?.click();
+                }}
+                data-testid="hover-warning-agree"
+                autoFocus
+              >
+                I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {result && (
         <div
