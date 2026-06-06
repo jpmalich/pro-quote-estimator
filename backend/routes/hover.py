@@ -138,21 +138,16 @@ HOVER_MAPPING_SPEC = [
         "note": "Ascend inside-corner pieces / corner LF",
     },
     # =====================================================================
-    # STARTER LF — vinyl + ascend. LP has no dedicated starter.
+    # STARTER LF — only Ascend is auto-filled (qty = LF ÷ 100 per Howard,
+    # matching Ascend's per-PCS pricing). Vinyl Starter is now per-PCS too
+    # in the catalog but the LF→PCS conversion isn't a clean number, so we
+    # leave Vinyl Starter for manual entry. LP has no dedicated starter.
     # =====================================================================
-    {
-        "tabs": ["vinyl"],
-        "section": "Siding Accessories",
-        "item": "Starter",
-        "unit": "LF",
-        "extract": lambda m: round(m.get("starter_lf") or 0),
-        "note": "LF along bottom course",
-    },
     {
         "tabs": ["ascend"],
         "section": "Ascend Cladding/Accessories",
         "item": "Ascend - Starter",
-        "unit": "LF",
+        "unit": "PCS",
         "extract": lambda m: round((m.get("starter_lf") or 0) / 100, 2),
         "note": "Ascend Starter qty = HOVER starter LF ÷ 100 (per Howard)",
     },
