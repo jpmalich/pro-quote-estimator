@@ -295,6 +295,20 @@ HOVER_MAPPING_SPEC = [
         "extract": lambda m: round((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)),
         "note": "Matches Soffit & fascia LF — defaults to Standard color",
     },
+    # =====================================================================
+    # .019 FASCIA COIL — 1 roll per 50 LF of soffit/fascia (per Howard).
+    # Soffit/fascia LF = eaves LF + rakes LF.
+    # =====================================================================
+    {
+        "tabs": ["vinyl", "ascend"],
+        "section": "Vinyl Soffit with Siding",
+        "item": ".019 Coil (1 per 50' fascia)",
+        "unit": "ROLL",
+        "extract": lambda m: round(
+            ((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 50, 2
+        ),
+        "note": "Soffit & fascia LF ÷ 50 (per Howard)",
+    },
     {
         "tabs": ["lp_smart"],
         "section": "LP SmartSide Soffit",
