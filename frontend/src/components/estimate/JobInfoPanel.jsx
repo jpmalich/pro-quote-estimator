@@ -1,6 +1,6 @@
 import React from "react";
 import { useT } from "@/lib/i18n";
-import { VINYL_SIDING_COLOR_GROUPS, ASCEND_COLORS, SOFFIT_COLORS, GUTTER_COLORS } from "@/lib/colorOptions";
+import { VINYL_SIDING_COLOR_GROUPS, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 
 export default function JobInfoPanel({ est, update, save }) {
@@ -153,8 +153,12 @@ export default function JobInfoPanel({ est, update, save }) {
                 data-testid="color-soffit-fascia"
               >
                 <option value="">— Select —</option>
-                {SOFFIT_COLORS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                {SOFFIT_COLOR_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.colors.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

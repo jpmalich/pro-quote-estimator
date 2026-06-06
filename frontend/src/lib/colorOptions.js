@@ -79,42 +79,56 @@ export const ASCEND_COLORS = [
   "Fired Brick",
 ];
 
-// Soffit / Fascia palette. Same shape as the vinyl siding palette but
-// includes a few extra colors that ship on aluminum soffit/fascia stock
-// only (Musket Brown, Black) and omits a few darker vinyl-only colors.
-export const SOFFIT_COLORS = [
-  "Glacier White",
-  "Antique Parchment",
-  "Natural Linen",
-  "Platinum Gray",
-  "Cape Cod Gray",
-  "Mystic Blue",
-  "Coastal Sage",
-  "Juniper Ridge",
-  "Adobe Cream",
-  "Maple",
-  "Monterey Sand",
-  "Vintage Wicker",
-  "Tuscan Clay",
-  "Fired Brick",
-  "Canyon Drift",
-  "Flagship Brown",
-  "Deep Espresso",
-  "Musket Brown",
-  "Rustic Timber",
-  "Mountain Fern",
-  "Deep Moss",
-  "Harbor Blue",
-  "Midnight Blue",
-  "Laguna Blue",
-  "Riviera Dusk",
-  "Storm",
-  "Sterling Gray",
-  "Ageless Slate",
-  "Charcoal Smoke",
-  "Cast Iron",
-  "Black",
+// Soffit / Fascia palette split into Standard and Architectural (premium)
+// collections — same rendering pattern as the Vinyl Siding dropdown.
+// Premium colors include Musket Brown + Black which only ship on aluminum
+// soffit/fascia stock.
+export const SOFFIT_COLOR_GROUPS = [
+  {
+    label: "Standard Color Collection",
+    colors: [
+      "Glacier White",
+      "Antique Parchment",
+      "Natural Linen",
+      "Platinum Gray",
+      "Cape Cod Gray",
+      "Mystic Blue",
+      "Coastal Sage",
+      "Juniper Ridge",
+      "Adobe Cream",
+      "Maple",
+      "Monterey Sand",
+      "Vintage Wicker",
+      "Tuscan Clay",
+    ],
+  },
+  {
+    label: "Architectural Color Collection (premium)",
+    colors: [
+      "Fired Brick",
+      "Canyon Drift",
+      "Flagship Brown",
+      "Deep Espresso",
+      "Musket Brown",
+      "Rustic Timber",
+      "Mountain Fern",
+      "Deep Moss",
+      "Harbor Blue",
+      "Midnight Blue",
+      "Laguna Blue",
+      "Riviera Dusk",
+      "Storm",
+      "Sterling Gray",
+      "Ageless Slate",
+      "Charcoal Smoke",
+      "Cast Iron",
+      "Black",
+    ],
+  },
 ];
+
+// Flat fallback for any consumer that just needs the full list.
+export const SOFFIT_COLORS = SOFFIT_COLOR_GROUPS.flatMap((g) => g.colors);
 
 // Aluminum seamless-gutter & downspout palette. Standard Alside aluminum
 // coil colors — narrower than the soffit/fascia palette since gutter coil
