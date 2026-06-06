@@ -155,12 +155,11 @@ export default function SectionAccordion({
     const total = (l.qty || 0) * ((l.mat || 0) + (l.lab || 0));
     const labOverridden = l.defaultLab != null && Number(l.lab) !== Number(l.defaultLab);
     const isCommon = isCommonOnTab(l.name, activeTab);
-    const isUnfilledCommon = isCommon && (l.qty || 0) <= 0;
     return (
       <div
         key={`${l.tab}::${l.name}`}
         className={`grid grid-cols-12 gap-3 px-4 md:px-5 py-3 md:py-2 border-b border-[#E4E4E7] items-center ${
-          isUnfilledCommon ? "bg-yellow-50" : ""
+          isCommon ? "bg-yellow-50" : ""
         }`}
         data-testid={`row-${section.title}-${l.name}`}
       >
