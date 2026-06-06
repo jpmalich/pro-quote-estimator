@@ -157,16 +157,11 @@ HOVER_MAPPING_SPEC = [
         "note": "Ascend starter LF along bottom course",
     },
     # =====================================================================
-    # FINISH TRIM — mirrors starter LF (top course). Vinyl + Ascend only.
+    # FINISH TRIM — Ascend only. Vinyl Finish Trim is left for manual entry
+    # per Howard's request (HOVER's starter LF often doesn't translate to
+    # the top course on vinyl jobs, so contractors prefer to enter it
+    # themselves rather than have to clear an auto-filled qty).
     # =====================================================================
-    {
-        "tabs": ["vinyl"],
-        "section": "Siding Accessories",
-        "item": "Finish Trim Standard color",
-        "unit": "LF",
-        "extract": lambda m: round(m.get("starter_lf") or 0),
-        "note": "Mirrors starter LF for top course — defaults to Standard color",
-    },
     {
         "tabs": ["ascend"],
         "section": "Ascend Cladding/Accessories",
