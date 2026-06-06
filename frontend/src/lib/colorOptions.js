@@ -205,24 +205,13 @@ export const SOFFIT_COLOR_GROUPS = [
 // Flat fallback for any consumer that just needs the full list.
 export const SOFFIT_COLORS = SOFFIT_COLOR_GROUPS.flatMap((g) => g.colors);
 
-// Aluminum seamless-gutter & downspout palette. Standard Alside aluminum
-// coil colors — narrower than the soffit/fascia palette since gutter coil
-// only ships in a subset.
+// Aluminum seamless-gutter & downspout palette. Narrowed to the 5
+// SKUs Howard actually stocks; "Other" is the catch-all for the rare
+// custom color the contractor types into the line note.
 export const GUTTER_COLORS = [
   "White",
-  "Almond",
-  "Cream",
-  "Pearl Gray",
-  "Cape Cod Gray",
-  "Tuxedo Gray",
-  "Wicker",
-  "Royal Brown",
-  "Musket Brown",
-  "Buckskin",
-  "Bronze",
-  "Antique Bronze",
-  "Coffee",
-  "Hunter Green",
-  "Terratone",
   "Black",
+  "Beige/Clay",
+  "Musket Brown",
+  "Other",
 ];
