@@ -296,7 +296,7 @@ HOVER_MAPPING_SPEC = [
         "note": "Matches Soffit & fascia LF — defaults to Standard color",
     },
     # =====================================================================
-    # .019 FASCIA COIL — 1 roll per 50 LF of soffit/fascia (per Howard).
+    # .019 FASCIA COIL — 1 roll per 100 LF of soffit/fascia (per Howard).
     # Soffit/fascia LF = eaves LF + rakes LF.
     # =====================================================================
     {
@@ -305,9 +305,9 @@ HOVER_MAPPING_SPEC = [
         "item": ".019 Coil (1 per 50' fascia)",
         "unit": "ROLL",
         "extract": lambda m: round(
-            ((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 50, 2
+            ((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 100, 2
         ),
-        "note": "Soffit & fascia LF ÷ 50 (per Howard)",
+        "note": "Soffit & fascia LF ÷ 100 (per Howard)",
     },
     {
         "tabs": ["lp_smart"],
