@@ -158,8 +158,9 @@ HOVER_MAPPING_SPEC = [
         "note": "Ascend Starter qty = HOVER starter LF ÷ 10 (per Howard)",
     },
     # =====================================================================
-    # FINISH TRIM — qty = eaves LF + sum of window bottom widths (per
-    # Howard). Defaults to Standard color on vinyl; Architectural color
+    # FINISH TRIM — qty = (eaves LF + sum of window bottom widths) ÷ 10
+    # (per Howard, matching the per-PCS catalog unit — same divisor as
+    # Starter). Defaults to Standard color on vinyl; Architectural color
     # variant is left for manual selection. Same formula on Ascend.
     # If the HOVER report doesn't break out per-window widths, that piece
     # falls back to 0 and the contractor can top-up the qty manually.
@@ -170,11 +171,11 @@ HOVER_MAPPING_SPEC = [
         "item": "Finish Trim Standard color",
         "unit": "PCS",
         "extract": lambda m: round(
-            (m.get("eaves_lf") or 0)
-            + (m.get("window_bottom_width_total_lf") or 0),
+            ((m.get("eaves_lf") or 0)
+             + (m.get("window_bottom_width_total_lf") or 0)) / 10,
             2,
         ),
-        "note": "Eaves LF + sum of window bottom widths (per Howard)",
+        "note": "(Eaves LF + window bottom widths) ÷ 10 (per Howard)",
     },
     {
         "tabs": ["ascend"],
@@ -182,11 +183,11 @@ HOVER_MAPPING_SPEC = [
         "item": "ASCEND Finish Trim",
         "unit": "PCS",
         "extract": lambda m: round(
-            (m.get("eaves_lf") or 0)
-            + (m.get("window_bottom_width_total_lf") or 0),
+            ((m.get("eaves_lf") or 0)
+             + (m.get("window_bottom_width_total_lf") or 0)) / 10,
             2,
         ),
-        "note": "Eaves LF + sum of window bottom widths (per Howard)",
+        "note": "(Eaves LF + window bottom widths) ÷ 10 (per Howard)",
     },
     # =====================================================================
     # J-CHANNEL (Vinyl only — Ascend J-Channel unit is ambiguous in the
