@@ -6,6 +6,43 @@ import { v4 as uuid } from "uuid";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+// Default adder auto-applied to every new Mezzo opening (Howard's most-
+// common spec). The user can uncheck it or upgrade to the TG2 pack.
+const DEFAULT_ADDER = "ClimaTech Plus - 9E";
+
+// ClimaTech Plus-9E and ClimaTech TG2 Plus are mutually exclusive glass
+// packages — picking one always removes the other from an opening.
+const EXCLUSIVE_PAIR = {
+  "ClimaTech Plus - 9E": "ClimaTech TG2 Plus",
+  "ClimaTech TG2 Plus": "ClimaTech Plus - 9E",
+};
+
+// Howard's preferred adder display order (independent of catalog/Excel order).
+// Row 1 (most common): glass packs + color + grid. Row 2: situational extras.
+const ADDER_ROWS = [
+  [
+    "ClimaTech Plus - 9E",
+    "ClimaTech TG2 Plus",
+    "Extruded Beige or Clay",
+    'Grid - 1" Contour Full',
+  ],
+  [
+    "Obscure Full",
+    "Tempered Full",
+    "Black Exterior Paint",
+    "CHERRY LAMINATE",
+    'NAILFIN 1 3/8" W/ J',
+  ],
+];
+
+// Display-only label overrides — DB keys stay original so the price
+// matrix in /branding-admin remains the canonical Alside spelling.
+const ADDER_DISPLAY_LABELS = {
+  "CHERRY LAMINATE": "Interior Laminate",
+  "Black Exterior Paint": "Exterior Paint",
+};
+const displayAdderLabel = (name) => ADDER_DISPLAY_LABELS[name] || name;
+
 // Iter 37: snap a UI value to the matching bucket (min_ui ≤ UI ≤ max_ui).
 const findBucket = (buckets, ui) =>
   (buckets || []).find((b) => b.min_ui <= ui && ui <= b.max_ui) || null;
@@ -57,6 +94,10 @@ export default function MezzoPanel({ est, update }) {
   const setOpenings = (next) => update({ mezzo_openings: next });
 
   const addOpening = (pt) => {
+    // Auto-attach the default ClimaTech Plus - 9E adder. mat=0 here; the
+    // moment the contractor enters W/H, updateOpening() re-resolves it
+    // against the bucket matrix.
+    const defaultDef = pt.adders.find((a) => a.name === DEFAULT_ADDER);
     const op = {
       id: uuid(),
       product_type: pt.name,
@@ -66,7 +107,9 @@ export default function MezzoPanel({ est, update }) {
       qty: 1,
       base_mat: 0,
       bucket_label: "",
-      adders: [],
+      adders: defaultDef
+        ? [{ name: defaultDef.name, mat: 0, lab: 0, qty: 1 }]
+        : [],
     };
     setOpenings([...(est?.mezzo_openings || []), op]);
     setExpanded((p) => new Set(p).add(op.id));
@@ -105,10 +148,16 @@ export default function MezzoPanel({ est, update }) {
       if (has) {
         return { ...op, adders: op.adders.filter((a) => a.name !== adderDef.name) };
       }
+      // Turning the adder ON — drop any mutually-exclusive partner first
+      // (e.g. selecting ClimaTech TG2 Plus auto-removes ClimaTech Plus - 9E).
+      const exclude = EXCLUSIVE_PAIR[adderDef.name];
+      const cleanedExisting = exclude
+        ? (op.adders || []).filter((a) => a.name !== exclude)
+        : op.adders || [];
       return {
         ...op,
         adders: [
-          ...(op.adders || []),
+          ...cleanedExisting,
           {
             name: adderDef.name,
             mat: resolveAdderMat(adderDef, productType, op.width, op.height),
@@ -247,7 +296,6 @@ function OpeningRow({
   const bucket = findBucket(pt.buckets, ui);
   const inRange = !!bucket && ui > 0;
   const baseMat = bucket ? Number(pt.base_prices[bucket.label]) || 0 : 0;
-  const sqft = ((Number(op.width) || 0) * (Number(op.height) || 0)) / 144;
   const addersTotal = (op.adders || []).reduce(
     (s, a) => s + (Number(a.qty) || 0) * (Number(a.mat) || 0),
     0
@@ -382,57 +430,73 @@ function OpeningRow({
             </span>
           </button>
           {isExpanded && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-2 pl-5 pb-2">
-              {pt.adders.map((a) => {
-                const sel = selectedByName.get(a.name);
-                const checked = !!sel;
-                const adderMat = resolveAdderMat(a, pt, op.width, op.height);
-                const adderQty = checked ? (Number(sel.qty) || 0) : 0;
-                const adderTotal = adderQty * adderMat;
-                const unitHint =
-                  a.kind === "sqft"
-                    ? `$${(Number(a.rate) || 0).toFixed(2)}/sqft × ${sqft.toFixed(2)}sqft`
-                    : adderMat > 0
-                      ? `+${fmt(adderMat)}/ea`
-                      : "—";
+            <div className="mt-2 pl-5 pb-2 space-y-2">
+              {ADDER_ROWS.map((rowNames, rowIdx) => {
+                const rowAdders = rowNames
+                  .map((n) => pt.adders.find((a) => a.name === n))
+                  .filter(Boolean);
+                if (rowAdders.length === 0) return null;
                 return (
                   <div
-                    key={a.name}
-                    className={`flex items-center gap-2 py-1.5 border-b border-[#EDEDF0] last:border-b-0 text-[13px] ${
-                      checked ? "text-[#09090B] font-semibold" : "text-[#3F3F46]"
-                    }`}
-                    data-testid={`mezzo-adder-${op.id}-${a.name}`}
+                    key={`row-${rowIdx}`}
+                    className={`grid grid-cols-2 sm:grid-cols-${rowAdders.length} gap-x-4 gap-y-1`}
+                    style={{ gridTemplateColumns: `repeat(${rowAdders.length}, minmax(0, 1fr))` }}
                   >
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 accent-[#F97316] cursor-pointer flex-shrink-0"
-                      checked={checked}
-                      onChange={() => onToggleAdder(a)}
-                      data-testid={`mezzo-adder-cb-${op.id}-${a.name}`}
-                    />
-                    <span className="flex-1 leading-snug">{a.name}</span>
-                    {checked ? (
-                      <>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="1"
-                          value={adderQty || ""}
-                          placeholder={`${Number(op.qty) || 0}`}
-                          onChange={(ev) => onUpdateAdderQty(a.name, ev.target.value)}
-                          className="input num h-7 text-xs w-14 text-right"
-                          data-testid={`mezzo-adder-qty-${op.id}-${a.name}`}
-                        />
-                        <span className="font-mono-num text-[11px] text-[#71717A] whitespace-nowrap w-16 text-right">
-                          {adderTotal > 0 ? `+${fmt(adderTotal)}` : "—"}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="font-mono-num text-[11px] text-[#71717A] whitespace-nowrap">
-                        {unitHint}
-                      </span>
-                    )}
+                    {rowAdders.map((a) => {
+                      const sel = selectedByName.get(a.name);
+                      const checked = !!sel;
+                      const adderMat = resolveAdderMat(a, pt, op.width, op.height);
+                      const adderQty = checked ? (Number(sel.qty) || 0) : 0;
+                      const adderTotal = adderQty * adderMat;
+                      const unitHint =
+                        a.kind === "sqft"
+                          ? `$${(Number(a.rate) || 0).toFixed(2)}/sqft`
+                          : adderMat > 0
+                            ? `+${fmt(adderMat)}/ea`
+                            : "—";
+                      const label = displayAdderLabel(a.name);
+                      return (
+                        <div
+                          key={a.name}
+                          className={`flex items-center gap-1.5 py-1.5 px-2 border ${
+                            checked
+                              ? "border-[#F97316] bg-[#FFF7ED] text-[#09090B]"
+                              : "border-[#E4E4E7] bg-white text-[#3F3F46] hover:bg-[#FAFAFA]"
+                          } text-[12px]`}
+                          data-testid={`mezzo-adder-${op.id}-${a.name}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="w-3.5 h-3.5 accent-[#F97316] cursor-pointer flex-shrink-0"
+                            checked={checked}
+                            onChange={() => onToggleAdder(a)}
+                            data-testid={`mezzo-adder-cb-${op.id}-${a.name}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className={`leading-tight ${checked ? "font-semibold" : ""} truncate`} title={label}>
+                              {label}
+                            </div>
+                            <div className="font-mono-num text-[10px] text-[#71717A] truncate">
+                              {checked ? (adderTotal > 0 ? `+${fmt(adderTotal)} total` : "—") : unitHint}
+                            </div>
+                          </div>
+                          {checked && (
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="1"
+                              value={adderQty || ""}
+                              placeholder={`${Number(op.qty) || 0}`}
+                              onChange={(ev) => onUpdateAdderQty(a.name, ev.target.value)}
+                              className="input num h-7 text-xs w-12 text-right flex-shrink-0"
+                              data-testid={`mezzo-adder-qty-${op.id}-${a.name}`}
+                              title="Quantity"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
