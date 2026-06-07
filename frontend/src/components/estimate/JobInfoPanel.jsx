@@ -76,7 +76,9 @@ export default function JobInfoPanel({ est, update, save }) {
         </div>
 
         {/* Estimate-level colors — appear on the material list so the supplier
-            pulls the right color stock for the whole job. */}
+            pulls the right color stock for the whole job. Siding-kind only;
+            window-only estimates show the Window Colors block below. */}
+        {est.kind !== "windows" && (
         <div className="sm:col-span-2 lg:col-span-3 pt-2">
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-2">
             {t("est.colors")}
@@ -198,6 +200,7 @@ export default function JobInfoPanel({ est, update, save }) {
             </div>
           </div>
         </div>
+        )}
 
         {/* Window-product colors — Windows-kind estimates only. Siding
             estimates use the Window Wrap field above for capping color;
