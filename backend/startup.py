@@ -8,6 +8,7 @@ from config import (
     ADMIN_PASSWORD,
     SUPPLIER_ADMIN_TOKEN,
 )
+import mezzo_prices
 from db import db, logger
 from deps import hash_password, verify_password
 from services import create_company, ensure_tiers_seeded, get_default_tier_id
@@ -27,6 +28,11 @@ async def run_startup():
 
     # Seed the 4 price tiers
     await ensure_tiers_seeded()
+
+    # Seed Mezzo prices (idempotent) — fills in any missing (tier, product) docs
+    # from the bundled JSON snapshot. Admin edits in Mongo are preserved.
+    await db.mezzo_prices.create_index([("tier", 1), ("product_type", 1)], unique=True)
+    await mezzo_prices.seed_mezzo_prices()
 
     # Migrate old catalog docs that still have `sections` -> convert to empty overrides
     # (material now comes from tier; we keep their labor if it differed by storing as override).

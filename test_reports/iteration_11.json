@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 3 Mezzo Pricing Matrix — both backend and frontend fully verified. 8/8 pytest tests PASS and 11/11 Playwright UI assertions PASS. Admin GET/PUT, token gating, validation errors, idempotent seeding, catalog with real prices, and the full /branding-admin grid editor (tier switching, product switching, edit→save→persist, paste-from-Excel TSV fill, Reload discard) all behave per spec.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mezzo_pricing.py",
+    "/app/test_reports/pytest/pytest_iteration11.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "mezzo_prices.py:save_prices() — sanitisation silently drops unknown bucket/adder keys. This is by design per the docstring but could mask Howard accidentally pasting from the wrong product's grid. Consider returning a list of dropped keys in the response so the UI can warn.",
+    "MezzoPricingPanel.jsx:10 — fmt() uses toFixed(2) but cells use input_value() that shows raw e.g. '259.608'. Confirmed via testing the table cells render the raw 3-decimal seed value (good — no precision loss). Note that fmt() helper appears unused in the input path; only used for read-only contexts (if any).",
+    "routes/mezzo.py:save_prices roundtrip — PUT returns the saved doc but does NOT include _id (Mongo upsert). Code correctly excludes _id via project. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mezzo_pricing.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (11/11 UI assertions)"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123!  |  Admin token: OXSp1EXqp1rPLsQfeEoZyDbFCLZ3D6B2D55HyO1LFoE",
+  "seed_data_creation": "None. Test edited whole-sale Mezzo Double Hung cell [1][0] to 888.88 then restored to 281.208 (original). All other data unchanged.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 Mezzo pricing matrix is complete and stable. Backend endpoints: GET/PUT /api/admin/mezzo/prices (admin-token gated) and GET /api/mezzo/catalog (contractor JWT). MongoDB collection: db.mezzo_prices with unique (tier, product_type) index. Test file: /app/backend/tests/test_mezzo_pricing.py. Frontend testids: mezzo-pricing-panel, mezzo-pricing-tier-{tier}, mezzo-pricing-product-{product}, mezzo-cell-{row}-{col}, mezzo-pricing-save-btn, mezzo-pricing-reload-btn. Paste-from-Excel works via native ClipboardEvent('paste') with DataTransfer text/plain TSV.",
+  "verified_acceptance_criteria": {
+    "BE_get_with_token": "PASS — full 4×4 matrix returned; whole-sale DH 32-73 UI == 259.608",
+    "BE_get_without_token_403": "PASS",
+    "BE_put_round_trip": "PASS — write 999.99, read back, restore 259.608",
+    "BE_put_invalid_tier_400": "PASS",
+    "BE_put_invalid_product_400": "PASS",
+    "BE_catalog_real_prices": "PASS — DH base 32-73 UI=259.608; Tempered Full kind=sqft rate=9.18",
+    "BE_seed_idempotent_16_docs": "PASS — count remains 16 after two seed calls",
+    "FE_panel_renders": "PASS",
+    "FE_tier_and_product_tabs_switch": "PASS — Contractor/Picture shows 196.3225 (matches seed)",
+    "FE_dirty_state_save": "PASS — save enabled on edit, disabled after PUT success, value persists across reload",
+    "FE_paste_from_excel": "PASS — TSV 111\\t222\\n333\\t444 filled rightward+downward from focused cell",
+    "FE_reload_discards": "PASS — unsaved edit reverted to 329.352 after Reload button"
+  }
+}

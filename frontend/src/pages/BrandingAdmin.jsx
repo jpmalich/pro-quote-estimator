@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Upload, Shield, Copy, ArrowLeft, Tags, Building2, Percent, Trash2, Send, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 import PricingUpdatePanel from "@/components/admin/PricingUpdatePanel";
+import MezzoPricingPanel from "@/components/admin/MezzoPricingPanel";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -311,6 +312,9 @@ export default function BrandingAdmin() {
 
         {/* Bulk pricing updates (% bump, CSV/Excel upload, export) */}
         <PricingUpdatePanel token={token} />
+
+        {/* Mezzo Window Pricing Matrix (4 tiers × 4 product types) */}
+        <MezzoPricingPanel token={token} />
 
         {/* Contractors → Tier assignment */}
         <PipelinePanel token={token} />
