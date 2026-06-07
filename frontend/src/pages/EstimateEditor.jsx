@@ -13,6 +13,8 @@ import StickyBar from "@/components/estimate/StickyBar";
 import JobInfoPanel from "@/components/estimate/JobInfoPanel";
 import MezzoPanel from "@/components/estimate/MezzoPanel";
 import MezzoJobSnapshot from "@/components/estimate/MezzoJobSnapshot";
+import VeroPanel from "@/components/estimate/VeroPanel";
+import VeroJobSnapshot from "@/components/estimate/VeroJobSnapshot";
 import SettingsRow from "@/components/estimate/SettingsRow";
 import PhotosPanel from "@/components/estimate/PhotosPanel";
 import SectionAccordion from "@/components/estimate/SectionAccordion";
@@ -135,10 +137,23 @@ export default function EstimateEditor() {
   // are allowed by the estimate's kind. For window-kind estimates we
   // restrict to sections that include "windows" in product_lines so
   // siding sections never leak in.
+  // Iter 39: on the Vero tab the 7 product-specific catalog sections are
+  // replaced by the new W×H VeroPanel; keep the shared install/trim/misc
+  // sections (which have ["windows","mezzo"] product_lines) visible.
+  const VERO_PRODUCT_SECTIONS_HIDDEN_ON_VERO_TAB = new Set([
+    "Vero Windows Custom Quote",
+    "Vero Double Hung Windows",
+    "Vero 2 Lite Slider Windows",
+    "Vero 3 Lite Slider Windows",
+    "Vero Casement Windows",
+    "Vero Picture Windows",
+    "Vero Sliding Glass Doors",
+  ]);
   const visibleSections = catalog.filter((s) => {
     const pls = s.product_lines || ["vinyl", "ascend"];
     if (!pls.includes(activeTab)) return false;
     if (isWindowKind && !pls.includes("windows")) return false;
+    if (activeTab === "windows" && VERO_PRODUCT_SECTIONS_HIDDEN_ON_VERO_TAB.has(s.title)) return false;
     return true;
   });
 
@@ -276,6 +291,28 @@ export default function EstimateEditor() {
           <>
             <MezzoJobSnapshot est={est} />
             <MezzoPanel est={est} update={update} />
+            {visibleSections.map((s) => (
+              <SectionAccordion
+                key={s.title}
+                section={s}
+                lines={linesBySection[s.title] || []}
+                isOpen={!!openSections[s.title]}
+                onToggle={() => setOpenSections((o) => ({ ...o, [s.title]: !o[s.title] }))}
+                onQty={updateLineQty}
+                onField={updateLineField}
+                onResetLine={resetLineToDefault}
+                onToggleAdder={toggleLineAdder}
+                onUpdateAdderQty={updateAdderQty}
+                est={est}
+                update={update}
+                activeTab={activeTab}
+              />
+            ))}
+          </>
+        ) : activeTab === "windows" ? (
+          <>
+            <VeroJobSnapshot est={est} />
+            <VeroPanel est={est} update={update} />
             {visibleSections.map((s) => (
               <SectionAccordion
                 key={s.title}

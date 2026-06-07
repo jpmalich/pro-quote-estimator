@@ -59,6 +59,19 @@ export function calcTotals(est, { tab } = {}) {
           );
           return s + base + ads;
         }, 0)
+      : 0) +
+    // Iter 39: Vero openings — per-window price stacks base + glass +
+    // tempered + premium options; total = qty × stack. Only counted on
+    // the Vero tab (internal id "windows") or when computing the grand total.
+    ((!tab || tab === "windows")
+      ? (est?.vero_openings || []).reduce((s, op) => {
+          const perWindow =
+            (Number(op.base_mat) || 0)
+            + (Number(op.glass_mat) || 0)
+            + (Number(op.tempered_mat) || 0)
+            + (Number(op.premium_mat) || 0);
+          return s + (Number(op.qty) || 0) * perWindow;
+        }, 0)
       : 0);
   const subLab =
     lines.reduce((s, l) => s + (l.qty || 0) * (l.lab || 0) + addersLabTotal(l), 0) +

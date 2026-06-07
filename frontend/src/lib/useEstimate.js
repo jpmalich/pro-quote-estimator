@@ -370,6 +370,27 @@ export default function useEstimate(id) {
             }))
           : [],
       })),
+      // Iter 39: Vero W×H openings — same opening-snapshot pattern as
+      // Mezzo but adds sister-color/glass/tempered/premium picks.
+      vero_openings: (source.vero_openings || []).map((op) => ({
+        id: op.id,
+        product_type: op.product_type,
+        sizing: op.sizing || "ui_bucket",
+        label: op.label || "",
+        width: Number(op.width) || 0,
+        height: Number(op.height) || 0,
+        model: op.model || "",
+        qty: Number(op.qty) || 0,
+        sister_color: op.sister_color || "",
+        glass_package: op.glass_package || "",
+        tempered_upcharge: op.tempered_upcharge || "",
+        premium_options: Array.isArray(op.premium_options) ? op.premium_options : [],
+        bucket_label: op.bucket_label || "",
+        base_mat: Number(op.base_mat) || 0,
+        glass_mat: Number(op.glass_mat) || 0,
+        tempered_mat: Number(op.tempered_mat) || 0,
+        premium_mat: Number(op.premium_mat) || 0,
+      })),
       photos: source.photos || [],
       status_label: source.status_label || "draft",
       install_method: source.install_method || "",

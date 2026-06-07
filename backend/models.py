@@ -170,6 +170,11 @@ class EstimateIn(BaseModel):
     # different (W/H drive the price via bucket lookup; adder prices
     # depend on size). See routes/mezzo.py for catalog lookup.
     mezzo_openings: List["MezzoOpening"] = []
+    # Iter 39: Vero W×H-driven openings (Phase 4). Same shape as Mezzo
+    # but adds a `sister_color` selector + `glass_package` + optional
+    # `tempered_upcharge` + `premium_options[]`. Patio Door variant uses
+    # `model` instead of width/height.
+    vero_openings: List["VeroOpening"] = []
     photos: List[str] = []
     status_label: str = "draft"
 
@@ -197,6 +202,36 @@ class MezzoOpening(BaseModel):
     # here is the PER-OPENING cost (sqft adders are pre-computed by
     # frontend at toggle time; flat adders are looked up by bucket).
     adders: List[EstimateLineAdder] = []
+
+
+class VeroOpening(BaseModel):
+    """One quoted Vero window opening. UI-bucket products use width +
+    height to derive United Inches → bucket → base price; the Patio Door
+    uses a fixed `model` instead. Sister color (e.g. White/White vs
+    Tan/Tan) selects the price column inside the bucket; glass package +
+    tempered + premium options are independently-priced adders snapshotted
+    at save time so PDF rendering stays cheap."""
+    id: str  # UUID; frontend-generated so optimistic UI works
+    product_type: str  # e.g. "Vero Double Hung"
+    sizing: str = "ui_bucket"  # or "fixed_model" (Patio Door)
+    label: str = ""
+    # ui_bucket fields
+    width: float = 0
+    height: float = 0
+    # fixed_model fields
+    model: str = ""
+    qty: float = 1
+    # Color + glass selection
+    sister_color: str = ""
+    glass_package: str = ""
+    tempered_upcharge: str = ""
+    premium_options: List[str] = []
+    # Snapshots (computed at save time so PDF / list rendering is cheap)
+    bucket_label: str = ""
+    base_mat: float = 0          # per-window base
+    glass_mat: float = 0         # per-window glass package adder
+    tempered_mat: float = 0      # per-window tempered upcharge
+    premium_mat: float = 0       # SUM of all selected premium options (per window)
 
 
 EstimateIn.model_rebuild()

@@ -6,6 +6,7 @@ import { Upload, Shield, Copy, ArrowLeft, Tags, Building2, Percent, Trash2, Send
 import { Link } from "react-router-dom";
 import PricingUpdatePanel from "@/components/admin/PricingUpdatePanel";
 import MezzoPricingPanel from "@/components/admin/MezzoPricingPanel";
+import VeroPricingPanel from "@/components/admin/VeroPricingPanel";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -315,6 +316,9 @@ export default function BrandingAdmin() {
 
         {/* Mezzo Window Pricing Matrix (4 tiers × 4 product types) */}
         <MezzoPricingPanel token={token} />
+
+        {/* Vero Window Pricing Matrix (4 tiers × 6 product types, multi-grid) */}
+        <VeroPricingPanel token={token} />
 
         {/* Contractors → Tier assignment */}
         <PipelinePanel token={token} />
