@@ -3,7 +3,7 @@ import { useT } from "@/lib/i18n";
 import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 
-export default function JobInfoPanel({ est, update, save }) {
+export default function JobInfoPanel({ est, update, save, setInstallMethod, setHomePre1978 }) {
   const t = useT();
   // Brand-filtered vinyl siding color groups. Computed inline on every
   // render — cheap (an array filter over <30 items) and avoids the
@@ -206,7 +206,81 @@ export default function JobInfoPanel({ est, update, save }) {
             estimates use the Window Wrap field above for capping color;
             frame / interior / exterior are window-product attributes. */}
         {est.kind === "windows" && (
-        <div className="sm:col-span-2 lg:col-span-3 pt-2">
+        <div className="sm:col-span-2 lg:col-span-3 pt-2 space-y-5">
+          {/* Iter 36: Install method + Lead-Safe — windows-job-level
+              switches that auto-fill the matching install / lead-safe
+              rows so contractors don't have to remember to add them. */}
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-2">
+              Window Job Setup
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Default install method</label>
+                <div className="grid grid-cols-3 gap-1.5" data-testid="install-method-toggle">
+                  {[
+                    { id: "pocket", label: "Pocket" },
+                    { id: "full_fin", label: "Full Fin" },
+                    { id: "block_frame", label: "Block Frame" },
+                  ].map((opt) => {
+                    const active = (est.install_method || "") === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border ${
+                          active
+                            ? "bg-[#09090B] text-white border-[#09090B]"
+                            : "bg-white text-[#52525B] border-[#E4E4E7] hover:border-[#09090B]"
+                        }`}
+                        onClick={() =>
+                          setInstallMethod && setInstallMethod(active ? "" : opt.id)
+                        }
+                        data-testid={`install-method-${opt.id}`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-[#A1A1AA] mt-1.5 leading-snug">
+                  Picks which install row the total window count flows into.
+                  Override per-row anytime.
+                </p>
+              </div>
+              <div>
+                <label className="label">Lead-Safe RRP</label>
+                <label
+                  className={`flex items-start gap-2.5 px-3 py-2.5 border cursor-pointer ${
+                    est.home_pre_1978
+                      ? "bg-[#FEF3C7] border-[#F59E0B]"
+                      : "bg-white border-[#E4E4E7] hover:border-[#09090B]"
+                  }`}
+                  data-testid="pre-1978-toggle"
+                >
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 mt-0.5 accent-[#F97316] flex-shrink-0"
+                    checked={!!est.home_pre_1978}
+                    onChange={(ev) =>
+                      setHomePre1978 && setHomePre1978(ev.target.checked)
+                    }
+                    data-testid="pre-1978-checkbox"
+                  />
+                  <div className="text-xs leading-snug">
+                    <div className="font-bold text-[#09090B]">
+                      Home built before 1978
+                    </div>
+                    <div className="text-[#71717A]">
+                      Auto-adds Lead Safe Test Fee + Installation Practices for every window.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold mb-2">
             {t("est.colors.windows")}
           </div>
@@ -241,6 +315,7 @@ export default function JobInfoPanel({ est, update, save }) {
                 data-testid="color-window-exterior"
               />
             </div>
+          </div>
           </div>
         </div>
         )}

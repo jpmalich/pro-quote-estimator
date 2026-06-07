@@ -19,12 +19,20 @@ export function isWasteLine(line) {
   );
 }
 
-// Iter 36: each line may carry selected adders (windows-tab only); their
-// mat/lab is multiplied by line.qty and folded into the line subtotals.
-const addersMat = (l) =>
-  (l?.adders || []).reduce((s, a) => s + (Number(a?.mat) || 0), 0);
-const addersLab = (l) =>
-  (l?.adders || []).reduce((s, a) => s + (Number(a?.lab) || 0), 0);
+// Iter 36: each adder carries its own qty (independent of line.qty), so
+// a 10-window line can have only 3 windows with Tempered glass etc.
+// Adder mat/lab is multiplied by the adder's own qty and added to the
+// line subtotal alongside the base line.qty * (line.mat + line.lab).
+const addersMatTotal = (l) =>
+  (l?.adders || []).reduce(
+    (s, a) => s + (Number(a?.qty) || 0) * (Number(a?.mat) || 0),
+    0
+  );
+const addersLabTotal = (l) =>
+  (l?.adders || []).reduce(
+    (s, a) => s + (Number(a?.qty) || 0) * (Number(a?.lab) || 0),
+    0
+  );
 
 export function calcTotals(est, { tab } = {}) {
   // Filter lines + misc rows to a single tab when `tab` is provided. Lines
@@ -38,10 +46,10 @@ export function calcTotals(est, { tab } = {}) {
   const miscLab = allMiscLab.filter(inTab);
   const miscMat = allMiscMat.filter(inTab);
   const subMat =
-    lines.reduce((s, l) => s + (l.qty || 0) * ((l.mat || 0) + addersMat(l)), 0) +
+    lines.reduce((s, l) => s + (l.qty || 0) * (l.mat || 0) + addersMatTotal(l), 0) +
     miscMat.reduce((s, l) => s + (l.mat || 0), 0);
   const subLab =
-    lines.reduce((s, l) => s + (l.qty || 0) * ((l.lab || 0) + addersLab(l)), 0) +
+    lines.reduce((s, l) => s + (l.qty || 0) * (l.lab || 0) + addersLabTotal(l), 0) +
     miscMat.reduce((s, l) => s + (l.lab || 0), 0) +
     miscLab.reduce((s, l) => s + (l.lab || 0), 0);
   // Waste factor only inflates siding material — Vinyl Siding section + the

@@ -28,7 +28,7 @@ export default function EstimateEditor() {
   const { lang } = useLang();
   const { company } = useCompany();
   const branding = useBranding();
-  const { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, toggleLineAdder, save } = useEstimate(id);
+  const { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, toggleLineAdder, updateAdderQty, setInstallMethod, setHomePre1978, save } = useEstimate(id);
   // Start with every section collapsed so the editor stays compact —
   // contractors expand only the categories they need for the job.
   const [openSections, setOpenSections] = useState({});
@@ -256,7 +256,13 @@ export default function EstimateEditor() {
       <StickyBar est={est} tabTotals={tabTotals} activeTab={activeTab} tabs={visibleTabDefs} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24" data-testid="estimate-editor">
         <CatalogSyncBanner est={est} update={update} />
-        <JobInfoPanel est={est} update={update} save={save} />
+        <JobInfoPanel
+          est={est}
+          update={update}
+          save={save}
+          setInstallMethod={setInstallMethod}
+          setHomePre1978={setHomePre1978}
+        />
         <SettingsRow est={est} update={update} />
         <PhotosPanel est={est} update={update} />
 
@@ -285,6 +291,7 @@ export default function EstimateEditor() {
               onField={updateLineField}
               onResetLine={resetLineToDefault}
               onToggleAdder={toggleLineAdder}
+              onUpdateAdderQty={updateAdderQty}
               est={est}
               update={update}
               activeTab={activeTab}

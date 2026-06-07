@@ -71,11 +71,14 @@ class InviteContractorIn(BaseModel):
 
 class EstimateLineAdder(BaseModel):
     """Per-line upgrade adder (windows only currently). When set on a
-    line, its mat/lab is multiplied by line.qty and folded into the
-    line's effective material/labor total (services.calc_totals)."""
+    line, its mat/lab is multiplied by the adder's own qty (NOT line.qty)
+    and added to the line's subtotal — lets a 10-window line have only
+    3 windows with Tempered glass + 4 windows with Grid Pattern, etc.
+    See services.calc_totals for the math."""
     name: str
     mat: float = 0
     lab: float = 0
+    qty: float = 0
 
 
 class EstimateLine(BaseModel):
@@ -146,6 +149,15 @@ class EstimateIn(BaseModel):
     # siding dashboard with all siding tabs visible; "windows" shows in the
     # dedicated windows dashboard with only the Windows tab visible.
     kind: str = "siding"
+    # Iter 36 (windows-kind only): install method drives which install
+    # line ("Window DH/Slider - Pocket Install" vs Full Fin vs Block
+    # Frame) gets the auto-synced qty. Empty string = contractor manually
+    # picks the install row.
+    install_method: str = ""
+    # Iter 36 (windows-kind only): true when the home was built before
+    # 1978 and Lead-Safe RRP is required. Auto-fills Lead Safe Test Fee
+    # (qty=1) + Lead Safe Installation Practices (qty=total window count).
+    home_pre_1978: bool = False
     lines: List[EstimateLine] = []
     misc_labor: List[MiscLine] = []
     misc_material: List[MiscLine] = []

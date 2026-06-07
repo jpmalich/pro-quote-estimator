@@ -43,6 +43,7 @@ export default function SectionAccordion({
   onField,
   onResetLine,
   onToggleAdder,
+  onUpdateAdderQty,
   est,
   update,
   activeTab = "vinyl",
@@ -83,13 +84,14 @@ export default function SectionAccordion({
   });
 
   const sectionSell =
-    // Iter 36: include selected adders in the section header total so
-    // toggling an upgrade visibly bumps the section subtotal.
+    // Iter 36: include selected adders (with their own qty) in the
+    // section header total so toggling/qty'ing an upgrade visibly bumps
+    // the section subtotal.
     lines.reduce((sum, l) => {
       const adders = Array.isArray(l.adders) ? l.adders : [];
-      const aMat = adders.reduce((s, a) => s + (Number(a.mat) || 0), 0);
-      const aLab = adders.reduce((s, a) => s + (Number(a.lab) || 0), 0);
-      return sum + (l.qty || 0) * ((l.mat || 0) + aMat + (l.lab || 0) + aLab);
+      const aMat = adders.reduce((s, a) => s + (Number(a.qty) || 0) * (Number(a.mat) || 0), 0);
+      const aLab = adders.reduce((s, a) => s + (Number(a.qty) || 0) * (Number(a.lab) || 0), 0);
+      return sum + (l.qty || 0) * ((l.mat || 0) + (l.lab || 0)) + aMat + aLab;
     }, 0) +
     miscRows.reduce((s, m) => s + (m.mat || 0) + (m.lab || 0), 0);
 
@@ -172,12 +174,17 @@ export default function SectionAccordion({
     });
 
   const renderLine = (l) => {
-    // Iter 36: per-line adders bump the effective per-unit material/labor
-    // before we multiply by qty. Mirrors backend services.calc_totals.
+    // Iter 36: per-line adders now carry their OWN qty (a 10-window
+    // line can have only 3 tempered glass etc). Subtotals = base
+    // line.qty * (mat+lab) PLUS adder.qty * (mat+lab) per selected adder.
     const lineAdders = Array.isArray(l.adders) ? l.adders : [];
-    const adderMat = lineAdders.reduce((s, a) => s + (Number(a.mat) || 0), 0);
-    const adderLab = lineAdders.reduce((s, a) => s + (Number(a.lab) || 0), 0);
-    const total = (l.qty || 0) * ((l.mat || 0) + adderMat + (l.lab || 0) + adderLab);
+    const adderMatSubtotal = lineAdders.reduce(
+      (s, a) => s + (Number(a.qty) || 0) * (Number(a.mat) || 0), 0
+    );
+    const adderLabSubtotal = lineAdders.reduce(
+      (s, a) => s + (Number(a.qty) || 0) * (Number(a.lab) || 0), 0
+    );
+    const total = (l.qty || 0) * ((l.mat || 0) + (l.lab || 0)) + adderMatSubtotal + adderLabSubtotal;
     const labOverridden = l.defaultLab != null && Number(l.lab) !== Number(l.defaultLab);
     const isCommon = isCommonOnTab(l.name, activeTab);
     // The catalog ships per-section adders for window-product sections.
@@ -187,7 +194,8 @@ export default function SectionAccordion({
     const showAdderUI = sectionAdders.length > 0 && (l.qty || 0) > 0;
     const adderKey = `${l.tab}::${l.name}`;
     const isAdderOpen = openAdders.has(adderKey);
-    const selectedAdderNames = new Set(lineAdders.map((a) => a.name));
+    // Map of adder.name -> saved entry so we can read qty cheaply.
+    const selectedByName = new Map(lineAdders.map((a) => [a.name, a]));
     return (
       <React.Fragment key={adderKey}>
       <div
@@ -322,25 +330,30 @@ export default function SectionAccordion({
               )}
             </span>
             <span className="font-mono-num text-[11px] text-[#52525B] normal-case tracking-normal">
-              {adderMat + adderLab > 0 ? `+${fmt(adderMat + adderLab)} / unit` : ""}
+              {adderMatSubtotal + adderLabSubtotal > 0
+                ? `+${fmt(adderMatSubtotal + adderLabSubtotal)}`
+                : ""}
             </span>
           </button>
           {isAdderOpen && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 px-4 md:px-8 pb-3 pt-1">
               {sectionAdders.map((a) => {
-                const checked = selectedAdderNames.has(a.name);
-                const adderUnitCost = (Number(a.mat) || 0) + (Number(a.lab) || 0);
+                const selected = selectedByName.get(a.name);
+                const checked = !!selected;
+                const adderQty = checked ? Number(selected.qty) || 0 : 0;
+                const unitCost = (Number(a.mat) || 0) + (Number(a.lab) || 0);
+                const adderTotal = adderQty * unitCost;
                 return (
-                  <label
+                  <div
                     key={a.name}
-                    className={`flex items-center gap-2.5 text-[13px] cursor-pointer py-1.5 border-b border-[#EDEDF0] last:border-b-0 ${
+                    className={`flex items-center gap-2.5 py-1.5 border-b border-[#EDEDF0] last:border-b-0 text-[13px] ${
                       checked ? "text-[#09090B] font-semibold" : "text-[#3F3F46]"
                     }`}
                     data-testid={`adder-option-${l.name}-${a.name}`}
                   >
                     <input
                       type="checkbox"
-                      className="w-4 h-4 accent-[#F97316] flex-shrink-0"
+                      className="w-4 h-4 accent-[#F97316] flex-shrink-0 cursor-pointer"
                       checked={checked}
                       onChange={() =>
                         onToggleAdder && onToggleAdder(l.tab, l.section, l.name, a)
@@ -348,10 +361,33 @@ export default function SectionAccordion({
                       data-testid={`adder-checkbox-${l.name}-${a.name}`}
                     />
                     <span className="flex-1 leading-snug">{a.name}</span>
-                    <span className="font-mono-num text-[11px] text-[#71717A] whitespace-nowrap">
-                      {adderUnitCost > 0 ? `+${fmt(adderUnitCost)}` : "—"}
-                    </span>
-                  </label>
+                    {checked ? (
+                      <>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="1"
+                          value={adderQty || ""}
+                          placeholder={`${Number(l.qty) || 0}`}
+                          onChange={(ev) =>
+                            onUpdateAdderQty &&
+                            onUpdateAdderQty(l.tab, l.section, l.name, a.name, ev.target.value)
+                          }
+                          className="input num h-7 text-xs w-14 text-right"
+                          title={`Of ${Number(l.qty) || 0} ${l.name.includes("Door") ? "doors" : "windows"}, how many get this`}
+                          data-testid={`adder-qty-${l.name}-${a.name}`}
+                        />
+                        <span className="font-mono-num text-[11px] text-[#71717A] whitespace-nowrap w-16 text-right">
+                          {adderTotal > 0 ? `+${fmt(adderTotal)}` : "—"}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-mono-num text-[11px] text-[#71717A] whitespace-nowrap">
+                        {unitCost > 0 ? `+${fmt(unitCost)}/ea` : "—"}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>

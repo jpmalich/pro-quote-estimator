@@ -103,8 +103,15 @@ export default function useEstimate(id) {
                 defaultLab: it.lab,
                 // Iter 36: per-line adders (windows-tab only). Preserved
                 // verbatim across catalog merges so toggled upgrades
-                // round-trip cleanly through save/reload.
-                adders: saved && Array.isArray(saved.adders) ? saved.adders : [],
+                // round-trip cleanly through save/reload. Backfill qty
+                // on legacy adders that were saved before per-adder qty
+                // existed (default to line.qty so old behavior holds).
+                adders: saved && Array.isArray(saved.adders)
+                  ? saved.adders.map((a) => ({
+                      ...a,
+                      qty: a.qty != null ? Number(a.qty) : (Number(saved.qty) || 0),
+                    }))
+                  : [],
               });
             });
           });
@@ -181,8 +188,9 @@ export default function useEstimate(id) {
 
   // Iter 36: toggle an adder on/off for a specific window line. `adderDef`
   // is the catalog entry { name, mat, lab } from section.adders — when
-  // toggled on we append it to line.adders, when toggled off we remove
-  // the entry matching by name.
+  // toggled on we append it with qty defaulting to line.qty (so the
+  // common case "all 10 windows get Tempered glass" works without
+  // typing); when toggled off we remove the entry matching by name.
   const toggleLineAdder = useCallback((tab, section, name, adderDef) => {
     setEst((e) => ({
       ...e,
@@ -198,11 +206,93 @@ export default function useEstimate(id) {
                 name: adderDef.name,
                 mat: Number(adderDef.mat) || 0,
                 lab: Number(adderDef.lab) || 0,
+                qty: Number(l.qty) || 0,
               },
             ];
         return { ...l, adders: next };
       }),
     }));
+    setUserEdits((n) => n + 1);
+  }, []);
+
+  // Iter 36: update qty on a specific adder entry. Lets the contractor
+  // say "10 Double Hung windows, but only 3 get Tempered glass" without
+  // creating a separate line.
+  const updateAdderQty = useCallback((tab, section, name, adderName, qty) => {
+    setEst((e) => ({
+      ...e,
+      lines: e.lines.map((l) => {
+        if (!matchLine(l, tab, section, name)) return l;
+        const next = (l.adders || []).map((a) =>
+          a.name === adderName ? { ...a, qty: Number(qty) || 0 } : a
+        );
+        return { ...l, adders: next };
+      }),
+    }));
+    setUserEdits((n) => n + 1);
+  }, []);
+
+  // Iter 36: sum the qty across every Vero window line so install +
+  // lead-safe rows can auto-track. Memoised so callers can read it
+  // cheaply during the same render pass.
+  const totalWindowQty = useCallback((source) => {
+    const lines = (source || est)?.lines || [];
+    return lines
+      .filter((l) => l.section && l.section.startsWith("Vero ") && l.section.endsWith("Windows"))
+      .reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  }, [est]);
+
+  // Iter 36: set the windows-tab install method. Auto-migrates the qty
+  // from any currently-populated install line to the matching install
+  // line and zeroes the others. Contractor can still manually override
+  // afterwards if they have a mixed-method job.
+  const INSTALL_LINE_FOR_METHOD = {
+    pocket: "Window DH/Slider - Pocket Install",
+    full_fin: "Window - Full Fin Replacement",
+    block_frame: "Window - Block Frame Replacement",
+  };
+  const setInstallMethod = useCallback((method) => {
+    setEst((e) => {
+      if (!e) return e;
+      const target = INSTALL_LINE_FOR_METHOD[method];
+      const allInstallNames = Object.values(INSTALL_LINE_FOR_METHOD);
+      const totalQty = (e.lines || [])
+        .filter((l) => l.section && l.section.startsWith("Vero ") && l.section.endsWith("Windows"))
+        .reduce((s, l) => s + (Number(l.qty) || 0), 0);
+      const lines = (e.lines || []).map((l) => {
+        if (l.section !== "Window Installation" || !allInstallNames.includes(l.name)) return l;
+        if (l.name === target) return { ...l, qty: totalQty };
+        return { ...l, qty: 0 };
+      });
+      return { ...e, install_method: method || "", lines };
+    });
+    setUserEdits((n) => n + 1);
+  // INSTALL_LINE_FOR_METHOD is a stable module-scope literal — safe to
+  // omit from deps without dragging a useMemo into the file.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Iter 36: toggle "home built before 1978" — when checked, auto-fill
+  // Lead Safe Test Fee (qty=1) + Lead Safe Installation Practices
+  // (qty=total window count). When unchecked, zero both.
+  const setHomePre1978 = useCallback((checked) => {
+    setEst((e) => {
+      if (!e) return e;
+      const totalQty = (e.lines || [])
+        .filter((l) => l.section && l.section.startsWith("Vero ") && l.section.endsWith("Windows"))
+        .reduce((s, l) => s + (Number(l.qty) || 0), 0);
+      const lines = (e.lines || []).map((l) => {
+        if (l.section !== "Window Installation") return l;
+        if (l.name === "Lead Safe - Test Fee (all homes 1978 and older are tested)") {
+          return { ...l, qty: checked ? 1 : 0 };
+        }
+        if (l.name === "Lead Safe Installation Practices For Window Installation") {
+          return { ...l, qty: checked ? totalQty : 0 };
+        }
+        return l;
+      });
+      return { ...e, home_pre_1978: !!checked, lines };
+    });
     setUserEdits((n) => n + 1);
   }, []);
 
@@ -252,6 +342,7 @@ export default function useEstimate(id) {
                 name: a.name,
                 mat: Number(a.mat) || 0,
                 lab: Number(a.lab) || 0,
+                qty: Number(a.qty) || 0,
               }))
             : [],
         })),
@@ -259,6 +350,8 @@ export default function useEstimate(id) {
       misc_material: (source.misc_material || []).map((m) => ({ ...m, tab: m.tab || "vinyl" })),
       photos: source.photos || [],
       status_label: source.status_label || "draft",
+      install_method: source.install_method || "",
+      home_pre_1978: !!source.home_pre_1978,
     };
   }, []);
 
@@ -382,5 +475,5 @@ export default function useEstimate(id) {
     };
   }, [id, userEdits, buildPayload]);
 
-  return { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, toggleLineAdder, save };
+  return { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, toggleLineAdder, updateAdderQty, setInstallMethod, setHomePre1978, totalWindowQty, save };
 }

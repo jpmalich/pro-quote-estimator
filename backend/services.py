@@ -517,18 +517,22 @@ def calc_totals(est: dict) -> dict:
     lines = est.get("lines", []) or []
     misc_labor = est.get("misc_labor", []) or []
     misc_material = est.get("misc_material", []) or []
-    # Iter 36: each line may carry selected adders; their mat/lab is
-    # multiplied by line.qty and folded into the line subtotals.
-    def _adders_mat(ln: dict) -> float:
-        return sum(float(a.get("mat") or 0) for a in (ln.get("adders") or []))
-    def _adders_lab(ln: dict) -> float:
-        return sum(float(a.get("lab") or 0) for a in (ln.get("adders") or []))
+    # Iter 36: each adder carries its OWN qty (independent of line.qty)
+    # so a line can have e.g. 10 windows with only 3 Tempered glass. The
+    # adder's mat/lab is multiplied by the adder qty and added to the
+    # line's subtotal alongside the base line.qty * (line.mat + line.lab).
+    def _adders_mat_total(ln: dict) -> float:
+        return sum((float(a.get("qty") or 0)) * (float(a.get("mat") or 0))
+                   for a in (ln.get("adders") or []))
+    def _adders_lab_total(ln: dict) -> float:
+        return sum((float(a.get("qty") or 0)) * (float(a.get("lab") or 0))
+                   for a in (ln.get("adders") or []))
     sub_mat = (
-        sum((ln.get("qty", 0) or 0) * ((ln.get("mat", 0) or 0) + _adders_mat(ln)) for ln in lines)
+        sum((ln.get("qty", 0) or 0) * (ln.get("mat", 0) or 0) + _adders_mat_total(ln) for ln in lines)
         + sum((m.get("mat", 0) or 0) for m in misc_material)
     )
     sub_lab = (
-        sum((ln.get("qty", 0) or 0) * ((ln.get("lab", 0) or 0) + _adders_lab(ln)) for ln in lines)
+        sum((ln.get("qty", 0) or 0) * (ln.get("lab", 0) or 0) + _adders_lab_total(ln) for ln in lines)
         + sum((m.get("lab", 0) or 0) for m in misc_material)
         + sum((m.get("lab", 0) or 0) for m in misc_labor)
     )
