@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-react";
 import { v4 as uuid } from "uuid";
+import { useT, useLang } from "@/lib/i18n";
+import { tSection } from "@/lib/catalogTranslations";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -51,6 +53,8 @@ function resolveFixedOpening(pt, op) {
 }
 
 export default function VeroPanel({ est, update }) {
+  const t = useT();
+  const { lang } = useLang();
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(() => new Set());
@@ -162,7 +166,7 @@ export default function VeroPanel({ est, update }) {
   if (loading) {
     return (
       <div className="card p-6 mb-4">
-        <div className="text-sm text-[#A1A1AA]">Loading Vero catalog…</div>
+        <div className="text-sm text-[#A1A1AA]">{t("common.loading")}</div>
       </div>
     );
   }
@@ -170,7 +174,7 @@ export default function VeroPanel({ est, update }) {
     return (
       <div className="card p-6 mb-4 border-l-4 border-[#DC2626]">
         <div className="text-sm text-[#991B1B]">
-          Vero catalog unavailable. Check `/api/vero/catalog` or contact admin.
+          {t("common.loading")}
         </div>
       </div>
     );
@@ -196,12 +200,14 @@ export default function VeroPanel({ est, update }) {
           >
             <header className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-[#E4E4E7] bg-[#FAFAFA]">
               <div>
-                <div className="section-tag">{pt.name}</div>
+                <div className="section-tag">{tSection(pt.name, lang)}</div>
                 <div className="text-[10px] text-[#A1A1AA] mt-0.5">
-                  {openings.length} opening{openings.length === 1 ? "" : "s"} ·
-                  {isFixed
-                    ? " pick model + sister color"
-                    : " type W × H below to price each window"}
+                  {t(
+                    isFixed
+                      ? (openings.length === 1 ? "win.openingsLabelFixed" : "win.openingsLabelFixedPlural")
+                      : (openings.length === 1 ? "win.openingsLabel" : "win.openingsLabelPlural"),
+                    { n: openings.length }
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -214,16 +220,16 @@ export default function VeroPanel({ est, update }) {
                   onClick={() => addOpening(pt)}
                   data-testid={`vero-add-${pt.name}`}
                 >
-                  <Plus className="w-3.5 h-3.5" /> Add opening
+                  <Plus className="w-3.5 h-3.5" /> {t("win.addOpening")}
                 </button>
               </div>
             </header>
 
             {openings.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-[#A1A1AA]">
-                No openings yet. Click <strong>Add opening</strong> to start
-                quoting {pt.name} windows.
-              </div>
+              <div
+                className="px-5 py-8 text-center text-sm text-[#A1A1AA]"
+                dangerouslySetInnerHTML={{ __html: t("win.noOpenings") }}
+              />
             ) : (
               <div className="divide-y divide-[#E4E4E7]">
                 {openings.map((op) => (
@@ -267,6 +273,7 @@ function VeroOpeningRow({
   op, pt, isExpanded, isNotesOpen,
   onToggleExpand, onToggleNotes, onUpdate, onRemove, onTogglePremium,
 }) {
+  const t = useT();
   const isFixed = pt.sizing === "fixed_model";
 
   // Live re-resolve so the visible price doesn't lag the snapshot on the
@@ -296,7 +303,7 @@ function VeroOpeningRow({
         )}
         {isFixed ? (
           <div className="flex-1 min-w-[180px]">
-            <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-0.5">Model</label>
+            <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-0.5">{t("win.model")}</label>
             <select
               className="input h-9 text-sm w-full"
               value={op.model || ""}
@@ -311,46 +318,49 @@ function VeroOpeningRow({
         ) : (
           <>
             <NumField
-              label="Width"
+              label={t("win.width")}
               value={op.width}
               onChange={(v) => onUpdate({ width: v })}
               testid={`vero-width-${op.id}`}
+              isQty={false}
             />
             <NumField
-              label="Height"
+              label={t("win.height")}
               value={op.height}
               onChange={(v) => onUpdate({ height: v })}
               testid={`vero-height-${op.id}`}
+              isQty={false}
             />
           </>
         )}
         <NumField
-          label="Qty"
+          label={t("win.qty")}
           value={op.qty}
           onChange={(v) => onUpdate({ qty: v })}
           testid={`vero-qty-${op.id}`}
           minWidth={64}
+          isQty={true}
         />
         {!isFixed && (
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">UI ({Number(op.width) || 0}+{Number(op.height) || 0})</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-0.5">{t("win.ui")} ({Number(op.width) || 0}+{Number(op.height) || 0})</div>
             <div
               className={`font-mono-num text-sm font-bold ${
                 inRange ? "text-[#09090B]" : ui > 0 ? "text-[#DC2626]" : "text-[#A1A1AA]"
               }`}
               data-testid={`vero-ui-${op.id}`}
             >
-              {ui || "—"} {bucket ? <span className="text-[10px] text-[#71717A] font-normal">({bucket.label})</span> : ui > 0 ? <span className="text-[10px] text-[#DC2626] font-normal">out of range</span> : null}
+              {ui || "—"} {bucket ? <span className="text-[10px] text-[#71717A] font-normal">({bucket.label})</span> : ui > 0 ? <span className="text-[10px] text-[#DC2626] font-normal">{t("win.outOfRange")}</span> : null}
             </div>
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Base</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">{t("win.base")}</div>
             <div className="font-mono-num text-sm text-[#09090B]">{fmt(baseMat)}</div>
           </div>
           <div className="text-right pl-2 border-l border-[#E4E4E7]">
-            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Total</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">{t("win.total")}</div>
             <div className="font-mono-num text-base font-bold text-[#09090B]" data-testid={`vero-total-${op.id}`}>
               {fmt(total)}
             </div>
@@ -359,7 +369,7 @@ function VeroOpeningRow({
             type="button"
             onClick={onToggleNotes}
             className="text-[#71717A] hover:text-[#09090B] p-1"
-            title="Add note"
+            title={t("win.addNote")}
             data-testid={`vero-notes-toggle-${op.id}`}
           >
             <StickyNote className="w-4 h-4" />
@@ -368,7 +378,7 @@ function VeroOpeningRow({
             type="button"
             onClick={onRemove}
             className="text-[#DC2626] hover:text-[#991B1B] p-1"
-            title="Remove opening"
+            title={t("win.removeOpening")}
             data-testid={`vero-remove-${op.id}`}
           >
             <Trash2 className="w-4 h-4" />
@@ -381,7 +391,7 @@ function VeroOpeningRow({
         <div className="mt-2 flex items-center gap-2">
           <input
             className="input h-8 text-xs flex-1"
-            placeholder="Kitchen — west wall (optional label / notes)"
+            placeholder={t("win.notesPlaceholder")}
             value={op.label || ""}
             onChange={(e) => onUpdate({ label: e.target.value })}
             data-testid={`vero-label-${op.id}`}
@@ -390,7 +400,7 @@ function VeroOpeningRow({
             type="button"
             className="text-[#71717A] hover:text-[#09090B] p-1"
             onClick={onToggleNotes}
-            title="Hide notes"
+            title={t("win.hideNotes")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -405,24 +415,23 @@ function VeroOpeningRow({
         data-testid={`vero-options-toggle-${op.id}`}
       >
         {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-        Window Options
+        {t("win.options")}
         {(op.glass_package || op.tempered_upcharge || (op.premium_options || []).length > 0) && (
           <span className="ml-1 bg-[#F97316] text-white px-1.5 py-0.5 text-[9px] font-bold rounded">
             {[op.glass_package, op.tempered_upcharge, ...(op.premium_options || [])].filter(Boolean).length}
           </span>
         )}
         <span className="ml-1.5 font-mono-num text-[10px] text-[#71717A] font-normal normal-case">
-          +{fmt(glassMat + tempMat + premiumMat)}/window
+          {t("win.optionsPerWindow", { amt: fmt(glassMat + tempMat + premiumMat) })}
         </span>
       </button>
 
       {isExpanded && (
         <div className="mt-2 pl-5 pb-2 space-y-3">
-          {/* Sister color — primary picker since it changes the base price */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                Sister Color (sets base)
+                {t("win.sisterColor")}
               </label>
               <select
                 className="input h-9 text-sm w-full"
@@ -437,7 +446,7 @@ function VeroOpeningRow({
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                Glass Package <span className="text-[9px] text-[#71717A] normal-case">(optional)</span>
+                {t("win.glassPackage")} <span className="text-[9px] text-[#71717A] normal-case">({t("win.optional")})</span>
               </label>
               <select
                 className="input h-9 text-sm w-full"
@@ -445,7 +454,7 @@ function VeroOpeningRow({
                 onChange={(e) => onUpdate({ glass_package: e.target.value })}
                 data-testid={`vero-glass-${op.id}`}
               >
-                <option value="">— None —</option>
+                <option value="">{t("win.none")}</option>
                 {Object.keys(pt.glass_packages || {}).map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -460,11 +469,10 @@ function VeroOpeningRow({
             </div>
           </div>
 
-          {/* Tempered upcharge — only for products with a tempered grid */}
           {hasTempered && !isFixed && (
             <div>
               <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                Tempered Upcharge <span className="text-[9px] text-[#71717A] normal-case">(optional)</span>
+                {t("win.tempered")} <span className="text-[9px] text-[#71717A] normal-case">({t("win.optional")})</span>
               </label>
               <select
                 className="input h-9 text-sm w-full md:w-1/2"
@@ -472,12 +480,12 @@ function VeroOpeningRow({
                 onChange={(e) => onUpdate({ tempered_upcharge: e.target.value })}
                 data-testid={`vero-tempered-${op.id}`}
               >
-                <option value="">— None —</option>
-                {Object.keys(pt.tempered || {}).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                    {bucket && pt.tempered?.[t]?.[bucket.label] != null
-                      ? ` (+${fmt(pt.tempered[t][bucket.label])})`
+                <option value="">{t("win.none")}</option>
+                {Object.keys(pt.tempered || {}).map((tt2) => (
+                  <option key={tt2} value={tt2}>
+                    {tt2}
+                    {bucket && pt.tempered?.[tt2]?.[bucket.label] != null
+                      ? ` (+${fmt(pt.tempered[tt2][bucket.label])})`
                       : ""}
                   </option>
                 ))}
@@ -485,17 +493,16 @@ function VeroOpeningRow({
             </div>
           )}
 
-          {/* Premium options (multi-select grid) — DH + Picture only */}
           {hasPremium && !isFixed && (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1.5">
-                Premium Options <span className="text-[9px] text-[#71717A] normal-case">(multi-select; price depends on UI bucket)</span>
+                {t("win.premiumOptions")} <span className="text-[9px] text-[#71717A] normal-case">({t("win.premiumOptionsHint")})</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-1 max-h-64 overflow-y-auto pr-1 border border-[#E4E4E7] p-2 bg-[#FAFAFA]">
                 {Object.entries(pt.premium_options || {}).map(([name, grid]) => {
                   const checked = (op.premium_options || []).includes(name);
                   const price = bucket ? Number(grid[bucket.label]) || 0 : 0;
-                  const isUnavailable = price >= 9999;  // Alside's "n/a" sentinel
+                  const isUnavailable = price >= 9999;
                   return (
                     <label
                       key={name}
@@ -524,13 +531,12 @@ function VeroOpeningRow({
             </div>
           )}
 
-          {/* Per-window price breakdown for the contractor */}
           <div className="flex items-center gap-4 pt-2 border-t border-[#E4E4E7] text-[11px] text-[#71717A]">
-            <span>Per window:</span>
-            <span><strong className="text-[#09090B] font-mono-num">{fmt(baseMat)}</strong> base</span>
-            {glassMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(glassMat)}</strong> glass</span>}
-            {tempMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(tempMat)}</strong> tempered</span>}
-            {premiumMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(premiumMat)}</strong> premium</span>}
+            <span>{t("win.perWindow")}</span>
+            <span><strong className="text-[#09090B] font-mono-num">{fmt(baseMat)}</strong> {t("win.base").toLowerCase()}</span>
+            {glassMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(glassMat)}</strong> {t("win.glassPackage").toLowerCase()}</span>}
+            {tempMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(tempMat)}</strong> {t("win.tempered").toLowerCase()}</span>}
+            {premiumMat > 0 && <span>+ <strong className="text-[#09090B] font-mono-num">{fmt(premiumMat)}</strong> {t("win.premiumOptions").toLowerCase()}</span>}
             <span className="ml-auto">= <strong className="text-[#F97316] font-mono-num">{fmt(perWindow)}</strong> × {Number(op.qty) || 0} = <strong className="text-[#09090B] font-mono-num">{fmt(total)}</strong></span>
           </div>
         </div>
@@ -539,7 +545,7 @@ function VeroOpeningRow({
   );
 }
 
-function NumField({ label, value, onChange, testid, minWidth = 78 }) {
+function NumField({ label, value, onChange, testid, minWidth = 78, isQty = false }) {
   return (
     <div style={{ minWidth }}>
       <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-0.5">{label}</label>
@@ -548,7 +554,7 @@ function NumField({ label, value, onChange, testid, minWidth = 78 }) {
         inputMode="decimal"
         className="input num h-9 text-sm text-center w-full"
         min="0"
-        step={label === "Qty" ? "1" : "0.125"}
+        step={isQty ? "1" : "0.125"}
         value={value || ""}
         placeholder="0"
         onChange={(e) => onChange(Number(e.target.value) || 0)}

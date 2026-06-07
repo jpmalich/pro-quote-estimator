@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { LayoutGrid, Hammer, Boxes } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 const fmt = (n) =>
   new Intl.NumberFormat("en-US", {
@@ -26,6 +27,7 @@ const INSTALL_SECTIONS = new Set([
  *   base + glass + tempered + premium (all snapshotted by VeroPanel).
  */
 export default function VeroJobSnapshot({ est }) {
+  const t = useT();
   const snapshot = useMemo(() => {
     const openings = est?.vero_openings || [];
     const openingCount = openings.reduce((s, o) => s + (Number(o.qty) || 0), 0);
@@ -80,13 +82,13 @@ export default function VeroJobSnapshot({ est }) {
     <section className="card mb-4 overflow-hidden" data-testid="vero-job-snapshot">
       <header className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-[#E4E4E7] bg-[#FAFAFA]">
         <div>
-          <div className="section-tag">Vero Job Snapshot</div>
+          <div className="section-tag">Vero {t("win.snapshot")}</div>
           <div className="text-[10px] text-[#A1A1AA] mt-0.5">
-            openings · install + trim labor · material rolls
+            {t("win.snapshot.subtitle")}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold">Base Total</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] font-bold">{t("win.snapshot.baseTotal")}</div>
           <div
             className="font-mono-num text-2xl font-bold text-[#09090B] leading-tight"
             data-testid="vero-snapshot-total"
@@ -97,32 +99,31 @@ export default function VeroJobSnapshot({ est }) {
       </header>
       {isEmpty ? (
         <div className="px-5 py-5 text-center text-[12px] text-[#A1A1AA]">
-          Add an opening above or enter a qty on any window-install /
-          trim row below — totals will populate here in real time.
+          {t("win.snapshot.empty")}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 divide-x divide-[#E4E4E7]">
           <StatTile
             icon={<LayoutGrid className="w-3.5 h-3.5" />}
-            label="Window Openings"
-            value={`${snapshot.openingCount} window${snapshot.openingCount === 1 ? "" : "s"}`}
+            label={t("win.snapshot.openings")}
+            value={t(snapshot.openingCount === 1 ? "win.snapshot.windowsCount" : "win.snapshot.windowsCountPlural", { n: snapshot.openingCount })}
             sub={fmt(snapshot.openingDollars)}
             accent="orange"
             testid="vero-snapshot-openings"
           />
           <StatTile
             icon={<Hammer className="w-3.5 h-3.5" />}
-            label="Install + Trim"
+            label={t("win.snapshot.installTrim")}
             value={fmt(snapshot.installDollars)}
-            sub={`${snapshot.installLineCount} line${snapshot.installLineCount === 1 ? "" : "s"} · labor`}
+            sub={t(snapshot.installLineCount === 1 ? "win.snapshot.installSub" : "win.snapshot.installSubPlural", { n: snapshot.installLineCount })}
             accent="black"
             testid="vero-snapshot-install"
           />
           <StatTile
             icon={<Boxes className="w-3.5 h-3.5" />}
-            label="Material List"
+            label={t("win.snapshot.material")}
             value={fmt(snapshot.materialDollars)}
-            sub={`${snapshot.materialLineCount} roll line${snapshot.materialLineCount === 1 ? "" : "s"}`}
+            sub={t(snapshot.materialLineCount === 1 ? "win.snapshot.materialSub" : "win.snapshot.materialSubPlural", { n: snapshot.materialLineCount })}
             accent="muted"
             testid="vero-snapshot-material"
           />

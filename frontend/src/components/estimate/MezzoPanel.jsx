@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-react";
 import { v4 as uuid } from "uuid";
+import { useT, useLang } from "@/lib/i18n";
+import { tSection } from "@/lib/catalogTranslations";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -61,6 +63,8 @@ const resolveAdderMat = (adder, productType, w, h) => {
 };
 
 export default function MezzoPanel({ est, update }) {
+  const t = useT();
+  const { lang } = useLang();
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(() => new Set());
@@ -214,10 +218,9 @@ export default function MezzoPanel({ est, update }) {
           >
             <header className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-[#E4E4E7] bg-[#FAFAFA]">
               <div>
-                <div className="section-tag">{pt.name}</div>
+                <div className="section-tag">{tSection(pt.name, lang)}</div>
                 <div className="text-[10px] text-[#A1A1AA] mt-0.5">
-                  {openings.length} opening{openings.length === 1 ? "" : "s"} ·
-                  type W × H below to price each window
+                  {t(openings.length === 1 ? "win.openingsLabel" : "win.openingsLabelPlural", { n: openings.length })}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -230,16 +233,16 @@ export default function MezzoPanel({ est, update }) {
                   onClick={() => addOpening(pt)}
                   data-testid={`mezzo-add-${pt.name}`}
                 >
-                  <Plus className="w-3.5 h-3.5" /> Add opening
+                  <Plus className="w-3.5 h-3.5" /> {t("win.addOpening")}
                 </button>
               </div>
             </header>
 
             {openings.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-[#A1A1AA]">
-                No openings yet. Click <strong>Add opening</strong> to start
-                quoting Mezzo {pt.name.replace("Mezzo ", "")} windows.
-              </div>
+              <div
+                className="px-5 py-8 text-center text-sm text-[#A1A1AA]"
+                dangerouslySetInnerHTML={{ __html: t("win.noOpenings") }}
+              />
             ) : (
               <div className="divide-y divide-[#E4E4E7]">
                 {openings.map((op) => (
@@ -292,6 +295,7 @@ function OpeningRow({
   onToggleAdder,
   onUpdateAdderQty,
 }) {
+  const t = useT();
   const ui = (Number(op.width) || 0) + (Number(op.height) || 0);
   const bucket = findBucket(pt.buckets, ui);
   const inRange = !!bucket && ui > 0;
@@ -311,7 +315,7 @@ function OpeningRow({
         </div>
         <div className="col-span-4 md:col-span-2">
           <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-            Width
+            {t("win.width")}
           </label>
           <input
             type="number"
@@ -327,7 +331,7 @@ function OpeningRow({
         </div>
         <div className="col-span-4 md:col-span-2">
           <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-            Height
+            {t("win.height")}
           </label>
           <input
             type="number"
@@ -343,7 +347,7 @@ function OpeningRow({
         </div>
         <div className="col-span-4 md:col-span-1">
           <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-            Qty
+            {t("win.qty")}
           </label>
           <input
             type="number"
@@ -358,28 +362,28 @@ function OpeningRow({
         </div>
         <div className="col-span-4 md:col-span-2 text-xs">
           <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-            UI ({(Number(op.width) || 0)}+{(Number(op.height) || 0)})
+            {t("win.ui")} ({(Number(op.width) || 0)}+{(Number(op.height) || 0)})
           </div>
           <div className={`font-mono-num text-sm font-bold ${inRange ? "text-[#09090B]" : "text-[#DC2626]"}`}>
             {ui > 0 ? ui : "—"} {bucket && <span className="text-[10px] text-[#71717A] font-normal">({bucket.label})</span>}
             {!inRange && ui > 0 && (
-              <span className="text-[10px] text-[#DC2626] font-normal block">Out of range</span>
+              <span className="text-[10px] text-[#DC2626] font-normal block">{t("win.outOfRange")}</span>
             )}
           </div>
         </div>
         <div className="col-span-4 md:col-span-1 text-xs">
-          <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Base</div>
+          <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">{t("win.base")}</div>
           <div className="font-mono-num text-sm">{fmt(baseMat)}</div>
         </div>
         <div className="col-span-4 md:col-span-2 text-right">
-          <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Total</div>
+          <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">{t("win.total")}</div>
           <div className="font-mono-num text-base font-bold text-[#09090B]">{fmt(total)}</div>
         </div>
         <div className="col-span-12 md:col-span-1 flex md:justify-end gap-1">
           <button
             type="button"
             className="p-1.5 text-[#71717A] hover:text-[#09090B]"
-            title="Toggle notes"
+            title={t("win.addNote")}
             onClick={onToggleNotes}
             data-testid={`mezzo-notes-${op.id}`}
           >
@@ -388,7 +392,7 @@ function OpeningRow({
           <button
             type="button"
             className="p-1.5 text-[#71717A] hover:text-[#DC2626]"
-            title="Remove opening"
+            title={t("win.removeOpening")}
             onClick={onRemove}
             data-testid={`mezzo-remove-${op.id}`}
           >
@@ -402,7 +406,7 @@ function OpeningRow({
           <input
             type="text"
             className="input h-8 text-sm"
-            placeholder='e.g. "Kitchen — west wall"'
+            placeholder={t("win.notesPlaceholder")}
             value={op.label || ""}
             onChange={(e) => onUpdate({ label: e.target.value })}
             data-testid={`mezzo-label-${op.id}`}
@@ -419,7 +423,7 @@ function OpeningRow({
             data-testid={`mezzo-adders-toggle-${op.id}`}
           >
             {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            Upgrade Options
+            {t("win.upgradeOptions")}
             {(op.adders || []).length > 0 && (
               <span className="bg-[#F97316] text-white px-2 py-0.5 text-[10px] tracking-wider font-bold normal-case">
                 {op.adders.length}
@@ -491,7 +495,7 @@ function OpeningRow({
                               onChange={(ev) => onUpdateAdderQty(a.name, ev.target.value)}
                               className="input num h-7 text-xs w-12 text-right flex-shrink-0"
                               data-testid={`mezzo-adder-qty-${op.id}-${a.name}`}
-                              title="Quantity"
+                              title={t("win.qty")}
                             />
                           )}
                         </div>
