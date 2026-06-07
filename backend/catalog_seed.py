@@ -187,6 +187,13 @@ SECTION_LAYOUT = [
     # line items. Prices start at $0 across the board — Howard will fill
     # them in via the pricing admin once he likes the layout.
     # -----------------------------------------------------------------------
+    # Iter 36 follow-up: free-form "custom quote" line for one-off
+    # window jobs that don't fit the size grid. Lives at the very top of
+    # the Windows tab as its own section so contractors can drop in a
+    # bespoke quoted figure without touching the standard buckets below.
+    ("Vero Windows Custom Quote", False, [
+        "Vero Window Quote",
+    ]),
     ("Vero Double Hung Windows", False, [
         "Vero - Double Hung 0-101 UI",
         "Vero - Double Hung 102-110 UI",
@@ -424,6 +431,8 @@ ITEM_META = {
     # All material prices start at $0 — Howard will set them via the
     # pricing admin once the layout is approved. Labor defaults from the
     # Excel; contractors override per estimate.
+    # Custom one-off quote line — top of the Windows tab.
+    "Vero Window Quote": ("each", 0),
     # Vero Double Hung — 8 size buckets
     "Vero - Double Hung 0-101 UI": ("each", 0),
     "Vero - Double Hung 102-110 UI": ("each", 0),
@@ -961,6 +970,7 @@ SECTION_PRODUCT_LINES = {
     "LP SmartSide Soffit": ["lp_smart"],
     # Windows tab — Vero product line lives entirely on its own. Iter 36:
     # each Vero window type is now its own section with per-type adders.
+    "Vero Windows Custom Quote": ["windows"],
     "Vero Double Hung Windows": ["windows"],
     "Vero 2 Lite Slider Windows": ["windows"],
     "Vero 3 Lite Slider Windows": ["windows"],
