@@ -17,92 +17,126 @@ from typing import Optional
 
 MEZZO_TIER_NAMES = ["whole-sale", "Contractor", "Builder-Dealer", "one-opp"]
 
-# Size buckets ordered by min UI. Same buckets for every Mezzo product
-# type at Phase 1; future product types may override this list.
-MEZZO_DH_BUCKETS = [
-    {"label": "32-73 UI",   "min_ui": 32,  "max_ui": 73},
-    {"label": "74-83 UI",   "min_ui": 74,  "max_ui": 83},
-    {"label": "84-93 UI",   "min_ui": 84,  "max_ui": 93},
-    {"label": "94-101 UI",  "min_ui": 94,  "max_ui": 101},
-    {"label": "102-103 UI", "min_ui": 102, "max_ui": 103},
-    {"label": "104-105 UI", "min_ui": 104, "max_ui": 105},
-    {"label": "106-107 UI", "min_ui": 106, "max_ui": 107},
-    {"label": "108-109 UI", "min_ui": 108, "max_ui": 109},
-    {"label": "110-111 UI", "min_ui": 110, "max_ui": 111},
-    {"label": "112-120 UI", "min_ui": 112, "max_ui": 120},
-    {"label": "121-126 UI", "min_ui": 121, "max_ui": 126},
-    {"label": "127-132 UI", "min_ui": 127, "max_ui": 132},
-    {"label": "133-148 UI", "min_ui": 133, "max_ui": 148},
+# Per-product-type size buckets. Each list is ordered by min_ui ascending
+# and exactly matches Howard's Mezzo wholesale Excel.
+MEZZO_BUCKETS = {
+    "Mezzo Double Hung": [
+        {"label": "32-73 UI",   "min_ui": 32,  "max_ui": 73},
+        {"label": "74-83 UI",   "min_ui": 74,  "max_ui": 83},
+        {"label": "84-93 UI",   "min_ui": 84,  "max_ui": 93},
+        {"label": "94-101 UI",  "min_ui": 94,  "max_ui": 101},
+        {"label": "102-103 UI", "min_ui": 102, "max_ui": 103},
+        {"label": "104-105 UI", "min_ui": 104, "max_ui": 105},
+        {"label": "106-107 UI", "min_ui": 106, "max_ui": 107},
+        {"label": "108-109 UI", "min_ui": 108, "max_ui": 109},
+        {"label": "110-111 UI", "min_ui": 110, "max_ui": 111},
+        {"label": "112-120 UI", "min_ui": 112, "max_ui": 120},
+        {"label": "121-126 UI", "min_ui": 121, "max_ui": 126},
+        {"label": "127-132 UI", "min_ui": 127, "max_ui": 132},
+        {"label": "133-148 UI", "min_ui": 133, "max_ui": 148},
+    ],
+    "Mezzo 2-Lite Slider": [
+        {"label": "30-73 UI",   "min_ui": 30,  "max_ui": 73},
+        {"label": "74-83 UI",   "min_ui": 74,  "max_ui": 83},
+        {"label": "84-93 UI",   "min_ui": 84,  "max_ui": 93},
+        {"label": "94-101 UI",  "min_ui": 94,  "max_ui": 101},
+        {"label": "102-103 UI", "min_ui": 102, "max_ui": 103},
+        {"label": "104-105 UI", "min_ui": 104, "max_ui": 105},
+        {"label": "106-107 UI", "min_ui": 106, "max_ui": 107},
+        {"label": "108-109 UI", "min_ui": 108, "max_ui": 109},
+        {"label": "110-111 UI", "min_ui": 110, "max_ui": 111},
+        {"label": "112-120 UI", "min_ui": 112, "max_ui": 120},
+        {"label": "121-132 UI", "min_ui": 121, "max_ui": 132},
+        {"label": "133-148 UI", "min_ui": 133, "max_ui": 148},
+        {"label": "149-156 UI", "min_ui": 149, "max_ui": 156},
+    ],
+    "Mezzo 3-Lite Slider": [
+        {"label": "50-73 UI",   "min_ui": 50,  "max_ui": 73},
+        {"label": "74-83 UI",   "min_ui": 74,  "max_ui": 83},
+        {"label": "84-93 UI",   "min_ui": 84,  "max_ui": 93},
+        {"label": "94-101 UI",  "min_ui": 94,  "max_ui": 101},
+        {"label": "102-108 UI", "min_ui": 102, "max_ui": 108},
+        {"label": "109-120 UI", "min_ui": 109, "max_ui": 120},
+        {"label": "121-132 UI", "min_ui": 121, "max_ui": 132},
+        {"label": "133-144 UI", "min_ui": 133, "max_ui": 144},
+        {"label": "145-156 UI", "min_ui": 145, "max_ui": 156},
+        {"label": "157-174 UI", "min_ui": 157, "max_ui": 174},
+        {"label": "175-192 UI", "min_ui": 175, "max_ui": 192},
+    ],
+    "Mezzo Picture": [
+        {"label": "21-63 UI",   "min_ui": 21,  "max_ui": 63},
+        {"label": "64-73 UI",   "min_ui": 64,  "max_ui": 73},
+        {"label": "74-83 UI",   "min_ui": 74,  "max_ui": 83},
+        {"label": "84-93 UI",   "min_ui": 84,  "max_ui": 93},
+        {"label": "94-101 UI",  "min_ui": 94,  "max_ui": 101},
+        {"label": "102-105 UI", "min_ui": 102, "max_ui": 105},
+        {"label": "106-111 UI", "min_ui": 106, "max_ui": 111},
+        {"label": "112-120 UI", "min_ui": 112, "max_ui": 120},
+        {"label": "121-130 UI", "min_ui": 121, "max_ui": 130},
+        {"label": "131-140 UI", "min_ui": 131, "max_ui": 140},
+        {"label": "141-154 UI", "min_ui": 141, "max_ui": 154},
+    ],
+}
+
+# Adder name lists per product type. Double Hung has the full 8-option set;
+# Sliders + Picture share a tighter 5-option set (per Howard's Excel).
+_DH_ADDER_NAMES = [
+    "Extruded Beige or Clay",
+    "ClimaTech Plus - 9E",
+    "ClimaTech TG2 Plus",
+    "Obscure Full",
+    "Tempered Full",
+    'NAILFIN 1 3/8" W/ J',
+    "Black Exterior Paint",
+    "Cherry Laminate",
+]
+_SLIDER_PICTURE_ADDER_NAMES = [
+    "Extruded Beige or Clay",
+    "ClimaTech Plus - 9E",
+    'Grid - 1" Contour Full',
+    "Obscure Full",
+    "Tempered Full",
 ]
 
-# Per-tier base window mat prices keyed by bucket label. All $0 at
-# Phase 1 — supplier admin fills in via the Pricing Admin once the
-# layout is approved.
+MEZZO_ADDER_NAMES = {
+    "Mezzo Double Hung": _DH_ADDER_NAMES,
+    "Mezzo 2-Lite Slider": _SLIDER_PICTURE_ADDER_NAMES,
+    "Mezzo 3-Lite Slider": _SLIDER_PICTURE_ADDER_NAMES,
+    "Mezzo Picture": _SLIDER_PICTURE_ADDER_NAMES,
+}
+
+# `Tempered Full` is the only sqft-rate adder across the entire Mezzo
+# line. Same $9.18/sqft rate per Howard's footer ("Tempering per Sq Ft").
+TEMPERING_PER_SQFT_RATE = 9.18
+
+
 def _zero_priced_by_bucket(buckets):
     return {b["label"]: 0.0 for b in buckets}
 
 
-MEZZO_DH_TIER_PRICES = {
-    tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES
-}
+def _build_product_type(name, buckets, adder_names):
+    """Construct the product-type dict with zero-priced tier matrices for
+    Phase 1. Pricing Admin fills in real values per tier later."""
+    tier_prices = {tier: _zero_priced_by_bucket(buckets) for tier in MEZZO_TIER_NAMES}
+    adders = []
+    for ad_name in adder_names:
+        if ad_name == "Tempered Full":
+            adders.append({"name": ad_name, "kind": "sqft", "rate": TEMPERING_PER_SQFT_RATE})
+        else:
+            adders.append({
+                "name": ad_name,
+                "kind": "flat",
+                "tier_prices": {tier: _zero_priced_by_bucket(buckets) for tier in MEZZO_TIER_NAMES},
+            })
+    return {"buckets": buckets, "tier_prices": tier_prices, "adders": adders}
 
-# Adders. `kind` is "flat" (per-window cost from prices_by_bucket) or
-# "sqft" (rate × sqft of the opening, independent of bucket). For sqft
-# adders the rate is the same across all tiers per Howard's Mezzo sheet.
-MEZZO_DH_ADDERS = [
-    {
-        "name": "Extruded Beige or Clay",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        "name": "ClimaTech Plus - 9E",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        "name": "ClimaTech TG2 Plus",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        "name": "Obscure Full",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        # Tempered Full is sqft-based per Howard: $9.18 × (W × H / 144).
-        # No flat per-window charge — the rate IS the entire cost.
-        "name": "Tempered Full",
-        "kind": "sqft",
-        "rate": 9.18,
-    },
-    {
-        "name": 'NAILFIN 1 3/8" W/ J',
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        "name": "Black Exterior Paint",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-    {
-        "name": "Cherry Laminate",
-        "kind": "flat",
-        "tier_prices": {tier: _zero_priced_by_bucket(MEZZO_DH_BUCKETS) for tier in MEZZO_TIER_NAMES},
-    },
-]
 
-# Product types live in this dict; Phase 1 has only Double Hung. Future
-# product types (2-Lite, 3-Lite, Picture) plug in here with their own
-# bucket lists + adder matrices.
+# All Mezzo product types Howard's tool currently covers. Mezzo has no
+# casement (Howard confirmed); future Fusion/Preservation/Sovereign will
+# get their own dicts in sibling files.
 MEZZO_PRODUCT_TYPES = {
-    "Mezzo Double Hung": {
-        "buckets": MEZZO_DH_BUCKETS,
-        "tier_prices": MEZZO_DH_TIER_PRICES,
-        "adders": MEZZO_DH_ADDERS,
-    },
+    name: _build_product_type(name, MEZZO_BUCKETS[name], MEZZO_ADDER_NAMES[name])
+    for name in ["Mezzo Double Hung", "Mezzo 2-Lite Slider", "Mezzo 3-Lite Slider", "Mezzo Picture"]
 }
 
 
