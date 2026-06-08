@@ -19,7 +19,9 @@ import { toast } from "sonner";
 //
 // Saved estimate lines carry a `tab` field. Legacy lines (saved before this
 // feature) get backfilled based on their section name on first load.
-export const TAB_IDS = ["vinyl", "ascend", "lp_smart"];
+// Includes the windows-kind tab ids (windows, mezzo) so install/cap/labor
+// lines on those tabs round-trip correctly through the catalog merge.
+export const TAB_IDS = ["vinyl", "ascend", "lp_smart", "windows", "mezzo"];
 
 // Back-compat: legacy Ascend lines → ascend tab; everything else → vinyl.
 // Both the new "Ascend Cladding" section AND the legacy combined

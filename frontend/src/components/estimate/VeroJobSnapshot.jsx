@@ -39,8 +39,12 @@ export default function VeroJobSnapshot({ est }) {
       return sum + (Number(o.qty) || 0) * per;
     }, 0);
 
+    // The windows-kind workspace uses "windows" as the Vero tab id (per
+    // tabsConfig.js — Vero entries on the catalog get tab: "windows"). The
+    // Mezzo tab uses "mezzo". Iter 42g fix: this filter was checking for
+    // "vero" which never matches → Install/Trim/Material panels showed $0.
     const veroLines = (est?.lines || []).filter(
-      (l) => (l.tab || "vinyl") === "vero" && (Number(l.qty) || 0) > 0
+      (l) => (l.tab || "vinyl") === "windows" && (Number(l.qty) || 0) > 0
     );
     let installDollars = 0;
     let installLineCount = 0;
