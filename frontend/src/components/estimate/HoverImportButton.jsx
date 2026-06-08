@@ -98,16 +98,32 @@ export default function HoverImportButton({ est, update, save }) {
 
   const apply = async () => {
     if (!result?.lines?.length && !openings.length) return;
-    // ─── Merge catalog lines (siding tabs + window labor rows) ─────────────
+
+    // ─── Split incoming data by which estimate-kind it belongs on ───────────
+    // Source kind determines which slice stays on the current estimate vs
+    // gets routed to the auto-paired estimate of the opposite kind.
+    const srcKind = est.kind || "siding";
+    const allLines = result?.lines || [];
+    const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
+    const WINDOWS_TABS = new Set(["windows"]);
+    const sidingLines = allLines.filter((l) => SIDING_TABS.has(l.tab || "vinyl"));
+    const windowsLines = allLines.filter((l) => WINDOWS_TABS.has(l.tab || "vinyl"));
+
+    const sourceLines = srcKind === "windows" ? windowsLines : sidingLines;
+    const pairedLines = srcKind === "windows" ? sidingLines : windowsLines;
+    // Vero openings always belong on a windows-kind estimate.
+    const sourceOpenings = srcKind === "windows" ? openings : [];
+    const pairedOpenings = srcKind === "windows" ? [] : openings;
+
+    // ─── Merge SOURCE-side lines into the current estimate ─────────────────
     const existing = est.lines || [];
-    const tabOf = (l) => l.tab || "vinyl";
-    const keyOf = (l) => `${tabOf(l)}::${l.section}::${l.name}`;
+    const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
     const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
     const nextLines = [...existing];
     let added = 0;
     let updated = 0;
-    for (const ln of result?.lines || []) {
-      const key = `${ln.tab || "vinyl"}::${ln.section}::${ln.name}`;
+    for (const ln of sourceLines) {
+      const key = keyOf(ln);
       const idx = byKey.get(key);
       if (idx == null) {
         nextLines.push({
@@ -124,12 +140,9 @@ export default function HoverImportButton({ est, update, save }) {
         updated += 1;
       }
     }
-    // ─── Append per-opening Vero rows (these are always brand-new — VeroPanel
-    // recomputes bucket_label / base_mat from the live catalog on next render) ─
-    const existingOpenings = est.vero_openings || [];
     const nextOpenings = [
-      ...existingOpenings,
-      ...openings.map(({ hover_id, ...op }) => op),  // strip the hover_id metadata
+      ...(est.vero_openings || []),
+      ...sourceOpenings.map(({ hover_id, ...op }) => op),
     ];
 
     update({ lines: nextLines, vero_openings: nextOpenings });
@@ -138,9 +151,48 @@ export default function HoverImportButton({ est, update, save }) {
       if (save) {
         await save({ ...est, lines: nextLines, vero_openings: nextOpenings });
       }
-      const winNote = openings.length ? ` + ${openings.length} windows` : "";
+
+      // ─── Route paired-side slice to a paired estimate of opposite kind ──
+      let pairedMsg = "";
+      const hasPairedWork = pairedLines.length > 0 || pairedOpenings.length > 0;
+      if (hasPairedWork) {
+        const pair = (await api.post(`/estimates/${est.id}/pair`)).data;
+        // Build the paired estimate's merged lines from scratch — it's
+        // either brand-new (empty arrays) or already exists (merge by key).
+        const pExisting = pair.lines || [];
+        const pByKey = new Map(pExisting.map((l, i) => [keyOf(l), i]));
+        const pNext = [...pExisting];
+        for (const ln of pairedLines) {
+          const idx = pByKey.get(keyOf(ln));
+          if (idx == null) {
+            pNext.push({
+              tab: ln.tab || "vinyl",
+              section: ln.section,
+              name: ln.name,
+              unit: ln.unit,
+              qty: ln.qty,
+              mat: 0, lab: 0,
+            });
+          } else {
+            pNext[idx] = { ...pNext[idx], qty: ln.qty };
+          }
+        }
+        const pNextOpenings = [
+          ...(pair.vero_openings || []),
+          ...pairedOpenings.map(({ hover_id, ...op }) => op),
+        ];
+        await api.put(`/estimates/${pair.id}`, {
+          ...pair,
+          lines: pNext,
+          vero_openings: pNextOpenings,
+        });
+        const pairedKindLabel = pair.kind === "windows" ? "Windows" : "Siding";
+        pairedMsg = ` · Also created paired ${pairedKindLabel} estimate ${pair.estimate_number || ""}`;
+      }
+
+      const winNote = sourceOpenings.length ? ` + ${sourceOpenings.length} windows` : "";
       toast.success(
-        `Imported HOVER: ${added} new + ${updated} updated${winNote} · saved`
+        `Imported HOVER: ${added} new + ${updated} updated${winNote} · saved${pairedMsg}`
       );
     } catch (e) {
       toast.error(e?.response?.data?.detail || e?.message || "Saved locally but failed to persist — click Save");

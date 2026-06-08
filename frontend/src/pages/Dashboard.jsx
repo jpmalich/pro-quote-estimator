@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api, { fmt, formatApiError } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { toast } from "sonner";
-import { Plus, Trash2, FileText, Search, Download, Copy } from "lucide-react";
+import { Plus, Trash2, FileText, Search, Download, Copy, Link2 } from "lucide-react";
 import EmailPipeline from "@/components/EmailPipeline";
 
 // Categorize an estimate into one of the pipeline buckets based on its lifecycle fields.
@@ -286,7 +286,23 @@ export default function Dashboard({ kind = "siding" }) {
               >
                 <div className="col-span-12 md:col-span-2 font-mono-num text-sm text-[#09090B]">
                   <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] md:hidden">#</div>
-                  {e.estimate_number || "—"}
+                  <div className="flex items-center gap-1.5">
+                    <span>{e.estimate_number || "—"}</span>
+                    {e.paired_estimate_id && (
+                      <button
+                        type="button"
+                        className="text-[#71717A] hover:text-[#F97316] p-0.5 -m-0.5"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          nav(`/estimate/${e.paired_estimate_id}`);
+                        }}
+                        title={`Paired: ${e.paired_estimate_number || "linked estimate"}`}
+                        data-testid={`paired-link-${e.id}`}
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <div className="flex items-center gap-2 flex-wrap">

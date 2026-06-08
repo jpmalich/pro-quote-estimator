@@ -1,0 +1,49 @@
+{
+  "summary": "Iter 41 cross-kind estimate pairing — Backend (6/6 pytest) + Frontend (6/6 acceptance) ALL PASS. Verified: auth gate (401), 404 on missing estimate, siding→windows pair with -W suffix, idempotency (same paired id on second /pair call), windows-no-suffix→siding with -S suffix, windows-with-W→siding strips suffix, GET /api/estimates includes paired_estimate_number+paired_estimate_kind. FE: HOVER apply emits the expected toast 'Imported HOVER: 0 new + 48 updated · saved · Also created paired Windows estimate EST-207239-W', chain-link icon (data-testid='paired-link-{id}') renders on both /dashboard and /dashboard/windows with correct cross-pointing tooltips, click navigates between paired estimates bidirectionally, paired windows editor shows copied customer 'Pair Smoke' / address '100 Main St' / estimator 'Howard', EST# 'EST-207239-W' with -W suffix, and 29 Vero openings live on the paired windows estimate.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_estimate_pairing.py",
+    "/app/test_reports/pytest/pytest_iteration15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/estimates.py pair_estimate(): clean idempotency check + stale-pointer recovery (re-creates if existing paired doc was deleted). EST# scheme correctly handles all three cases (siding→-W, windows-with-W→strip, windows-no-suffix→-S).",
+    "routes/estimates.py list_estimates(): efficient single batched lookup of paired_docs by id-in list (no N+1). Properly scopes by company_id on the join query.",
+    "models.py EstimateIn.paired_estimate_id is Optional[str] — good; the PUT path uses exclude_none so the back-pointer won't get clobbered by FE PUTs that omit it.",
+    "HoverImportButton split-by-tab logic correctly routes vinyl/ascend/lp_smart to source-kind and windows to paired-kind; vero_openings/mezzo_openings go to paired side. Toast text correctly surfaces the paired estimate number.",
+    "Dashboard.jsx chain-link icon renders only when paired_estimate_id truthy; title attribute uses paired_estimate_number for tooltip. data-testid format 'paired-link-{id}' enables robust testing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_estimate_pairing.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (6/6 acceptance criteria)"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123!",
+  "seed_data_creation": "All test estimates (EST-PAIR1*, EST-PAIR2*, EST-PAIR3*, Pair Smoke, plus residual EST-018125/EST-018125-W from earlier playground run) were cleaned up via DELETE /api/estimates/{id}. DB is clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "HOVER PDF cached at /tmp/hover_sample.pdf. Login lands on / (workspace chooser); navigate explicitly to /dashboard or /dashboard/windows. Job Information field testids are: cust-name, cust-address, estimator-name, est-num, est-date — DO NOT rely on placeholder text (the inputs have no placeholders, only adjacent <label> elements). The HOVER claude extraction takes ~25-40s; use timeout=90000 on wait_for_selector('hover-modal'). Chain-link icon testid is paired-link-{estimate_id}; title attribute is 'Paired: EST-XXXX' (or '-W').",
+  "verified_acceptance_criteria": {
+    "T1_auth_401_unauth": "PASS",
+    "T1_404_nonexistent": "PASS",
+    "T2_siding_to_windows_W_suffix": "PASS (EST-PAIR1-XXXXXX → EST-PAIR1-XXXXXX-W)",
+    "T2_copy_customer_address_estimator": "PASS",
+    "T2_back_pointer_on_source": "PASS",
+    "T2_idempotency_same_paired_id": "PASS",
+    "T3_windows_no_suffix_S_added": "PASS (EST-PAIR2-XXXXXX → EST-PAIR2-XXXXXX-S)",
+    "T3_windows_W_suffix_stripped": "PASS (EST-PAIR3-XXXXXX-W → EST-PAIR3-XXXXXX)",
+    "T4_list_paired_metadata": "PASS (paired_estimate_number + paired_estimate_kind both directions)",
+    "T5a_preview_29_windows_+_lines": "PASS — apply label 'Apply 51 Lines + 29 Windows & Save'",
+    "T5c_toast_mentions_paired_W": "PASS — toast: 'Imported HOVER: 0 new + 48 updated · saved · Also created paired Windows estimate EST-207239-W'",
+    "T5e_chain_icon_on_dashboard": "PASS — title 'Paired: EST-207239-W'",
+    "T5f_chain_click_navigates_to_paired": "PASS",
+    "T5g_paired_editor_prefilled_customer_address_estimator": "PASS — cust='Pair Smoke', addr='100 Main St', estimator='Howard'",
+    "T5h_paired_EST_has_W_suffix": "PASS — EST-207239-W",
+    "T5i_vero_tab_29_openings": "PASS — 29 vero-opening-* testids in DOM",
+    "T6_windows_dashboard_chain_back_to_siding": "PASS — title 'Paired: EST-207239' and click roundtrips to original siding id"
+  }
+}

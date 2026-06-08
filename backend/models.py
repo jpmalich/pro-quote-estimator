@@ -161,6 +161,14 @@ class EstimateIn(BaseModel):
     # 1978 and Lead-Safe RRP is required. Auto-fills Lead Safe Test Fee
     # (qty=1) + Lead Safe Installation Practices (qty=total window count).
     home_pre_1978: bool = False
+    # Iter 41: cross-kind pairing. When a contractor uploads a HOVER on a
+    # siding estimate that contains windows data (or vice versa), the
+    # importer auto-spawns a paired estimate of the opposite kind so the
+    # window scope doesn't get stranded on a siding quote. Both estimates
+    # store the other's id here so the editor + dashboard can render a
+    # chain-link badge linking them. One-time copy on creation — they're
+    # independent docs after that.
+    paired_estimate_id: Optional[str] = None
     lines: List[EstimateLine] = []
     misc_labor: List[MiscLine] = []
     misc_material: List[MiscLine] = []

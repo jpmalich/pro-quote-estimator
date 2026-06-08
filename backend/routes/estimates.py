@@ -35,7 +35,22 @@ async def list_estimates(
         # Include both explicit "siding" AND legacy estimates with no kind.
         q["$or"] = [{"kind": "siding"}, {"kind": {"$exists": False}}, {"kind": ""}]
     cursor = db.estimates.find(q, {"_id": 0}).sort("updated_at", -1)
-    return await cursor.to_list(500)
+    estimates = await cursor.to_list(500)
+    # Iter 41: surface the paired estimate's number on each row so the
+    # dashboard can render a one-click chain-link badge → paired estimate.
+    paired_ids = [e["paired_estimate_id"] for e in estimates if e.get("paired_estimate_id")]
+    if paired_ids:
+        paired_docs = await db.estimates.find(
+            {"id": {"$in": paired_ids}, "company_id": user["company_id"]},
+            {"_id": 0, "id": 1, "estimate_number": 1, "kind": 1},
+        ).to_list(500)
+        by_id = {p["id"]: p for p in paired_docs}
+        for e in estimates:
+            pid = e.get("paired_estimate_id")
+            if pid and pid in by_id:
+                e["paired_estimate_number"] = by_id[pid].get("estimate_number") or ""
+                e["paired_estimate_kind"] = by_id[pid].get("kind") or ""
+    return estimates
 
 
 @router.post("/estimates")
@@ -97,6 +112,86 @@ async def duplicate_estimate(est_id: str, user: dict = Depends(get_current_user)
     await db.estimates.insert_one(src)
     src.pop("_id", None)
     return src
+
+
+@router.post("/estimates/{est_id}/pair")
+async def pair_estimate(est_id: str, user: dict = Depends(get_current_user)):
+    """Spawn (or return existing) paired estimate of the opposite kind.
+
+    Iter 41: when a contractor uploads HOVER on a siding estimate that
+    contains window measurements, the importer calls this to auto-create
+    a paired windows-kind estimate so the window scope doesn't get
+    stranded. Mirrored for windows → siding too.
+
+    Behavior:
+      - Idempotent: if the source already has a `paired_estimate_id`
+        pointing to a real doc, return that doc unchanged.
+      - EST# scheme: siding source `EST-788260` → paired `EST-788260-W`;
+        windows source `EST-788260-W` → strip suffix to `EST-788260`;
+        windows source `EST-788260` (no suffix) → paired `EST-788260-S`.
+      - Copies on creation only: customer_name, address, estimator,
+        estimate_date. Lines/openings start empty — the HOVER apply
+        flow on the FE writes the correct slice to each side.
+    """
+    src = await db.estimates.find_one(
+        {"id": est_id, "company_id": user["company_id"]}, {"_id": 0}
+    )
+    if not src:
+        raise HTTPException(status_code=404, detail="Source estimate not found")
+
+    # Idempotent: re-use existing paired doc if still alive.
+    existing_id = src.get("paired_estimate_id")
+    if existing_id:
+        existing = await db.estimates.find_one(
+            {"id": existing_id, "company_id": user["company_id"]}, {"_id": 0}
+        )
+        if existing:
+            return existing
+        # Pointer was stale (paired estimate was deleted) — fall through
+        # to re-create.
+
+    src_kind = src.get("kind") or "siding"
+    new_kind = "windows" if src_kind == "siding" else "siding"
+    src_num = src.get("estimate_number") or ""
+    if new_kind == "windows":
+        new_num = f"{src_num}-W" if src_num else ""
+    else:
+        # Windows → siding. If src ends with -W, strip it; else append -S.
+        new_num = src_num[:-2] if src_num.endswith("-W") else (f"{src_num}-S" if src_num else "")
+
+    new_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    new_doc = {
+        "id": new_id,
+        "company_id": user["company_id"],
+        "created_by": user["id"],
+        "created_by_name": user.get("name"),
+        "created_at": now,
+        "updated_at": now,
+        "estimate_number": new_num,
+        "estimate_date": src.get("estimate_date") or now[:10],
+        # One-time copy of job info (Customer, Address, Estimator).
+        "customer_name": src.get("customer_name") or "",
+        "address": src.get("address") or "",
+        "estimator": src.get("estimator") or "",
+        "kind": new_kind,
+        "status_label": "draft",
+        "lines": [],
+        "misc_labor": [],
+        "misc_material": [],
+        "mezzo_openings": [],
+        "vero_openings": [],
+        "photos": [],
+        "paired_estimate_id": est_id,
+    }
+    await db.estimates.insert_one(new_doc)
+    # Stamp the source with a back-pointer.
+    await db.estimates.update_one(
+        {"id": est_id, "company_id": user["company_id"]},
+        {"$set": {"paired_estimate_id": new_id, "updated_at": now}},
+    )
+    new_doc.pop("_id", None)
+    return new_doc
 
 
 # ---------------------------------------------------------------------------
