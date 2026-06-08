@@ -14,6 +14,7 @@ import api from "@/lib/api";
 
 const KEY_LABELS = {
   siding_sqft: "Siding",
+  siding_with_openings_sqft: "Siding (+10% small openings)",
   soffit_sqft: "Soffit",
   eaves_lf: "Eaves",
   rakes_lf: "Rakes",
@@ -24,6 +25,7 @@ const KEY_LABELS = {
   inside_corner_lf: "Inside corner LF",
   opening_count: "Openings",
   window_count: "Windows",
+  window_bottom_width_total_lf: "Window bottom widths",
   door_count: "Doors (total)",
   entry_door_count: "Entry doors",
   patio_door_count: "Patio doors",

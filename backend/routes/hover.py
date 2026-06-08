@@ -739,8 +739,11 @@ async def hover_import(
             detail="Could not extract text from PDF — is this a scanned/image PDF?",
         )
     measurements = await _ask_claude(text, session_id=f"hover-{user.get('id','anon')}")
+    # Pull the per-window list out of measurements so the FE measurements
+    # iterator can safely render every remaining value as a primitive.
+    windows_payload = measurements.pop("windows", None) or []
+    openings = _build_vero_openings({"windows": windows_payload})
     lines = _build_lines(measurements)
-    openings = _build_vero_openings(measurements)
     return HoverImportResult(
         measurements=measurements,
         lines=[HoverLine(**ln) for ln in lines],
