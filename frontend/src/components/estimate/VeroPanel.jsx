@@ -78,6 +78,40 @@ export default function VeroPanel({ est, update }) {
     };
   }, []);
 
+  // Iter 42d: reconcile stale price snapshots once the catalog loads. The
+  // HOVER importer creates Vero openings with `base_mat: 0` (it can't know
+  // the catalog price client-side); when those land on the paired estimate
+  // the per-row UI renders the live price fine but the totals (calc.js)
+  // sum the persisted snapshot fields and show $0. This effect detects
+  // missing/stale snapshots and pushes a one-time recompute to the parent.
+  useEffect(() => {
+    if (!catalog || !catalog.product_types) return;
+    const ops = est?.vero_openings || [];
+    if (!ops.length) return;
+    let dirty = false;
+    const next = ops.map((op) => {
+      const pt = catalog.product_types.find((p) => p.name === op.product_type);
+      if (!pt) return op;
+      const fresh = recomputeOpening(op, pt);
+      if (
+        Math.round(Number(op.base_mat) || 0) !== Math.round(Number(fresh.base_mat) || 0) ||
+        Math.round(Number(op.glass_mat) || 0) !== Math.round(Number(fresh.glass_mat) || 0) ||
+        Math.round(Number(op.tempered_mat) || 0) !== Math.round(Number(fresh.tempered_mat) || 0) ||
+        Math.round(Number(op.premium_mat) || 0) !== Math.round(Number(fresh.premium_mat) || 0) ||
+        (op.bucket_label || "") !== (fresh.bucket_label || "")
+      ) {
+        dirty = true;
+        return fresh;
+      }
+      return op;
+    });
+    if (dirty) setOpenings(next);
+    // We intentionally only re-run on catalog load + openings-array-identity
+    // change. Snapshot fields are derived, so a content-level check would
+    // re-loop forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, est?.vero_openings?.length, est?.id]);
+
   const openingsByType = useMemo(() => {
     const out = {};
     (est?.vero_openings || []).forEach((op) => {

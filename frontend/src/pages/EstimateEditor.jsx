@@ -7,6 +7,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { useCompany } from "@/lib/company";
 import { useBranding } from "@/lib/branding";
 import useEstimate from "@/lib/useEstimate";
+import useReconcileWindowSnapshots from "@/lib/useReconcileWindowSnapshots";
 import { calcTotals } from "@/lib/calc";
 import { buildMaterialListHtml, materialListFilename } from "@/lib/materialList";
 import StickyBar from "@/components/estimate/StickyBar";
@@ -33,6 +34,10 @@ export default function EstimateEditor() {
   const { company } = useCompany();
   const branding = useBranding();
   const { est, catalog, loading, emailStatus, update, updateLineQty, updateLineField, resetLineToDefault, toggleLineAdder, updateAdderQty, setInstallMethod, setHomePre1978, save } = useEstimate(id);
+  // Reconcile window-opening price snapshots once per estimate load — fixes
+  // the $0 totals on freshly HOVER-imported windows estimates whose openings
+  // arrive with base_mat: 0. No-op for estimates without window openings.
+  useReconcileWindowSnapshots(est, update);
   // Start with every section collapsed so the editor stays compact —
   // contractors expand only the categories they need for the job.
   const [openSections, setOpenSections] = useState({});

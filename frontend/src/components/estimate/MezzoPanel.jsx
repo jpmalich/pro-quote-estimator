@@ -84,6 +84,44 @@ export default function MezzoPanel({ est, update }) {
     };
   }, []);
 
+  // Iter 42d: reconcile stale price snapshots once the catalog loads. The
+  // HOVER importer creates Mezzo openings with `base_mat: 0`; on the paired
+  // estimate the per-row UI renders the live price fine but calc.js totals
+  // sum the persisted snapshot fields and show $0 until a recompute pushes
+  // a fresh value back. This effect detects the gap and patches once.
+  useEffect(() => {
+    if (!catalog || !catalog.product_types) return;
+    const ops = est?.mezzo_openings || [];
+    if (!ops.length) return;
+    let dirty = false;
+    const next = ops.map((op) => {
+      const pt = catalog.product_types.find((p) => p.name === op.product_type);
+      if (!pt) return op;
+      const ui = (Number(op.width) || 0) + (Number(op.height) || 0);
+      const bucket = findBucket(pt.buckets, ui);
+      const freshBase = bucket ? Number(pt.base_prices?.[bucket.label]) || 0 : 0;
+      const freshBucketLabel = bucket ? bucket.label : "";
+      const freshAdders = (op.adders || []).map((a) => {
+        const def = pt.adders.find((x) => x.name === a.name);
+        return def ? { ...a, mat: resolveAdderMat(def, pt, op.width, op.height) } : a;
+      });
+      const adderMatChanged = (op.adders || []).some((a, i) =>
+        Math.round(Number(a.mat) || 0) !== Math.round(Number(freshAdders[i]?.mat) || 0)
+      );
+      if (
+        Math.round(Number(op.base_mat) || 0) !== Math.round(freshBase) ||
+        (op.bucket_label || "") !== freshBucketLabel ||
+        adderMatChanged
+      ) {
+        dirty = true;
+        return { ...op, base_mat: freshBase, bucket_label: freshBucketLabel, adders: freshAdders };
+      }
+      return op;
+    });
+    if (dirty) setOpenings(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, est?.mezzo_openings?.length, est?.id]);
+
   // Group existing openings by product_type so each Mezzo section can
   // render its own openings independently.
   const openingsByType = useMemo(() => {
