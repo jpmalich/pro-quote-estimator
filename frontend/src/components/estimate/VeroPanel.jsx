@@ -92,8 +92,32 @@ export default function VeroPanel({ est, update }) {
     const next = ops.map((op) => {
       const pt = catalog.product_types.find((p) => p.name === op.product_type);
       if (!pt) return op;
-      const fresh = recomputeOpening(op, pt);
+      // Snap stale sister_color to a valid value (e.g. Tan→White after the
+      // catalog was reduced to a single color option).
+      let work = op;
+      const sisters = pt.sister_colors || [];
+      if (sisters.length && !sisters.includes(op.sister_color)) {
+        work = { ...op, sister_color: sisters.includes(DEFAULT_SISTER_COLOR) ? DEFAULT_SISTER_COLOR : sisters[0] };
+      }
+      // Filter out premium_options that no longer exist in the catalog
+      // (e.g. after dropping legacy SKUs from the pricebook).
+      const validPremiums = Object.keys(pt.premium_options || {});
+      if (Array.isArray(work.premium_options) && work.premium_options.length) {
+        const cleaned = work.premium_options.filter((n) => validPremiums.includes(n));
+        if (cleaned.length !== work.premium_options.length) {
+          work = { ...work, premium_options: cleaned };
+        }
+      }
+      // Reset glass_package / tempered_upcharge if their name was removed
+      if (work.glass_package && !Object.keys(pt.glass_packages || {}).includes(work.glass_package)) {
+        work = { ...work, glass_package: "" };
+      }
+      if (work.tempered_upcharge && !Object.keys(pt.tempered || {}).includes(work.tempered_upcharge)) {
+        work = { ...work, tempered_upcharge: "" };
+      }
+      const fresh = recomputeOpening(work, pt);
       if (
+        work !== op ||
         Math.round(Number(op.base_mat) || 0) !== Math.round(Number(fresh.base_mat) || 0) ||
         Math.round(Number(op.glass_mat) || 0) !== Math.round(Number(fresh.glass_mat) || 0) ||
         Math.round(Number(op.tempered_mat) || 0) !== Math.round(Number(fresh.tempered_mat) || 0) ||
@@ -106,9 +130,6 @@ export default function VeroPanel({ est, update }) {
       return op;
     });
     if (dirty) setOpenings(next);
-    // We intentionally only re-run on catalog load + openings-array-identity
-    // change. Snapshot fields are derived, so a content-level check would
-    // re-loop forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, est?.vero_openings?.length, est?.id]);
 
@@ -571,21 +592,23 @@ function VeroOpeningRow({
       {isExpanded && (
         <div className="mt-2 pl-5 pb-2 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                {t("win.sisterColor")}
-              </label>
-              <select
-                className="input h-9 text-sm w-full"
-                value={op.sister_color || ""}
-                onChange={(e) => onUpdate({ sister_color: e.target.value })}
-                data-testid={`vero-sister-${op.id}`}
-              >
-                {(pt.sister_colors || []).map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+            {(pt.sister_colors || []).length > 1 && (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
+                  {t("win.sisterColor")}
+                </label>
+                <select
+                  className="input h-9 text-sm w-full"
+                  value={op.sister_color || ""}
+                  onChange={(e) => onUpdate({ sister_color: e.target.value })}
+                  data-testid={`vero-sister-${op.id}`}
+                >
+                  {(pt.sister_colors || []).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1 flex items-center gap-1.5">
                 <span>{t("win.glassPackage")}</span>

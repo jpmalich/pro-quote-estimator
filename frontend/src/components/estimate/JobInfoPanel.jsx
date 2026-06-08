@@ -287,7 +287,11 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
             {t("est.colors.windows")}
           </div>
 
-          {/* VERO color block — extruded vinyl + laminate + paint paths */}
+          {/* VERO color block — hidden per user request (pricing TBD). White
+              forced as the only color choice; the picker is suppressed until
+              pricing for the other extruded / laminate / painted finishes is
+              re-clarified. */}
+          {false && (
           <div className="border border-[#E4E4E7] bg-white p-4 mb-3">
             <div className="text-[11px] uppercase tracking-wider text-[#09090B] font-bold mb-3">
               Vero
@@ -363,6 +367,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
               return null;
             })()}
           </div>
+          )}
 
           {/* MEZZO color block — solid extruded + FrameWorks / Woodgrain */}
           <div className="border border-[#E4E4E7] bg-white p-4">
