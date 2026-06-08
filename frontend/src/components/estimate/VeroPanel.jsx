@@ -272,6 +272,21 @@ export default function VeroPanel({ est, update }) {
           return s + (Number(op.qty) || 0) * per;
         }, 0);
         const isFixed = pt.sizing === "fixed_model";
+        // Iter 42c: count usage of each upgrade option across ALL Vero
+        // openings (across product types — option names are reused) so the
+        // editor can show "applied on N of M windows" when mixed.
+        const allOpenings = est?.vero_openings || [];
+        const totalOpenings = allOpenings.length;
+        const glassCounts = {};
+        const temperedCounts = {};
+        const premiumCounts = {};
+        for (const o of allOpenings) {
+          if (o.glass_package) glassCounts[o.glass_package] = (glassCounts[o.glass_package] || 0) + 1;
+          if (o.tempered_upcharge) temperedCounts[o.tempered_upcharge] = (temperedCounts[o.tempered_upcharge] || 0) + 1;
+          for (const p of o.premium_options || []) {
+            premiumCounts[p] = (premiumCounts[p] || 0) + 1;
+          }
+        }
         return (
           <section
             key={pt.name}
@@ -338,6 +353,10 @@ export default function VeroPanel({ est, update }) {
                     onUpdate={(patch) => handleEditorUpdate(op.id, patch)}
                     onRemove={() => removeOpening(op.id)}
                     onTogglePremium={(name) => togglePremiumOption(op.id, name)}
+                    glassCounts={glassCounts}
+                    temperedCounts={temperedCounts}
+                    premiumCounts={premiumCounts}
+                    totalOpenings={totalOpenings}
                   />
                 ))}
               </div>
@@ -360,6 +379,7 @@ export default function VeroPanel({ est, update }) {
 function VeroOpeningRow({
   op, pt, isExpanded, isNotesOpen,
   onToggleExpand, onToggleNotes, onUpdate, onRemove, onTogglePremium,
+  glassCounts = {}, temperedCounts = {}, premiumCounts = {}, totalOpenings = 0,
 }) {
   const t = useT();
   const isFixed = pt.sizing === "fixed_model";
@@ -533,8 +553,18 @@ function VeroOpeningRow({
               </select>
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                {t("win.glassPackage")} <span className="text-[9px] text-[#71717A] normal-case">({t("win.optional")})</span>
+              <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1 flex items-center gap-1.5">
+                <span>{t("win.glassPackage")}</span>
+                <span className="text-[9px] text-[#71717A] normal-case font-normal">({t("win.optional")})</span>
+                {op.glass_package && glassCounts[op.glass_package] > 0 && glassCounts[op.glass_package] < totalOpenings && (
+                  <span
+                    className="text-[9px] font-mono-num bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] px-1 py-px tracking-tight ml-auto normal-case font-bold"
+                    title={`This glass package is set on ${glassCounts[op.glass_package]} of ${totalOpenings} windows`}
+                    data-testid={`vero-glass-usage-${op.id}`}
+                  >
+                    {glassCounts[op.glass_package]}/{totalOpenings}
+                  </span>
+                )}
               </label>
               <select
                 className="input h-9 text-sm w-full"
@@ -559,8 +589,18 @@ function VeroOpeningRow({
 
           {hasTempered && !isFixed && (
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1">
-                {t("win.tempered")} <span className="text-[9px] text-[#71717A] normal-case">({t("win.optional")})</span>
+              <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-1 flex items-center gap-1.5">
+                <span>{t("win.tempered")}</span>
+                <span className="text-[9px] text-[#71717A] normal-case font-normal">({t("win.optional")})</span>
+                {op.tempered_upcharge && temperedCounts[op.tempered_upcharge] > 0 && temperedCounts[op.tempered_upcharge] < totalOpenings && (
+                  <span
+                    className="text-[9px] font-mono-num bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] px-1 py-px tracking-tight ml-auto normal-case font-bold"
+                    title={`This tempered option is set on ${temperedCounts[op.tempered_upcharge]} of ${totalOpenings} windows`}
+                    data-testid={`vero-tempered-usage-${op.id}`}
+                  >
+                    {temperedCounts[op.tempered_upcharge]}/{totalOpenings}
+                  </span>
+                )}
               </label>
               <select
                 className="input h-9 text-sm w-full md:w-1/2"
@@ -591,6 +631,8 @@ function VeroOpeningRow({
                   const checked = (op.premium_options || []).includes(name);
                   const price = bucket ? Number(grid[bucket.label]) || 0 : 0;
                   const isUnavailable = price >= 9999;
+                  const usedOn = premiumCounts[name] || 0;
+                  const mixed = usedOn > 0 && usedOn < totalOpenings;
                   return (
                     <label
                       key={name}
@@ -609,6 +651,14 @@ function VeroOpeningRow({
                       <span className={`flex-1 truncate ${checked ? "font-semibold" : ""}`} title={name}>
                         {name}
                       </span>
+                      {mixed && (
+                        <span
+                          className="text-[9px] font-mono-num bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] px-1 py-px tracking-tight flex-shrink-0 normal-case font-bold"
+                          title={`Applied on ${usedOn} of ${totalOpenings} windows`}
+                        >
+                          {usedOn}/{totalOpenings}
+                        </span>
+                      )}
                       <span className="font-mono-num text-[10px] text-[#71717A] tabular-nums whitespace-nowrap">
                         {isUnavailable ? "n/a" : price > 0 ? `+${fmt(price)}` : "—"}
                       </span>

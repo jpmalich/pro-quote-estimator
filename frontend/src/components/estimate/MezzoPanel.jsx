@@ -276,6 +276,18 @@ export default function MezzoPanel({ est, update }) {
           );
           return s + base + ads;
         }, 0);
+        // Iter 42c: across all openings on this Mezzo tab (not just this
+        // product type — adders share names across DH / Slider / Picture),
+        // count how many have each adder. Surfaces a "N of 29" badge next
+        // to mixed adders so the contractor can spot odd-one-out windows.
+        const allOpenings = est?.mezzo_openings || [];
+        const totalOpenings = allOpenings.length;
+        const adderCounts = {};
+        for (const o of allOpenings) {
+          for (const ad of o.adders || []) {
+            adderCounts[ad.name] = (adderCounts[ad.name] || 0) + 1;
+          }
+        }
         return (
           <section
             key={pt.name}
@@ -338,6 +350,8 @@ export default function MezzoPanel({ est, update }) {
                     onRemove={() => removeOpening(op.id)}
                     onToggleAdder={(def) => toggleAdder(op.id, def, pt)}
                     onUpdateAdderQty={(name, qty) => updateAdderQty(op.id, name, qty)}
+                    adderCounts={adderCounts}
+                    totalOpenings={totalOpenings}
                   />
                 ))}
               </div>
@@ -368,6 +382,8 @@ function OpeningRow({
   onRemove,
   onToggleAdder,
   onUpdateAdderQty,
+  adderCounts = {},
+  totalOpenings = 0,
 }) {
   const t = useT();
   const ui = (Number(op.width) || 0) + (Number(op.height) || 0);
@@ -533,6 +549,12 @@ function OpeningRow({
                             ? `+${fmt(adderMat)}/ea`
                             : "—";
                       const label = displayAdderLabel(a.name);
+                      // Iter 42c: surface "applied on N of M" badge when the
+                      // adder is in mixed use (some openings have it, others
+                      // don't). Skip when uniform (0 or all) — no cognitive
+                      // load needed.
+                      const usedOn = adderCounts[a.name] || 0;
+                      const mixed = usedOn > 0 && usedOn < totalOpenings;
                       return (
                         <div
                           key={a.name}
@@ -551,8 +573,17 @@ function OpeningRow({
                             data-testid={`mezzo-adder-cb-${op.id}-${a.name}`}
                           />
                           <div className="flex-1 min-w-0">
-                            <div className={`leading-tight ${checked ? "font-semibold" : ""} truncate`} title={label}>
-                              {label}
+                            <div className={`leading-tight flex items-center gap-1.5 ${checked ? "font-semibold" : ""}`}>
+                              <span className="truncate" title={label}>{label}</span>
+                              {mixed && (
+                                <span
+                                  className="text-[9px] font-mono-num bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] px-1 py-px tracking-tight flex-shrink-0 normal-case font-bold"
+                                  title={`Applied on ${usedOn} of ${totalOpenings} windows`}
+                                  data-testid={`mezzo-adder-usage-${a.name.replace(/[^a-zA-Z0-9]/g, "_")}`}
+                                >
+                                  {usedOn}/{totalOpenings}
+                                </span>
+                              )}
                             </div>
                             <div className="font-mono-num text-[10px] text-[#71717A] truncate">
                               {checked ? (adderTotal > 0 ? `+${fmt(adderTotal)} total` : "—") : unitHint}
