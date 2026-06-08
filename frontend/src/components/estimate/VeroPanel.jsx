@@ -4,6 +4,7 @@ import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-r
 import { v4 as uuid } from "uuid";
 import { useT, useLang } from "@/lib/i18n";
 import { tSection } from "@/lib/catalogTranslations";
+import BulkApplyConfirm from "./BulkApplyConfirm";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -59,6 +60,10 @@ export default function VeroPanel({ est, update }) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(() => new Set());
   const [notesOpen, setNotesOpen] = useState(() => new Set());
+  // Bulk-apply prompt state — fires after the contractor toggles an upgrade
+  // option (glass / tempered / premium) on one opening, asks "apply to all
+  // other uploaded windows?". Null = no prompt visible.
+  const [bulkPrompt, setBulkPrompt] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -161,6 +166,81 @@ export default function VeroPanel({ est, update }) {
       ? (op.premium_options || []).filter((n) => n !== name)
       : [...(op.premium_options || []), name];
     updateOpening(id, { premium_options: next });
+    // After turning a premium ON, ask if it should propagate to every other
+    // opening whose product type supports the same option.
+    if (!have) {
+      maybeOfferBulkApply({
+        sourceId: id,
+        optionLabel: name,
+        applyToOpening: (other, otherPt) => {
+          if (!otherPt?.premium_options || otherPt.premium_options[name] == null) return null;
+          if ((other.premium_options || []).includes(name)) return null;
+          return { premium_options: [...(other.premium_options || []), name] };
+        },
+      });
+    }
+  };
+
+  // Apply a single upgrade selection across every other uploaded opening
+  // whose product type supports the same option. `mapFn(other, otherPt)`
+  // returns the patch for each opening (or null to skip).
+  const applyToAll = (sourceId, mapFn) => {
+    const next = (est?.vero_openings || []).map((op) => {
+      if (op.id === sourceId) return op;
+      const pt = catalog?.product_types?.find((p) => p.name === op.product_type);
+      if (!pt) return op;
+      const patch = mapFn(op, pt);
+      if (!patch) return op;
+      return recomputeOpening({ ...op, ...patch }, pt);
+    });
+    setOpenings(next);
+  };
+
+  // Open the confirm modal only when there are other uploaded openings to
+  // apply to (zero or one window → no prompt). `applyToOpening` is the
+  // per-opening patch builder (returns null = skip).
+  const maybeOfferBulkApply = ({ sourceId, optionLabel, applyToOpening }) => {
+    const allOpenings = est?.vero_openings || [];
+    const otherCount = allOpenings.filter((o) => o.id !== sourceId).length;
+    if (otherCount < 1) return;
+    setBulkPrompt({
+      optionLabel,
+      targetCount: otherCount,
+      onApplyAll: () => {
+        applyToAll(sourceId, applyToOpening);
+        setBulkPrompt(null);
+      },
+      onSkip: () => setBulkPrompt(null),
+    });
+  };
+
+  // Wrapper around updateOpening: detects glass / tempered selection and
+  // surfaces the bulk-apply prompt after the single-opening update lands.
+  const handleEditorUpdate = (id, patch) => {
+    updateOpening(id, patch);
+    if (patch.glass_package) {
+      maybeOfferBulkApply({
+        sourceId: id,
+        optionLabel: patch.glass_package,
+        applyToOpening: (other, otherPt) => {
+          // Only apply if this product type has the same glass package
+          // defined AND the opening doesn't already have it set.
+          if (!otherPt?.glass_packages || otherPt.glass_packages[patch.glass_package] == null) return null;
+          if (other.glass_package === patch.glass_package) return null;
+          return { glass_package: patch.glass_package };
+        },
+      });
+    } else if (patch.tempered_upcharge) {
+      maybeOfferBulkApply({
+        sourceId: id,
+        optionLabel: patch.tempered_upcharge,
+        applyToOpening: (other, otherPt) => {
+          if (!otherPt?.tempered || otherPt.tempered[patch.tempered_upcharge] == null) return null;
+          if (other.tempered_upcharge === patch.tempered_upcharge) return null;
+          return { tempered_upcharge: patch.tempered_upcharge };
+        },
+      });
+    }
   };
 
   if (loading) {
@@ -255,7 +335,7 @@ export default function VeroPanel({ est, update }) {
                         return n;
                       })
                     }
-                    onUpdate={(patch) => updateOpening(op.id, patch)}
+                    onUpdate={(patch) => handleEditorUpdate(op.id, patch)}
                     onRemove={() => removeOpening(op.id)}
                     onTogglePremium={(name) => togglePremiumOption(op.id, name)}
                   />
@@ -265,6 +345,14 @@ export default function VeroPanel({ est, update }) {
           </section>
         );
       })}
+      <BulkApplyConfirm
+        open={!!bulkPrompt}
+        optionLabel={bulkPrompt?.optionLabel || ""}
+        targetCount={bulkPrompt?.targetCount || 0}
+        onApplyAll={() => bulkPrompt?.onApplyAll?.()}
+        onSkip={() => bulkPrompt?.onSkip?.()}
+        testid="vero-bulk-apply-confirm"
+      />
     </>
   );
 }

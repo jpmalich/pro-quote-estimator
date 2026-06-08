@@ -4,6 +4,7 @@ import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-r
 import { v4 as uuid } from "uuid";
 import { useT, useLang } from "@/lib/i18n";
 import { tSection } from "@/lib/catalogTranslations";
+import BulkApplyConfirm from "./BulkApplyConfirm";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -96,6 +97,9 @@ export default function MezzoPanel({ est, update }) {
   }, [est?.mezzo_openings]);
 
   const setOpenings = (next) => update({ mezzo_openings: next });
+  // Bulk-apply prompt — fires after the contractor turns an adder ON on
+  // one opening; asks "apply to all other uploaded windows?".
+  const [bulkPrompt, setBulkPrompt] = useState(null);
 
   const addOpening = (pt) => {
     // Auto-attach the default ClimaTech Plus - 9E adder. mat=0 here; the
@@ -146,12 +150,14 @@ export default function MezzoPanel({ est, update }) {
   };
 
   const toggleAdder = (id, adderDef, productType) => {
+    let didTurnOn = false;
     const next = (est?.mezzo_openings || []).map((op) => {
       if (op.id !== id) return op;
       const has = (op.adders || []).some((a) => a.name === adderDef.name);
       if (has) {
         return { ...op, adders: op.adders.filter((a) => a.name !== adderDef.name) };
       }
+      didTurnOn = true;
       // Turning the adder ON — drop any mutually-exclusive partner first
       // (e.g. selecting ClimaTech TG2 Plus auto-removes ClimaTech Plus - 9E).
       const exclude = EXCLUSIVE_PAIR[adderDef.name];
@@ -172,6 +178,66 @@ export default function MezzoPanel({ est, update }) {
       };
     });
     setOpenings(next);
+    // After turning an adder ON, prompt to propagate to every other uploaded
+    // opening whose product type defines the same adder name. Adders are
+    // resolved per-product-type so we have to look up the adderDef from the
+    // OTHER opening's catalog entry (not just reuse the source one — sqft
+    // rate × W×H differs per window).
+    if (didTurnOn) {
+      maybeOfferBulkApply({
+        sourceId: id,
+        optionLabel: adderDef.name,
+        applyToOpening: (other, otherPt) => {
+          const otherDef = (otherPt?.adders || []).find((a) => a.name === adderDef.name);
+          if (!otherDef) return null;
+          if ((other.adders || []).some((a) => a.name === adderDef.name)) return null;
+          const exclude = EXCLUSIVE_PAIR[adderDef.name];
+          const cleaned = exclude
+            ? (other.adders || []).filter((a) => a.name !== exclude)
+            : other.adders || [];
+          return {
+            adders: [
+              ...cleaned,
+              {
+                name: adderDef.name,
+                mat: resolveAdderMat(otherDef, otherPt, other.width, other.height),
+                lab: 0,
+                qty: Number(other.qty) || 1,
+              },
+            ],
+          };
+        },
+      });
+    }
+  };
+
+  // Apply a single adder selection to every other uploaded opening on this
+  // Mezzo tab whose product type defines the same adder name.
+  const applyToAll = (sourceId, mapFn) => {
+    const next = (est?.mezzo_openings || []).map((op) => {
+      if (op.id === sourceId) return op;
+      const pt = catalog?.product_types?.find((p) => p.name === op.product_type);
+      if (!pt) return op;
+      const patch = mapFn(op, pt);
+      if (!patch) return op;
+      return { ...op, ...patch };
+    });
+    setOpenings(next);
+  };
+
+  const maybeOfferBulkApply = ({ sourceId, optionLabel, applyToOpening }) => {
+    const all = est?.mezzo_openings || [];
+    const otherCount = all.filter((o) => o.id !== sourceId).length;
+    if (otherCount < 1) return;
+    setBulkPrompt({
+      optionLabel,
+      targetCount: otherCount,
+      onApplyAll: () => {
+        applyToAll(sourceId, applyToOpening);
+        setBulkPrompt(null);
+      },
+      onSkip: () => setBulkPrompt(null),
+    });
   };
 
   const updateAdderQty = (id, name, qty) => {
@@ -279,6 +345,14 @@ export default function MezzoPanel({ est, update }) {
           </section>
         );
       })}
+      <BulkApplyConfirm
+        open={!!bulkPrompt}
+        optionLabel={bulkPrompt?.optionLabel || ""}
+        targetCount={bulkPrompt?.targetCount || 0}
+        onApplyAll={() => bulkPrompt?.onApplyAll?.()}
+        onSkip={() => bulkPrompt?.onSkip?.()}
+        testid="mezzo-bulk-apply-confirm"
+      />
     </>
   );
 }

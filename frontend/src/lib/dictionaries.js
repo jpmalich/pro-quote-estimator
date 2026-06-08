@@ -303,6 +303,12 @@ export const dict = {
     "win.color.laminateWarn": "<strong>Heads up:</strong> Vero laminates are built on a <strong>white</strong> vinyl base only. Pair laminate with a white-base sister color, or switch the laminate side to a paint finish.",
     "win.color.laminateNotice": "Laminate selected — manufacturing will use a <strong>white</strong> vinyl base.",
 
+    "win.bulkApply.title": "Apply to all windows?",
+    "win.bulkApply.body": "Apply “{option}” to the other {count} uploaded windows too?",
+    "win.bulkApply.hint": "Only windows whose product type supports this option will be updated. You can still tweak individual windows after.",
+    "win.bulkApply.skip": "Just this one",
+    "win.bulkApply.applyAll": "Apply to all {count}",
+
     // --- Tab picker modal (quote / material list) ---
     "tabPicker.title.quote": "Print Customer Quote",
     "tabPicker.title.material": "Print Material List",
@@ -607,6 +613,12 @@ export const dict = {
     "win.color.select": "— Seleccione —",
     "win.color.laminateWarn": "<strong>Atención:</strong> los laminados Vero solo se fabrican sobre base de vinil <strong>blanca</strong>. Combine el laminado con un color hermano de base blanca, o cambie el lado laminado a un acabado pintado.",
     "win.color.laminateNotice": "Laminado seleccionado — la fabricación usará una base de vinil <strong>blanca</strong>.",
+
+    "win.bulkApply.title": "¿Aplicar a todas las ventanas?",
+    "win.bulkApply.body": "¿Aplicar “{option}” a las otras {count} ventanas cargadas también?",
+    "win.bulkApply.hint": "Solo se actualizarán las ventanas cuyo tipo de producto admita esta opción. Puede ajustar ventanas individuales después.",
+    "win.bulkApply.skip": "Solo esta",
+    "win.bulkApply.applyAll": "Aplicar a las {count}",
 
     "tabPicker.title.quote": "Imprimir Cotización al Cliente",
     "tabPicker.title.material": "Imprimir Lista de Materiales",
