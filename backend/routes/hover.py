@@ -489,6 +489,26 @@ HOVER_MAPPING_SPEC = [
         "extract": lambda m: 1 if (int(m.get("window_count") or 0) > 0 or int(m.get("patio_door_count") or 0) > 0) else 0,
         "note": "Disposal fee — one per job",
     },
+    # Iter 47: auto-fill .019 Coil qty from total window perimeter.
+    # Math per Howard: total perimeter LF ÷ 100 LF per roll = qty rolls
+    # (each W-N opening contributes 2 × (width + height) inches → ÷12 LF).
+    # Lines populate on BOTH Vero (`windows`) and Mezzo (`mezzo`) tabs so
+    # the snapshot reflects the trim on whichever brand the contractor
+    # presents.
+    {
+        "tabs": ["windows", "mezzo"],
+        "section": "Window Material List",
+        "item": "Windows - .019 Coil",
+        "unit": "ROLL",
+        "extract": lambda m: round(
+            sum(
+                2 * ((float(w.get("width_in") or 0) + float(w.get("height_in") or 0)) / 12.0)
+                for w in (m.get("windows") or [])
+            ) / 100.0,
+            2,
+        ),
+        "note": "Auto-calc: sum of window perimeters ÷ 100 LF/roll",
+    },
     # Iter 42f: siding-side disposal — fires on vinyl + ascend + lp_smart
     # tabs when HOVER reports any siding to install. The "Tear-Off / Clean
     # Up" section is shared across all 3 siding lines so one line covers

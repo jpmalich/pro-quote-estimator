@@ -188,6 +188,13 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - **`/branding-admin` `VeroPricingPanel.jsx`** — old per-product tabs `glass_packages / tempered / premium_options / glass_packages_patio` collapsed into ONE unified **Adders · variant × UI** grid (12 columns × 14 buckets for DH). Patio Door now exposes only its **Base · sister color × Model** matrix. Header subtitle updated: `4 tiers · 5 products · base prices + adders matrix`.
   - **Verified live**: admin panel renders DH Base (1-col $287 → $627 across 14 buckets) and DH Adders (12-col matrix incl. Integral Nailing Fin, Climatech Plus Tempered, Foam Frame, Climatech Plus). Zero legacy tabs visible. HOVER importer no longer emits stale field names.
 
+- **Iter 47 — HOVER auto-fills .019 Coil qty from window perimeter** (Jun 2026): contractors no longer eyeball the trim coil count for windows-only jobs.
+  - **Math**: per-window perimeter = `2 × (W + H)` inches → ÷12 = LF; sum across every `W-N` opening from the HOVER extract; total LF ÷ 100 = qty of rolls (Howard's coverage assumption: 1 roll covers 100 LF of perimeter).
+  - **Tabs**: emits both `tab="windows"` (Vero brand) and `tab="mezzo"` (Mezzo brand) line entries with the same qty, so both job snapshots reflect the trim even before the contractor picks a brand.
+  - **Section / Item**: `Window Material List` → `Windows - .019 Coil` (unit `ROLL`, mat $161.33). Existing catalog mat/lab values untouched.
+  - **Regression coverage**: `/app/backend/tests/test_hover_perimeter.py` — 7 pytest cases (mapping shape, 3-window perimeter, empty inputs, missing dims, large batch round-number, both-tab emission, zero-qty suppression). All passing.
+  - **Files touched**: `/app/backend/routes/hover.py` (one new HOVER_MAPPING_SPEC entry); test file new.
+
 - **Iter 45 — Window-side line-item pricing aligned to canonical Excel** (Jun 2026, Howard's "Window app price layout page 6-8-26.xls"): audited every line in the 6 windows/mezzo-shared sections (Window Material List, Window Installation, Sliding Glass Door Install, Window Exterior/Interior Trim Work, Window Misc.) against the canonical Excel. Found 5 discrepancies — all in the Material List section where mat prices were $0 in the build but priced in the Excel. Fixed:
   - `Windows - .019 Coil`: mat $0 → **$161.33**, lab $23 → **$0**  (and removed the "(1 per 5 Sq Siding)" suffix in Iter 45b per Howard)
   - `Windows - PVC Trim Coil`: mat $0 → **$167.08**
