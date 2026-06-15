@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lightbulb } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
 import {
   vinylSidingColorGroupsForEstimate,
@@ -400,7 +400,16 @@ export default function ISSEstimateEditor() {
                         className="px-4 md:px-5 py-2.5 flex items-center gap-3 flex-wrap"
                         data-testid={`iss-row-${sec.title}-${it.name}`}
                       >
-                        <div className="flex-1 min-w-[200px]">
+                        <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
+                          {it.tip && (
+                            <span
+                              title="Commonly added on most jobs"
+                              data-testid={`iss-tip-${sec.title}-${it.name}`}
+                              className="flex-shrink-0"
+                            >
+                              <Lightbulb className="w-3.5 h-3.5 text-[#F59E0B]" />
+                            </span>
+                          )}
                           <div className="text-sm text-[#09090B]">{it.name}</div>
                         </div>
                         <div className="w-16 text-right">

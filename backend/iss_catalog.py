@@ -84,6 +84,29 @@ ISS_SECTIONS = [
 ]
 
 
+# Line items Howard wants visually flagged as "common adders" — these are
+# the lines a contractor most often forgets to include on an ISS quote.
+# Keyed by (section title, item name) since a few names (e.g. "Gutter",
+# "Downspout", "Soffit & fascia up to 13\" wide") repeat across sections
+# and only one of them should carry the hint icon.
+ISS_TIP_KEYS: set[tuple[str, str]] = {
+    ("Install Vinyl Siding",        "Charter Oak (standard colors)"),
+    ("Install Vinyl Siding",        "Architectural color upcharge"),
+    ("Install Vinyl Siding",        "Tear-off"),
+    ("Install Vinyl Siding",        "Clean up / haul away job debris"),
+    ("Install Vinyl Siding",        "Dumpster"),
+    ("Vinyl Soffit with Siding",    "Soffit & fascia up to 13\" wide"),
+    ("Seamless Gutter with Siding", "Gutter"),
+    ("Seamless Gutter with Siding", "Downspout"),
+    ("Misc. Labor and Material",    "Cap windows"),
+    ("Misc. Labor and Material",    "Cap entry door"),
+    ("Misc. Labor and Material",    "J-blocks, dryer vents"),
+    ("Misc. Labor and Material",    "Gable vents (square, rectangle)"),
+    ("Misc. Labor and Material",    "Cap patio door"),
+    ("Misc. Labor and Material",    "Cap single garage door"),
+}
+
+
 def build_iss_catalog() -> dict:
     """Return the API-shape catalog payload."""
     sections = []
@@ -91,7 +114,12 @@ def build_iss_catalog() -> dict:
         sections.append({
             "title": title,
             "items": [
-                {"name": name, "unit": unit, "price": price}
+                {
+                    "name": name,
+                    "unit": unit,
+                    "price": price,
+                    "tip": (title, name) in ISS_TIP_KEYS,
+                }
                 for name, unit, price in rows
             ],
         })
