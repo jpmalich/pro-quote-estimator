@@ -134,7 +134,11 @@ SECTION_LAYOUT = [
         "Finish Trim Architectural color",
         "Starter", "House Wrap", "RainDrop", '3/8" Fan Fold',
         '2" Nails 30 lbs (1 per 15 Sq)', "Caulking (per color)",
-        "J-blocks, Dryer vents", "Shutters (louvered, raised panel) standard sizes",
+        "J-blocks, Dryer vents - Split Blocks (82A009)",
+        "J-blocks, Dryer vents - Light Blocks (82A010)",
+        "J-blocks, Dryer vents - UL Blocks (82A017)",
+        "J-blocks, Dryer vents - Jumbo Blocks (82A011)",
+        "Shutters (louvered, raised panel) standard sizes",
         "Gable vents (round,octagon)", '1 1/4" Trim Nails',
     ]),
     ("Tear-Off / Clean Up", False, [
@@ -359,7 +363,10 @@ ITEM_META = {
     "Starter": ("PCS", 0),
     "House Wrap": ("SQ", 0), "RainDrop": ("SQ", 0), '3/8" Fan Fold': ("SQ", 0),
     '2" Nails 30 lbs (1 per 15 Sq)': ("JOB", 0), "Caulking (per color)": ("Each", 0),
-    "J-blocks, Dryer vents": ("Each", 0),
+    "J-blocks, Dryer vents - Split Blocks (82A009)": ("Each", 0),
+    "J-blocks, Dryer vents - Light Blocks (82A010)": ("Each", 0),
+    "J-blocks, Dryer vents - UL Blocks (82A017)": ("Each", 0),
+    "J-blocks, Dryer vents - Jumbo Blocks (82A011)": ("Each", 0),
     "Shutters (louvered, raised panel) standard sizes": ("PR", 0),
     "Gable vents (round,octagon)": ("Each", 0), '1 1/4" Trim Nails': ("Box", 0),
     "Tear-Off": ("SQ", 0), "Wood shake tear off (requires a dumpster)": ("SQ", 0),
@@ -567,7 +574,10 @@ IDENTICAL_PRICES = {
     'Gutter Guard (USA Shurflo)': 2.25,
     'House Wrap': 11.55,
     'Inside Corners': 11.83,
-    'J-blocks, Dryer vents': 13.49,
+    'J-blocks, Dryer vents - Split Blocks (82A009)': 13.49,
+    'J-blocks, Dryer vents - Light Blocks (82A010)': 11.72,
+    'J-blocks, Dryer vents - UL Blocks (82A017)': 21.51,
+    'J-blocks, Dryer vents - Jumbo Blocks (82A011)': 11.72,
     'Mitre': 13.75,
     'Pelican Bay Shakes 9"': 419.94,
     'RainDrop': 30.73,
@@ -879,6 +889,12 @@ WINDOW_ADDERS = {
 # so contractors can order/pull materials by SKU. Items without an AMI # (most
 # labor-only lines, some accessories) just show blank on the list.
 ITEM_AMI = {
+    # J-blocks family (Iter 44) — 4 SKUs replacing the legacy "J-blocks,
+    # Dryer vents" rollup. Part numbers come from the supplier's price sheet.
+    "J-blocks, Dryer vents - Split Blocks (82A009)": "82A009",
+    "J-blocks, Dryer vents - Light Blocks (82A010)": "82A010",
+    "J-blocks, Dryer vents - UL Blocks (82A017)": "82A017",
+    "J-blocks, Dryer vents - Jumbo Blocks (82A011)": "82A011",
     # Siding profiles — each gets its own SKU per Alside's price sheet.
     # Iter 34: Standard/Architectural variants share the AMI of their
     # underlying SKU (color is a stocking variant, not a separate part).

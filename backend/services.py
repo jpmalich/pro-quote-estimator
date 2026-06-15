@@ -304,6 +304,54 @@ async def ensure_tiers_seeded():
             {"$set": {"sections.$[].items.$[it].lab": 0.0}},
             array_filters=[{"it.name": {"$in": VINYL_ASCEND_ITEM_NAMES}}],
         )
+    # Iter 44: split the legacy "J-blocks, Dryer vents" rollup into 4 SKUs
+    # (Split/Light/UL/Jumbo). Idempotent migration: pull the old name and
+    # push the 4 new lines into the Vinyl Accessories section on every
+    # tier doc. Existing estimates keep their snapshot of the old line.
+    NEW_J_BLOCK_ITEMS = [
+        {"name": "J-blocks, Dryer vents - Split Blocks (82A009)",  "unit": "Each", "mat": 13.49, "lab": 0.0, "ami_part": "82A009"},
+        {"name": "J-blocks, Dryer vents - Light Blocks (82A010)",  "unit": "Each", "mat": 11.72, "lab": 0.0, "ami_part": "82A010"},
+        {"name": "J-blocks, Dryer vents - UL Blocks (82A017)",     "unit": "Each", "mat": 21.51, "lab": 0.0, "ami_part": "82A017"},
+        {"name": "J-blocks, Dryer vents - Jumbo Blocks (82A011)",  "unit": "Each", "mat": 11.72, "lab": 0.0, "ami_part": "82A011"},
+    ]
+    new_names = {it["name"] for it in NEW_J_BLOCK_ITEMS}
+    async for doc in db.price_tiers.find({}, {"sections": 1}):
+        sections = doc.get("sections", [])
+        dirty = False
+        for sec in sections:
+            if sec.get("title") != "Siding Accessories":
+                continue
+            items = sec.get("items", [])
+            # Drop the legacy rollup line.
+            before = len(items)
+            items = [it for it in items if it.get("name") != "J-blocks, Dryer vents"]
+            if len(items) != before:
+                dirty = True
+            # Add the 4 new lines if missing (idempotent across reseeds).
+            existing = {it.get("name") for it in items}
+            for it in NEW_J_BLOCK_ITEMS:
+                if it["name"] not in existing:
+                    items.append(it)
+                    dirty = True
+            sec["items"] = items
+        if dirty:
+            await db.price_tiers.update_one({"_id": doc["_id"]}, {"$set": {"sections": sections}})
+    del new_names
+    # Force-sync mat on the 4 new J-block items so a previous botched
+    # migration (with $0 mat) gets corrected. Idempotent — only writes when
+    # the DB value disagrees with the supplier-confirmed price.
+    J_BLOCK_PRICES = {
+        "J-blocks, Dryer vents - Split Blocks (82A009)": 13.49,
+        "J-blocks, Dryer vents - Light Blocks (82A010)": 11.72,
+        "J-blocks, Dryer vents - UL Blocks (82A017)": 21.51,
+        "J-blocks, Dryer vents - Jumbo Blocks (82A011)": 11.72,
+    }
+    for jname, jprice in J_BLOCK_PRICES.items():
+        await db.price_tiers.update_many(
+            {"sections.items": {"$elemMatch": {"name": jname, "mat": {"$ne": jprice}}}},
+            {"$set": {"sections.$[].items.$[it].mat": float(jprice)}},
+            array_filters=[{"it.name": jname}],
+        )
     BACKFILL = [
         TRIM, "ASCEND Finish Trim", "Ascend - Starter",
         ".019 Coil (1 per 50' fascia)",
