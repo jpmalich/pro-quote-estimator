@@ -209,11 +209,18 @@ export default function ISSPricingPanel({ token }) {
                 Unmatched rows ({preview.unmatched.length})
               </div>
               <ul className="text-xs text-[#52525B] space-y-1">
-                {preview.unmatched.map((u, i) => (
-                  <li key={i} data-testid={`iss-pricing-unmatched-${i}`}>
-                    Row {u.row}: <span className="font-mono">{u.section || "?"} · {u.name || "?"}</span> — {u.reason}
-                  </li>
-                ))}
+                {preview.unmatched.map((u, i) => {
+                  // Row number comes from the upload parser; combine with
+                  // section+name for a stable key even when 2 rows fail
+                  // with the same row number (shouldn't happen, but cheap
+                  // insurance vs a bare array index).
+                  const k = `${u.row}-${u.section || ""}-${u.name || ""}-${i}`;
+                  return (
+                    <li key={k} data-testid={`iss-pricing-unmatched-${i}`}>
+                      Row {u.row}: <span className="font-mono">{u.section || "?"} · {u.name || "?"}</span> — {u.reason}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}

@@ -1,4 +1,5 @@
 import React from "react";
+import DOMPurify from "dompurify";
 import { useT, useLang } from "@/lib/i18n";
 import { tColor, tColorGroup } from "@/lib/catalogTranslations";
 import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
@@ -351,7 +352,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                   <div
                     className="mt-2 px-3 py-2 bg-[#FEF2F2] border-l-2 border-[#DC2626] text-[11px] text-[#991B1B]"
                     data-testid="vero-laminate-warning"
-                    dangerouslySetInnerHTML={{ __html: t("win.color.laminateWarn") }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t("win.color.laminateWarn")) }}
                   />
                 );
               }
@@ -360,7 +361,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                   <div
                     className="mt-2 px-3 py-2 bg-[#F0F9FF] border-l-2 border-[#0284C7] text-[11px] text-[#075985]"
                     data-testid="vero-laminate-notice"
-                    dangerouslySetInnerHTML={{ __html: t("win.color.laminateNotice") }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t("win.color.laminateNotice")) }}
                   />
                 );
               }

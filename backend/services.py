@@ -251,7 +251,6 @@ async def ensure_tiers_seeded():
     # belongs ONLY to vinyl/ascend (and shared lp_smart) sections — leave
     # the Windows tab labor alone since those defaults come from the Excel
     # and contractors expect them. Idempotent: only writes when lab != 0.
-    from catalog_seed import SECTION_PRODUCT_LINES, product_lines_for, ITEM_META
     VINYL_ASCEND_ITEM_NAMES = []
     for name, (_unit, lab_default) in ITEM_META.items():
         # Skip window-tab items — they're identified by either a "(Windows)"

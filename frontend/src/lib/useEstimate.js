@@ -473,9 +473,11 @@ export default function useEstimate(id) {
     try {
       await api.put(`/estimates/${id}`, buildPayload(source));
       savedUpToRef.current = editsAtSave;
-    } catch {
+    } catch (err) {
       // Silently swallow — user can hit Save manually for a toast.
-      // Network blips shouldn't bug them every 2 seconds.
+      // Network blips shouldn't bug them every 2 seconds. Log so a
+      // persistent autosave failure is at least visible in DevTools.
+      console.warn("[autosave] swallowed:", err?.message || err);
     } finally {
       savingRef.current = false;
     }
@@ -516,8 +518,10 @@ export default function useEstimate(id) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildPayload(source)),
           keepalive: true,
-        }).catch(() => {});
-      } catch { /* best-effort */ }
+        }).catch((err) => console.warn("[unmount-flush] failed:", err?.message || err));
+      } catch (err) {
+        console.warn("[unmount-flush] swallowed:", err?.message || err);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);  // unmount-only effect; closures capture latest via refs
@@ -541,8 +545,10 @@ export default function useEstimate(id) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildPayload(source)),
           keepalive: true,
-        }).catch(() => {});
-      } catch { /* ignore — best-effort flush */ }
+        }).catch((err) => console.warn("[pagehide-flush] failed:", err?.message || err));
+      } catch (err) {
+        console.warn("[pagehide-flush] swallowed:", err?.message || err);
+      }
     };
     window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);

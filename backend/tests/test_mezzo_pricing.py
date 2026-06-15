@@ -4,7 +4,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.preview.emergentagent.com").rstrip("/")
-ADMIN_TOKEN = "OXSp1EXqp1rPLsQfeEoZyDbFCLZ3D6B2D55HyO1LFoE"
+ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
 LOGIN_EMAIL = "hhunt6677@yahoo.com"
 LOGIN_PASSWORD = "Admin123!"
 

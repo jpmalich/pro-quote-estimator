@@ -27,7 +27,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.pr
 API = f"{BASE_URL}/api"
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "hhunt6677@yahoo.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
-SUPPLIER_ADMIN_TOKEN = "OXSp1EXqp1rPLsQfeEoZyDbFCLZ3D6B2D55HyO1LFoE"
+SUPPLIER_ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
 
 
 # ---- shared fixtures ----------------------------------------------------- #

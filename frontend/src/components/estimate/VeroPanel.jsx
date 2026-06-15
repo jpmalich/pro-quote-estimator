@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import DOMPurify from "dompurify";
 import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-react";
 import { v4 as uuid } from "uuid";
 import { useT, useLang } from "@/lib/i18n";
@@ -362,7 +363,7 @@ export default function VeroPanel({ est, update }) {
             {openings.length === 0 ? (
               <div
                 className="px-5 py-8 text-center text-sm text-[#A1A1AA]"
-                dangerouslySetInnerHTML={{ __html: t("win.noOpenings") }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t("win.noOpenings")) }}
               />
             ) : (
               <div className="divide-y divide-[#E4E4E7]">

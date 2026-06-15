@@ -18,7 +18,10 @@ function readInitial() {
     // Fall back to browser preference once
     const nav = (typeof navigator !== "undefined" && navigator.language) || "en";
     if (nav.toLowerCase().startsWith("es")) return "es";
-  } catch { /* ignore */ }
+  } catch (err) {
+    // SSR or localStorage disabled (private mode, blocked cookies, etc.)
+    console.warn("[i18n] readInitial failed:", err?.message || err);
+  }
   return "en";
 }
 
@@ -26,7 +29,8 @@ export function LangProvider({ children, initial }) {
   const [lang, setLangState] = useState(initial || readInitial);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, lang); } catch { /* ignore */ }
+    try { localStorage.setItem(STORAGE_KEY, lang); }
+    catch (err) { console.warn("[i18n] persist failed:", err?.message || err); }
     if (typeof document !== "undefined") document.documentElement.lang = lang;
   }, [lang]);
 

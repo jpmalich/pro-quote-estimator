@@ -407,7 +407,12 @@ export default function EstimateEditor() {
               try {
                 const { data } = await api.get(`/estimates/${id}`);
                 if (data) Object.assign(est, data);
-              } catch { /* non-fatal */ }
+              } catch (err) {
+                // Non-fatal: the email already sent successfully, we just
+                // couldn't refresh the local copy. Logs help diagnose if
+                // status badges look stale.
+                console.warn("[quote-modal] post-send refresh failed:", err?.message || err);
+              }
               return true;
             } catch (e) {
               toast.error(formatApiError(e.response?.data?.detail));

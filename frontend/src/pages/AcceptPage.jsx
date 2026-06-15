@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
+import DOMPurify from "dompurify";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useLang, useT } from "@/lib/i18n";
 import LangToggle from "@/components/LangToggle";
@@ -107,11 +108,11 @@ export default function AcceptPage() {
           </h1>
           <p style={{ fontSize: 16, color: "#52525B", marginTop: 12, lineHeight: 1.6 }}>
             <span dangerouslySetInnerHTML={{
-              __html: t("accept.success.body", {
+              __html: DOMPurify.sanitize(t("accept.success.body", {
                 company: `<strong style="color:#09090B">${escapeHtml(d.company_name || "")}</strong>`,
                 number: `<strong style="color:#09090B">${escapeHtml(d.estimate_number || "")}</strong>`,
                 amount: `<strong style="color:#09090B">${escapeHtml(fmt(d.total))}</strong>`,
-              }),
+              })),
             }} />
           </p>
           <p style={{ fontSize: 14, color: "#71717A", marginTop: 16 }}>
@@ -205,11 +206,11 @@ export default function AcceptPage() {
             data-testid="accept-checkbox"
           />
           <span dangerouslySetInnerHTML={{
-            __html: t("accept.consent", {
+            __html: DOMPurify.sanitize(t("accept.consent", {
               name: escapeHtml(d.customer_name || t("accept.consent.fallback")),
               amount: `<strong>${escapeHtml(fmt(d.total))}</strong>`,
               company: escapeHtml(d.company_name || ""),
-            }),
+            })),
           }} />
         </label>
 

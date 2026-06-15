@@ -14,8 +14,8 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.preview.emergentagent.com").rstrip("/")
-EMAIL = "hhunt6677@yahoo.com"
-PASSWORD = "Admin123!"
+EMAIL = os.environ.get("TEST_USER_EMAIL", "hhunt6677@yahoo.com")
+PASSWORD = os.environ.get("TEST_USER_PASSWORD", "Admin123!")
 
 
 @pytest.fixture(scope="module")
