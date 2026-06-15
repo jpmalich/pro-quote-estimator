@@ -45,7 +45,9 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 // Build the ISS line items from HOVER measurements. Returns an array of
 // { section, name, unit, qty } rows ready to merge into est.lines (with
 // tab="iss" tacked on at apply time).
-function buildISSLinesFromMeasurements(m) {
+// Exported so AIMeasureButton (which returns the same HOVER-shaped
+// measurements dict) can reuse the exact same mapping rules.
+export function buildISSLinesFromMeasurements(m) {
   const out = [];
   const push = (section, name, unit, qty) => {
     const q = Number(qty) || 0;

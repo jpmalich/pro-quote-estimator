@@ -26,6 +26,7 @@ import { useBranding } from "@/lib/branding";
 import { useLang } from "@/lib/i18n";
 import QuoteModal from "@/components/QuoteModal";
 import ISSHoverImportButton from "@/components/estimate/ISSHoverImportButton";
+import AIMeasureButton from "@/components/estimate/AIMeasureButton";
 import { FileText, Printer, Download, ClipboardList } from "lucide-react";
 
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -334,6 +335,17 @@ export default function ISSEstimateEditor() {
               ISS Quote · {est.estimate_number || "Draft"}
             </div>
             <ISSHoverImportButton est={est} applyLines={applyHoverLines} />
+            <AIMeasureButton
+              kind="iss"
+              address={est?.customer_address}
+              onApply={async ({ measurements }) => {
+                const { buildISSLinesFromMeasurements } = await import(
+                  "@/components/estimate/ISSHoverImportButton"
+                );
+                const rows = buildISSLinesFromMeasurements(measurements || {});
+                await applyHoverLines(rows);
+              }}
+            />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>

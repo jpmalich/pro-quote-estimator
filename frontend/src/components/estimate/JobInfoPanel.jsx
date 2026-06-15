@@ -4,6 +4,7 @@ import { useT, useLang } from "@/lib/i18n";
 import { tColor, tColorGroup } from "@/lib/catalogTranslations";
 import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
+import AIMeasureButton from "@/components/estimate/AIMeasureButton";
 
 export default function JobInfoPanel({ est, update, save, setInstallMethod, setHomePre1978 }) {
   const t = useT();
@@ -18,7 +19,36 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
     <section className="card p-5 sm:p-6 mb-6" data-testid="job-info">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div className="section-tag">{t("est.jobInfo")}</div>
-        <HoverImportButton est={est} update={update} save={save} />
+        <div className="flex flex-wrap gap-2">
+          <HoverImportButton est={est} update={update} save={save} />
+          <AIMeasureButton
+            kind={est.kind || "siding"}
+            address={est?.customer_address}
+            onApply={async ({ lines: aiLines }) => {
+              const existing = est.lines || [];
+              const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
+              const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
+              const next = [...existing];
+              const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
+              const WINDOWS_TABS = new Set(["windows"]);
+              const srcKind = est.kind || "siding";
+              for (const ln of aiLines || []) {
+                const isSiding = SIDING_TABS.has(ln.tab || "vinyl");
+                const isWindows = WINDOWS_TABS.has(ln.tab || "vinyl");
+                if (srcKind === "windows" ? !isWindows : !isSiding) continue;
+                const key = keyOf(ln);
+                const idx = byKey.get(key);
+                if (idx == null) {
+                  next.push({ tab: ln.tab || "vinyl", section: ln.section, name: ln.name, unit: ln.unit, qty: ln.qty, mat: 0, lab: 0 });
+                } else {
+                  next[idx] = { ...next[idx], qty: ln.qty };
+                }
+              }
+              update({ lines: next });
+              if (save) await save({ ...est, lines: next });
+            }}
+          />
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div>
