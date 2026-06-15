@@ -20,7 +20,13 @@ import {
   GUTTER_COLORS,
   WINDOW_WRAP_COLORS,
 } from "@/lib/colorOptions";
+import { buildMaterialListHtml, materialListFilename } from "@/lib/materialList";
+import { useCompany } from "@/lib/company";
+import { useBranding } from "@/lib/branding";
+import { useLang } from "@/lib/i18n";
+import QuoteModal from "@/components/QuoteModal";
 import ISSHoverImportButton from "@/components/estimate/ISSHoverImportButton";
+import { FileText, Printer, Download, ClipboardList } from "lucide-react";
 
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
@@ -32,6 +38,10 @@ export default function ISSEstimateEditor() {
   const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showQuote, setShowQuote] = useState(false);
+  const { company } = useCompany();
+  const branding = useBranding();
+  const { lang } = useLang();
 
   // Load estimate + catalog in parallel.
   useEffect(() => {
@@ -224,6 +234,56 @@ export default function ISSEstimateEditor() {
     return { subTotal, sidingSub, wasteAdd, base, sell, profit };
   }, [catalog, lineByKey, est?.waste_pct, est?.margin_pct, est?.pricing_mode]);
   const grandTotal = totals.sell;
+
+  // Customer Quote — make sure latest changes are saved first.
+  const handleOpenQuote = useCallback(async () => {
+    await flush({ force: true });
+    setShowQuote(true);
+  }, [flush]);
+
+  // Material List PDF — same backend route the siding flow uses.
+  const handlePrintMaterials = useCallback(async () => {
+    if (!est) return;
+    await flush({ force: true });
+    const html = buildMaterialListHtml({ estimate: est, company, branding, lang });
+    try {
+      const res = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/estimates/${id}/pdf`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipient_email: "noreply@noreply.com", html_quote: html }),
+        }
+      );
+      if (!res.ok) throw new Error(`PDF render failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = materialListFilename(est);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(`Could not generate material list: ${e.message}`);
+    }
+  }, [est, company, branding, lang, id, flush]);
+
+  const handleExportCsv = useCallback(async () => {
+    try {
+      const res = await api.get(`/exports/estimates/${id}.csv`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `estimate_${est?.estimate_number || id}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail));
+    }
+  }, [id, est?.estimate_number]);
 
   if (loading) {
     return (
@@ -546,27 +606,72 @@ export default function ISSEstimateEditor() {
           })()}
         </section>
 
-        {/* Totals breakdown */}
-        <div className="card p-4 mb-4" data-testid="iss-totals-summary">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Subtotal</div>
-              <div className="font-mono-num font-bold text-[#09090B]" data-testid="iss-subtotal">{fmt(totals.subTotal)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Waste</div>
-              <div className="font-mono-num font-bold text-[#09090B]" data-testid="iss-waste-add">{fmt(totals.wasteAdd)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Profit</div>
-              <div className="font-mono-num font-bold text-[#16A34A]" data-testid="iss-profit">{fmt(totals.profit)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-[#F97316] font-bold">Sell Price</div>
-              <div className="font-mono-num font-bold text-[#F97316]" data-testid="iss-sell-price">{fmt(totals.sell)}</div>
-            </div>
+        {/* Summary — same layout as the Siding estimator's TotalsSummary,
+            minus the Tax field (ISS prices are tax-exclusive on quote). */}
+        <section className="card p-6 mb-4" data-testid="iss-totals-summary">
+          <div className="section-tag mb-4 flex items-center gap-2">
+            <span>Summary</span>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 bg-orange-50 border border-[#F97316] text-[#F97316]"
+              data-testid="iss-summary-tab-badge"
+            >
+              ISS Quote
+            </span>
           </div>
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+            <Stat label="Subtotal" val={fmt(totals.subTotal)} testid="iss-subtotal" />
+            <Stat
+              label={`Waste (${est.waste_pct || 0}%)`}
+              val={fmt(totals.wasteAdd)}
+              testid="iss-waste-add"
+            />
+            <Stat label="Base Cost" val={fmt(totals.base)} testid="iss-base-cost" bold />
+            <Stat
+              label={`Profit (${est.margin_pct || 0}% ${(est.pricing_mode || "margin")})`}
+              val={fmt(totals.profit)}
+              testid="iss-profit"
+            />
+            <Stat label="Sell Price" val={fmt(totals.sell)} testid="iss-sell-price" orange />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              className="btn-primary"
+              onClick={() => flush({ force: true })}
+              disabled={saving}
+              data-testid="iss-summary-save-btn"
+            >
+              <Save className="w-4 h-4" /> {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleOpenQuote}
+              data-testid="iss-summary-quote-btn"
+            >
+              <FileText className="w-4 h-4" /> Customer Quote
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handlePrintMaterials}
+              data-testid="iss-summary-materials-btn"
+            >
+              <ClipboardList className="w-4 h-4" /> Material List
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => window.print()}
+              data-testid="iss-summary-print-btn"
+            >
+              <Printer className="w-4 h-4" /> Print
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleExportCsv}
+              data-testid="iss-summary-export-csv-btn"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          </div>
+        </section>
 
         {(catalog.sections || []).map((sec) => {
           const isOpen = !!openSections[sec.title];
@@ -678,6 +783,57 @@ export default function ISSEstimateEditor() {
           );
         })}
       </div>
+
+      {showQuote && (
+        <QuoteModal
+          estimate={est}
+          totals={{
+            subMat: totals.subTotal,
+            subLab: 0,
+            wasted: totals.subTotal + totals.wasteAdd,
+            tax: 0,
+            base: totals.base,
+            sell: totals.sell,
+          }}
+          onClose={() => setShowQuote(false)}
+          emailConfigured={true}
+          onEmail={async ({ recipient_email, html, subject, accept_token }) => {
+            try {
+              await api.post(`/estimates/${id}/email`, {
+                recipient_email,
+                html_quote: html,
+                subject,
+                accept_token,
+              });
+              toast.success("Quote sent");
+              return true;
+            } catch (e) {
+              toast.error(formatApiError(e.response?.data?.detail));
+              return false;
+            }
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+function Stat({ label, val, orange, bold, testid }) {
+  return (
+    <div className="border-l-2 border-[#E4E4E7] pl-3" data-testid={testid ? `${testid}-card` : undefined}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-[#A1A1AA] font-bold">{label}</div>
+      <div
+        className={`font-mono-num mt-1 ${
+          orange
+            ? "text-2xl font-bold text-[#F97316]"
+            : bold
+            ? "text-lg font-bold text-[#09090B]"
+            : "text-base text-[#09090B]"
+        }`}
+        data-testid={testid}
+      >
+        {val}
+      </div>
+    </div>
   );
 }
