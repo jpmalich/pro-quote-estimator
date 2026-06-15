@@ -57,6 +57,9 @@ function buildISSLinesFromMeasurements(m) {
   // Always-on adders the contractor told us to assume on every HOVER job.
   push("Install Vinyl Siding", "Clean up / haul away job debris", "job", 1);
   push("Install Vinyl Siding", "Dumpster", "ea", 1);
+  // Soffit & fascia LF = eaves + rakes (same rule the siding estimator uses).
+  const soffitLf = Math.round((Number(m.eaves_lf) || 0) + (Number(m.rakes_lf) || 0));
+  push("Vinyl Soffit with Siding", "Soffit & fascia up to 13\" wide", "lf", soffitLf);
   push("Seamless Gutter with Siding", "Gutter", "lf", m.eaves_lf);
   push("Misc. Labor and Material", "Cap windows", "ea", m.window_count);
   push("Misc. Labor and Material", "Cap entry door", "ea", m.entry_door_count);
