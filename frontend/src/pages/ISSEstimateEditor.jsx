@@ -20,6 +20,7 @@ import {
   GUTTER_COLORS,
   WINDOW_WRAP_COLORS,
 } from "@/lib/colorOptions";
+import ISSHoverImportButton from "@/components/estimate/ISSHoverImportButton";
 
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
@@ -132,6 +133,53 @@ export default function ISSEstimateEditor() {
     userEdits.current += 1;
   };
 
+  // Apply HOVER-derived ISS rows: upsert each {section,name,unit,qty} into
+  // est.lines tagged with tab="iss". The catalog price is looked up from
+  // the loaded catalog so the row carries a real unit cost.
+  const applyHoverLines = useCallback(async (rows) => {
+    if (!rows?.length) return;
+    // Build a quick (section,name) → catalog price map.
+    const priceMap = new Map();
+    for (const sec of catalog.sections || []) {
+      for (const it of sec.items) {
+        priceMap.set(`${sec.title}::${it.name}`, it.price);
+      }
+    }
+    setEst((prev) => {
+      if (!prev) return prev;
+      const lines = [...(prev.lines || [])];
+      for (const r of rows) {
+        const key = `${r.section}::${r.name}`;
+        const price = Number(priceMap.get(key) || 0);
+        const idx = lines.findIndex(
+          (l) => (l.tab || "") === "iss" && l.section === r.section && l.name === r.name
+        );
+        if (idx >= 0) {
+          lines[idx] = { ...lines[idx], qty: Number(r.qty) || 0, unit: r.unit, mat: price, lab: 0, tab: "iss" };
+        } else {
+          lines.push({
+            tab: "iss",
+            section: r.section,
+            name: r.name,
+            unit: r.unit,
+            qty: Number(r.qty) || 0,
+            mat: price,
+            lab: 0,
+          });
+        }
+      }
+      return { ...prev, lines };
+    });
+    userEdits.current += 1;
+    // Auto-open the sections we just wrote into so the contractor can
+    // immediately see the imported rows.
+    setOpenSections((prev) => {
+      const next = { ...prev };
+      for (const r of rows) next[r.section] = true;
+      return next;
+    });
+  }, [catalog]);
+
   const grandTotal = useMemo(() => {
     let total = 0;
     for (const sec of catalog.sections || []) {
@@ -182,8 +230,11 @@ export default function ISSEstimateEditor() {
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 pt-6">
         <div className="card p-4 mb-4">
-          <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-2">
-            ISS Quote · {est.estimate_number || "Draft"}
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
+              ISS Quote · {est.estimate_number || "Draft"}
+            </div>
+            <ISSHoverImportButton est={est} applyLines={applyHoverLines} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
