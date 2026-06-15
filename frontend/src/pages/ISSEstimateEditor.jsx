@@ -367,6 +367,13 @@ export default function ISSEstimateEditor() {
             const ln = lineByKey.get(`${sec.title}::${it.name}`);
             return (Number(ln?.qty) || 0) > 0;
           }).length;
+          // Common-but-still-unquoted count — matches the badge contractors
+          // already know from the Siding section headers.
+          const unfilledCommon = sec.items.filter((it) => {
+            if (!it.tip) return false;
+            const ln = lineByKey.get(`${sec.title}::${it.name}`);
+            return (Number(ln?.qty) || 0) <= 0;
+          }).length;
           return (
             <section key={sec.title} className="card mb-3" data-testid={`iss-section-${sec.title}`}>
               <button
@@ -383,6 +390,16 @@ export default function ISSEstimateEditor() {
                   {filledCount > 0 && (
                     <span className="bg-[#F97316] text-white px-2 py-0.5 text-[10px] tracking-wider font-bold normal-case">
                       {filledCount}
+                    </span>
+                  )}
+                  {unfilledCommon > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 bg-yellow-100 border border-yellow-400 text-yellow-900 flex items-center gap-1"
+                      title="Commonly-needed items in this section haven't been quoted yet"
+                      data-testid={`iss-common-flag-${sec.title}`}
+                    >
+                      <Lightbulb className="w-3 h-3" />
+                      {unfilledCommon}
                     </span>
                   )}
                 </div>
