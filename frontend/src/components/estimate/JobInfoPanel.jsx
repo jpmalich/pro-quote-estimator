@@ -5,6 +5,7 @@ import { tColor, tColorGroup } from "@/lib/catalogTranslations";
 import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 import AIMeasureButton from "@/components/estimate/AIMeasureButton";
+import PhotoMeasureButton from "@/components/estimate/PhotoMeasureButton";
 
 export default function JobInfoPanel({ est, update, save, setInstallMethod, setHomePre1978 }) {
   const t = useT();
@@ -33,6 +34,36 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
               const WINDOWS_TABS = new Set(["windows"]);
               const srcKind = est.kind || "siding";
               for (const ln of aiLines || []) {
+                const isSiding = SIDING_TABS.has(ln.tab || "vinyl");
+                const isWindows = WINDOWS_TABS.has(ln.tab || "vinyl");
+                if (srcKind === "windows" ? !isWindows : !isSiding) continue;
+                const key = keyOf(ln);
+                const idx = byKey.get(key);
+                if (idx == null) {
+                  next.push({ tab: ln.tab || "vinyl", section: ln.section, name: ln.name, unit: ln.unit, qty: ln.qty, mat: 0, lab: 0 });
+                } else {
+                  next[idx] = { ...next[idx], qty: ln.qty };
+                }
+              }
+              update({ lines: next });
+              if (save) await save({ ...est, lines: next });
+            }}
+          />
+          <PhotoMeasureButton
+            onApply={async ({ measurements }) => {
+              // Bridge: send measurements through the backend mapper to
+              // get catalog-ready siding/windows lines (no Claude call).
+              const { default: api } = await import("@/lib/api");
+              const { data } = await api.post("/measure/map", { measurements });
+              const aiLines = data?.lines || [];
+              const existing = est.lines || [];
+              const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
+              const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
+              const next = [...existing];
+              const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
+              const WINDOWS_TABS = new Set(["windows"]);
+              const srcKind = est.kind || "siding";
+              for (const ln of aiLines) {
                 const isSiding = SIDING_TABS.has(ln.tab || "vinyl");
                 const isWindows = WINDOWS_TABS.has(ln.tab || "vinyl");
                 if (srcKind === "windows" ? !isWindows : !isSiding) continue;

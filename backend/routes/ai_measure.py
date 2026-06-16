@@ -303,3 +303,20 @@ async def ai_measure(
         "model": MODEL_NAME,
         "session_id": session_id,
     }
+
+
+@router.post("/map")
+async def map_measurements_to_lines(
+    payload: dict,
+    user: dict = Depends(get_current_user),
+):
+    """Convert a HOVER-shaped measurements dict directly into siding/windows
+    catalog rows — no AI involved. Used by the Photo Measure tool where
+    the contractor produces measurements by tapping on a photo and we
+    just need the same line mapping HOVER provides."""
+    measurements = payload.get("measurements") or {}
+    try:
+        lines = _build_lines(measurements)
+    except Exception:
+        lines = []
+    return {"measurements": measurements, "lines": lines, "vero_openings": []}
