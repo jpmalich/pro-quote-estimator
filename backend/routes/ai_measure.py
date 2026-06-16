@@ -61,11 +61,14 @@ Schema:
   "reference_used": "<short description of the reference you anchored scale on, or 'none'>",
   "story_count": 1 | 1.5 | 2 | 2.5 | 3,
   "story_count_reasoning": "<1 sentence — what visual cue told you the story count>",
-  "avg_wall_height_ft": number,           // average eave height used for area math
+  "avg_wall_height_ft": number,           // average EAVE height (floor to where the roof starts), NOT roof peak
   "siding_coverage_pct": number,          // 0-100, % of gross wall area actually clad in siding (NOT brick, stone, etc.)
   "walls": [
     {"label": "front" | "back" | "left" | "right" | "other",
-     "width_ft": number, "height_ft": number,
+     "width_ft": number,
+     "height_ft": number,                 // EAVE height ONLY — measure from floor up to the soffit/gutter line. NEVER include the gable triangle, NEVER include a dormer.
+     "gable_triangle_height_ft": number,  // 0 if this wall ends in an eave; >0 ONLY if this wall is a gable-end (you can see the triangular peak above the eave). Triangle area is auto-computed as 0.5 × width × this value.
+     "dormer_face_sqft": number,          // 0 unless a true dormer (small box poking out of the roof) is on this elevation. Estimate the visible vertical face area in ft² — typically 20-60 ft² each.
      "siding_pct_this_wall": number       // 0-100 — siding only, not brick/garage door/etc.
     }
   ],
@@ -74,7 +77,7 @@ Schema:
      "width_in": number, "height_in": number, "wall": "front"|"back"|"left"|"right"|"other"}
   ],
   "eaves_lf": number,          // sum of horizontal soffit/gutter run, linear feet
-  "rakes_lf": number,          // sum of sloped roof edges, linear feet
+  "rakes_lf": number,          // sum of sloped roof edges, linear feet (= the rake legs of every gable triangle)
   "starter_lf": number,        // linear feet of starter strip at the base of the siding (typically ≈ eaves_lf for a basic 1-story; can differ on porches, walk-outs, or multi-section homes)
   "outside_corner_lf": number, // linear feet of OUTSIDE corner posts visible across all elevations (typically 4 corners × wall height on a simple rectangular house)
   "inside_corner_lf": number,  // linear feet of INSIDE corner posts (L-shaped wing additions, dormers, returns — often 0 for a basic rectangle)
@@ -94,17 +97,53 @@ CRITICAL accuracy rules (read every time):
    scale_confidence to "high". When you compute wall area, use the
    contractor-provided width VERBATIM — do not round it.
 
-2. STORY COUNT: Look at the photos and explicitly count visible floors.
-   Cues: number of window rows, height vs the garage door, attic / gable
-   triangle vs eave line, etc. State the cue in story_count_reasoning.
-   Default story heights when you can't see better evidence:
-     1 story:    9 ft floor-to-eave
+2. STORY COUNT vs WALL HEIGHT — read carefully, this is the #1 source
+   of inflated quotes:
+   • "Story count" = number of FULL floors of rectangular wall, floor to
+     the eave line where the roof starts. A gable peak is NOT a story.
+     A dormer is NOT a story.
+   • `height_ft` on each wall is the EAVE height, NOT the roof peak.
+     If you see a triangular gable end on the back of the house, the
+     wall is STILL 1-story tall (e.g. 9 ft); the triangle on top goes
+     into `gable_triangle_height_ft`, NOT height_ft.
+   • A dormer is a small box-shaped projection out of the roof slope,
+     usually with one window and 2-4 ft of vertical face. A dormer DOES
+     NOT change the underlying wall height. Record dormer face area in
+     `dormer_face_sqft` on the elevation the dormer faces.
+   • Cues that signal a TRUE second story (not a dormer / not a gable):
+       - Continuous horizontal row of windows ABOVE the first-floor windows,
+         spanning most of the wall width
+       - The eave line itself is high (~18 ft) — you can see the soffit
+         well above the first-floor window heads
+       - The 2nd floor windows are the same size as the 1st floor windows
+   • Cues that mean it's a DORMER (not a 2nd story):
+       - Only 1 or 2 small windows poking out of the roof slope
+       - The roof slope is clearly visible on either side of the window box
+       - The window is set back from the main wall face
+   • Cues that mean it's a GABLE (not a 2nd story):
+       - The wall ends in a triangle that meets a peak
+       - There are NO windows above the eave line (or only a single
+         small vent/gable window)
+   Default story heights:
+     1 story:    9 ft eave height
      1.5 story: 12 ft (with kneewall) — used for Cape Cod / story-and-a-half
      2 story:  18 ft
    Use these ONLY when the photos clearly show that story count. If
-   uncertain, bias DOWN (one story) and reflect it in scale_confidence.
+   uncertain between 1-story-with-gable and true 2-story, ALWAYS bias
+   to 1-story-with-gable and flag it in notes.
 
-3. SIDING COVERAGE: A wall area is NOT the same as a siding area.
+3. GABLE TRIANGLES vs WALL HEIGHT: When a wall is a gable-end (you can
+   see the triangle), the rectangular wall area is `width × eave_height`
+   and the triangle area is auto-computed downstream as
+   `0.5 × width × gable_triangle_height`. NEVER bake the triangle into
+   `height_ft`. Typical residential gable_triangle_height_ft is 4-8 ft
+   for a 6/12 to 9/12 pitch on a 24-32 ft wide house.
+
+4. DORMERS: Do not include dormer area in `height_ft`. Use
+   `dormer_face_sqft` (typically 20-60 ft² each) so the contractor sees
+   a separate line of accountability. If a wall has 2 dormers, sum them.
+
+5. SIDING COVERAGE: A wall area is NOT the same as a siding area.
    Examine every wall for:
      - Brick / stone wainscot or full-wall masonry (NO siding)
      - Garage doors (NO siding behind them)
@@ -114,20 +153,23 @@ CRITICAL accuracy rules (read every time):
    siding_coverage_pct as a weighted average. If a house is 100% siding,
    that's fine — but DON'T assume it.
 
-4. CONSERVATIVE BIAS: When in doubt, under-estimate. Contractors over-buy
+6. CONSERVATIVE BIAS: When in doubt, under-estimate. Contractors over-buy
    to cover waste; you don't need to add buffer. If your math gives a
    range, return the LOW end and flag it in notes.
 
-5. SHOW YOUR WORK: In notes, briefly explain:
-   "X walls × Y ft avg height = Z ft² gross; siding coverage A% → final
-   siding area B ft²."
+7. SHOW YOUR WORK: In notes, briefly explain:
+   "Back wall: 28 × 9 = 252 ft² rectangle + 28 × 6 / 2 = 84 ft² gable
+   triangle. Right wall: 36 × 9 = 324 ft² with a 32 ft² dormer face."
+   This forces you to keep the geometry honest.
 
-6. ROUNDING: Walls to nearest 0.5 ft. Openings to nearest 2 in. Final
+8. ROUNDING: Walls to nearest 0.5 ft. Openings to nearest 2 in. Final
    siding area to nearest 10 ft².
 
-7. WHAT TO RETURN as siding_sqft (computed downstream from your walls):
+9. WHAT TO RETURN as siding_sqft (computed downstream from your walls):
    ONLY the portion of wall area that's actually siding (after applying
-   siding_pct_this_wall per wall). Do not include brick/garage/etc.
+   siding_pct_this_wall per wall). Gable triangles + dormer faces are
+   added on top at 100% siding (unless you flag them as masonry).
+   Do not include brick/garage/etc.
 
 Return ONLY the JSON object. No explanation, no code fences."""
 
@@ -156,24 +198,41 @@ def _aggregate_to_hover_shape(raw: dict) -> dict:
     measurements dict that the HOVER PDF importer returns. The frontend
     diff modal is reused 1-for-1.
 
-    Each wall now carries an optional `siding_pct_this_wall` (0-100). If
-    Claude saw brick / garage / stucco on part of a wall, that fraction
-    is dropped from the siding area — otherwise the legacy 100% siding
-    behavior holds.
+    Each wall now carries:
+      - `siding_pct_this_wall` (0-100). If Claude saw brick / garage /
+        stucco on part of a wall, that fraction is dropped — otherwise
+        the legacy 100% siding behavior holds.
+      - `gable_triangle_height_ft` (0+). When non-zero, an additional
+        0.5 × width × height triangle is added on top of the eave wall.
+      - `dormer_face_sqft` (0+). Vertical face area of any dormers
+        projecting from the roof slope — added as an extra to siding.
     """
     walls = raw.get("walls") or []
     openings = raw.get("openings") or []
 
     siding_sqft = 0.0
+    gable_sqft = 0.0
+    dormer_sqft = 0.0
     for w in walls:
-        gross = (float(w.get("width_ft") or 0)
-                 * float(w.get("height_ft") or 0))
+        width_ft = float(w.get("width_ft") or 0)
+        eave_h = float(w.get("height_ft") or 0)
+        gross = width_ft * eave_h
         pct = float(w.get("siding_pct_this_wall") or 100.0)
         # Clamp to a sane range and treat null/zero defensively as 100%.
         if pct <= 0:
             pct = 100.0
         pct = min(pct, 100.0)
         siding_sqft += gross * (pct / 100.0)
+        # Gable triangle (only when Claude flagged this wall as a gable
+        # end). The triangle is assumed 100% siding unless the
+        # contractor manually overrides on the line item later.
+        gable_h = float(w.get("gable_triangle_height_ft") or 0)
+        if gable_h > 0 and width_ft > 0:
+            gable_sqft += 0.5 * width_ft * gable_h
+        # Dormers — already in ft², no width math needed.
+        dormer_sqft += float(w.get("dormer_face_sqft") or 0)
+    # Add gable + dormer extras on top of the masonry-adjusted siding.
+    siding_sqft += gable_sqft + dormer_sqft
     # The HOVER importer also surfaces siding_with_openings_sqft (gross
     # ft² incl. door/window openings). For AI walls we already counted
     # gross wall area, so use the same value.
@@ -229,6 +288,11 @@ def _aggregate_to_hover_shape(raw: dict) -> dict:
         "_ai_story_count_reasoning": raw.get("story_count_reasoning") or "",
         "_ai_avg_wall_height_ft": raw.get("avg_wall_height_ft"),
         "_ai_siding_coverage_pct": raw.get("siding_coverage_pct"),
+        # Iter 47: surface gable + dormer breakdown so the preview UI can
+        # show "Rect walls: 1,840 ft² · Gables: 168 ft² · Dormers: 60 ft²"
+        # and the contractor can sanity-check the geometry before applying.
+        "_ai_gable_sqft": round(gable_sqft, 1),
+        "_ai_dormer_sqft": round(dormer_sqft, 1),
         "_ai_notes": raw.get("notes") or "",
     }
     return measurements

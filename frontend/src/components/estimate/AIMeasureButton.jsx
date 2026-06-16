@@ -307,6 +307,19 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn }) 
                       Story count: {preview.measurements._ai_story_count_reasoning}
                     </div>
                   )}
+                  {((preview.measurements._ai_gable_sqft || 0) > 0 ||
+                    (preview.measurements._ai_dormer_sqft || 0) > 0) && (
+                    <div className="text-[11px] text-[#71717A] mb-2 italic" data-testid="ai-measure-geometry-breakdown">
+                      Geometry: rectangular walls
+                      {(preview.measurements._ai_gable_sqft || 0) > 0 && (
+                        <> · gable triangles add <span className="font-bold not-italic">{preview.measurements._ai_gable_sqft} ft²</span></>
+                      )}
+                      {(preview.measurements._ai_dormer_sqft || 0) > 0 && (
+                        <> · dormer faces add <span className="font-bold not-italic">{preview.measurements._ai_dormer_sqft} ft²</span></>
+                      )}
+                      {" "}— if this doesn&apos;t match the photos, lower the affected wall&apos;s height_ft.
+                    </div>
+                  )}
                   {preview.measurements._ai_notes && (
                     <div className="text-xs text-[#52525B] mb-3 italic border-l-2 border-[#7C3AED] pl-3" data-testid="ai-measure-notes">
                       {preview.measurements._ai_notes}
