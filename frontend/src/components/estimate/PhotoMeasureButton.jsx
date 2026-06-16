@@ -18,7 +18,7 @@
 // page can reuse the same `onApply({ measurements, lines, ... })`
 // callback contract.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Ruler, Camera, X, Check, Trash2, Plus, RotateCcw } from "lucide-react";
+import { Ruler, Camera, X, Check, Trash2, Plus, RotateCcw, Images } from "lucide-react";
 import { toast } from "sonner";
 
 // Output unit for each measurement label. Drives how the role rolls up
@@ -144,6 +144,9 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
   const [openings, setOpenings] = useState([]); // [{x, y, type}]
   const [openingType, setOpeningType] = useState("window");
   const [busy, setBusy] = useState(false);
+  // Tracks any photo the user has explicitly navigated away from, so the
+  // single-photo auto-load effect doesn't immediately reload it.
+  const [skipAutoLoad, setSkipAutoLoad] = useState(false);
 
   // Reset when the modal closes
   const closeAll = () => {
@@ -170,19 +173,23 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     const img = new Image();
     img.onload = () => {
       setPhoto({ url, width: img.naturalWidth, height: img.naturalHeight });
+      setSkipAutoLoad(false);
     };
     img.src = url;
   };
 
   // Auto-load the only AI photo if there's exactly one; otherwise the user
-  // picks from a thumbnail grid (rendered below).
+  // picks from a thumbnail grid (rendered below). Skipped right after the
+  // user explicitly switches photos via the "Change Photo" button so the
+  // single-photo case doesn't re-load itself instantly.
   useEffect(() => {
     if (!open) return;
     if (photo) return;
+    if (skipAutoLoad) return;
     if (prefillThumbs.length === 1) {
       loadPhotoFromUrl(prefillThumbs[0].url);
     }
-  }, [open, prefillThumbs, photo]);
+  }, [open, prefillThumbs, photo, skipAutoLoad]);
 
   // Convert event coords → photo-space coords
   const evtPoint = (e) => {
@@ -200,7 +207,7 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     if (mode === MODE_OPENING) {
       setOpenings((prev) => [
         ...prev,
-        { x: p.x, y: p.y, type: openingType, id: `o-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` },
+        { x: p.x, y: p.y, type: openingType, photoUrl: photo.url, id: `o-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` },
       ]);
       return;
     }
@@ -253,6 +260,7 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
         {
           id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           p1: pending, p2: p, feet, label: opt.key, labelName: opt.name,
+          photoUrl: photo.url,
         },
       ]);
       setPending(null);
@@ -260,6 +268,20 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
   };
 
   const recalibrate = () => {
+    setMode(MODE_CALIBRATE);
+    setPxPerFt(0);
+    setPending(null);
+  };
+
+  // Switch to a different photo without wiping the contractor's tap
+  // measurements. Each measurement/opening is tagged with its source
+  // photoUrl so the overlay only renders markers for the active photo
+  // (different photos have different pixel spaces). Calibration is
+  // photo-specific too, so reset pxPerFt and force a fresh calibrate.
+  const changePhoto = () => {
+    if (busy) return;
+    setSkipAutoLoad(true);
+    setPhoto(null);
     setMode(MODE_CALIBRATE);
     setPxPerFt(0);
     setPending(null);
@@ -292,15 +314,20 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     }
   };
 
-  // Render markup overlay
+  // Render markup overlay — only show markers tagged to the CURRENT photo,
+  // since each photo has its own pixel space. Markers placed on other
+  // photos still contribute to the totals on the right; they just don't
+  // render here.
   const renderOverlay = () => {
     if (!photo) return null;
+    const visibleMeasures = measures.filter((m) => !m.photoUrl || m.photoUrl === photo.url);
+    const visibleOpenings = openings.filter((o) => !o.photoUrl || o.photoUrl === photo.url);
     return (
       <svg
         viewBox={`0 0 ${photo.width} ${photo.height}`}
         className="absolute inset-0 w-full h-full pointer-events-none"
       >
-        {measures.map((m) => {
+        {visibleMeasures.map((m) => {
           const mx = (m.p1.x + m.p2.x) / 2;
           const my = (m.p1.y + m.p2.y) / 2;
           return (
@@ -316,7 +343,7 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
             </g>
           );
         })}
-        {openings.map((o) => {
+        {visibleOpenings.map((o) => {
           const c = OPENING_TYPES.find((t) => t.key === o.type) || OPENING_TYPES[0];
           const r = Math.max(14, photo.width / 90);
           return (
@@ -503,14 +530,27 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      className="text-[10px] text-[#0EA5E9] uppercase tracking-wider font-bold flex items-center gap-1 hover:underline"
-                      onClick={recalibrate}
-                      data-testid="photo-measure-recalibrate"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Recalibrate
-                    </button>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        className="text-[10px] text-[#0EA5E9] uppercase tracking-wider font-bold flex items-center gap-1 hover:underline"
+                        onClick={recalibrate}
+                        data-testid="photo-measure-recalibrate"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Recalibrate
+                      </button>
+                      {(prefillThumbs.length > 1 || !prefillThumbs.length) && (
+                        <button
+                          type="button"
+                          className="text-[10px] text-[#0EA5E9] uppercase tracking-wider font-bold flex items-center gap-1 hover:underline"
+                          onClick={changePhoto}
+                          data-testid="photo-measure-change-photo"
+                          title="Switch to a different photo. Your existing tap measurements stay in the list — you'll just need to recalibrate the new photo."
+                        >
+                          <Images className="w-3 h-3" /> Change Photo
+                        </button>
+                      )}
+                    </div>
 
                     {/* Measurement list */}
                     <div className="border-t border-[#E4E4E7] pt-2">
@@ -518,17 +558,25 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
                         Measurements ({measures.length})
                       </div>
                       <ul className="space-y-1 max-h-32 overflow-y-auto" data-testid="photo-measure-list">
-                        {measures.map((m) => (
-                          <li key={m.id} className="text-xs flex items-center justify-between gap-2">
-                            <span>
-                              <span className="font-mono-num font-bold">{m.feet.toFixed(1)} ft</span>{" "}
-                              <span className="text-[#71717A]">{m.labelName}</span>
-                            </span>
-                            <button onClick={() => removeMeasurement(m.id)} className="text-[#A1A1AA] hover:text-[#DC2626]">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </li>
-                        ))}
+                        {measures.map((m) => {
+                          const offPhoto = m.photoUrl && photo && m.photoUrl !== photo.url;
+                          return (
+                            <li key={m.id} className="text-xs flex items-center justify-between gap-2">
+                              <span>
+                                <span className="font-mono-num font-bold">{m.feet.toFixed(1)} ft</span>{" "}
+                                <span className="text-[#71717A]">{m.labelName}</span>
+                                {offPhoto && (
+                                  <span className="ml-1 text-[9px] uppercase tracking-wider text-[#A1A1AA] border border-[#E4E4E7] px-1 py-px rounded-sm" title="Placed on a different photo — still counted in totals">
+                                    other photo
+                                  </span>
+                                )}
+                              </span>
+                              <button onClick={() => removeMeasurement(m.id)} className="text-[#A1A1AA] hover:text-[#DC2626]">
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 

@@ -224,6 +224,7 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - **DONE in Iter 35**: ~~Invite Contractors via Admin Tab~~ — supplier can now send branded email invites with one-click signup links
 - **DONE in Iter 38**: ~~Mezzo Pricing Admin matrix~~ — supplier can paste any tier × product grid from Excel and contractors see prices live
 - **DONE in Iter 39 (Feb 2026)**: ~~AI Photo Measure + Photo Refine merge double-upload UX bug~~ — `AIMeasureButton` now hands its uploaded photos to `PhotoMeasureButton` via `prefillFiles`. Single AI photo auto-loads into the canvas; multiple photos render as a thumbnail picker so contractors skip re-uploading.
+- **DONE in Iter 39 (Feb 2026)**: ~~Change Photo mid-session~~ — added `Change Photo` button next to `Recalibrate` so contractors can swap between AI photos (front → side elevation) without losing tap measurements. Each measurement/opening tagged with `photoUrl`; overlay only renders markers for the active photo, off-photo markers still roll into totals and show an `OTHER PHOTO` badge in the list.
 
 ### P2
 - **Multi-Location support** (3–10 locations, e.g. Pittsburgh + Cleveland):
