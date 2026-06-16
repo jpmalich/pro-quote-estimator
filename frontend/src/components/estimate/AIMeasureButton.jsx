@@ -89,12 +89,11 @@ export default function AIMeasureButton({ kind, onApply, address }) {
       // siding/windows merge `lines` directly.
       await onApply(preview);
       toast.success("AI measurements applied — verify all quantities before quoting");
+      // Close the modal but KEEP state — re-opening AI Measure lets the
+      // contractor add more photos / refine more values without starting
+      // over. State is wiped only when the user explicitly cancels via
+      // the "Start Over" button.
       setOpen(false);
-      setPreview(null);
-      setFiles([]);
-      setRefDim("");
-      setWallHeight("");
-      setSidingPct("");
     } catch (e) {
       toast.error(e.message || "Apply failed");
     } finally {
@@ -104,7 +103,14 @@ export default function AIMeasureButton({ kind, onApply, address }) {
 
   const closeAll = () => {
     if (busy) return;
+    // "Cancel" / X button: just hide the modal. State (photos, AI result,
+    // refinements) is preserved so re-opening picks up where we left off.
     setOpen(false);
+  };
+
+  // Explicit "Start Over" button — wipes everything.
+  const startOver = () => {
+    if (busy) return;
     setPreview(null);
     setFiles([]);
     setRefDim("");
@@ -127,10 +133,10 @@ export default function AIMeasureButton({ kind, onApply, address }) {
         className="px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
         onClick={() => setOpen(true)}
         data-testid="ai-measure-btn"
-        title="AI photo measure — upload 2-8 phone photos of the house"
+        title={preview ? "Resume AI measure session — add more photos or refine" : "AI photo measure — upload 2-8 phone photos of the house"}
       >
         <Sparkles className="w-3.5 h-3.5" />
-        AI Measure
+        {preview ? "AI Measure (Resume)" : "AI Measure"}
       </button>
 
       {open && (
@@ -354,8 +360,20 @@ export default function AIMeasureButton({ kind, onApply, address }) {
                   disabled={busy}
                   data-testid="ai-measure-cancel"
                 >
-                  Cancel
+                  Close
                 </button>
+                {(preview || files.length > 0) && (
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-white text-[#DC2626] border border-[#DC2626] hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+                    onClick={startOver}
+                    disabled={busy}
+                    data-testid="ai-measure-start-over"
+                    title="Wipe photos + AI result and start fresh"
+                  >
+                    Start Over
+                  </button>
+                )}
                 {!preview ? (
                   <button
                     type="button"
