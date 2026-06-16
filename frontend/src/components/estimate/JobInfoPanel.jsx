@@ -2,7 +2,7 @@ import React from "react";
 import DOMPurify from "dompurify";
 import { useT, useLang } from "@/lib/i18n";
 import { tColor, tColorGroup } from "@/lib/catalogTranslations";
-import { vinylSidingColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
+import { vinylSidingColorGroupsForEstimate, accessoryColorGroupsForEstimate, ASCEND_COLORS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 import AIMeasureButton from "@/components/estimate/AIMeasureButton";
 
@@ -15,6 +15,10 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
   // optional chaining. Shared across siding / accessories / outside-corner
   // dropdowns so they all narrow to the active brand together.
   const vinylColorGroups = vinylSidingColorGroupsForEstimate(est?.lines || []);
+  // Accessories + Outside Corner pickers also include Ascend so an
+  // Ascend-quote contractor can match the corner posts without leaving
+  // the field.
+  const accessoryColorGroups = accessoryColorGroupsForEstimate(est?.lines || []);
   return (
     <section className="card p-5 sm:p-6 mb-6" data-testid="job-info">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -166,7 +170,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                 data-testid="color-accessories"
               >
                 <option value="">— Select —</option>
-                {vinylColorGroups.map((g) => (
+                {accessoryColorGroups.map((g) => (
                   <optgroup key={g.label} label={g.label}>
                     {g.colors.map((c) => (
                       <option key={c} value={c}>{c}</option>
@@ -184,7 +188,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                 data-testid="color-outside-corner"
               >
                 <option value="">— Select —</option>
-                {vinylColorGroups.map((g) => (
+                {accessoryColorGroups.map((g) => (
                   <optgroup key={g.label} label={g.label}>
                     {g.colors.map((c) => (
                       <option key={c} value={c}>{c}</option>

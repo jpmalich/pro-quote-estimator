@@ -121,6 +121,19 @@ export function vinylSidingColorGroupsForEstimate(lines) {
   return brands.flatMap((b) => VINYL_BRAND_COLOR_GROUPS[b]);
 }
 
+/**
+ * Accessory color groups (Accessories / Outside Corner pickers).
+ * Returns the same Vinyl Charter Oak palette as the siding picker
+ * PLUS an Ascend optgroup so contractors quoting an Ascend job can
+ * pick the matching corner/accessory color without leaving the field.
+ */
+export function accessoryColorGroupsForEstimate(lines) {
+  return [
+    ...vinylSidingColorGroupsForEstimate(lines),
+    { label: "Ascend", colors: ASCEND_COLORS },
+  ];
+}
+
 // Legacy export: a flat list of every color from every brand collection.
 // Kept for any consumer that hasn't migrated to the smart picker yet.
 export const VINYL_SIDING_COLOR_GROUPS = BRAND_ORDER.flatMap(

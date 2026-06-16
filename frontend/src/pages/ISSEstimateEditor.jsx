@@ -15,6 +15,7 @@ import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lightbulb, Save } from "
 import api, { formatApiError } from "@/lib/api";
 import {
   vinylSidingColorGroupsForEstimate,
+  accessoryColorGroupsForEstimate,
   ASCEND_COLORS,
   SOFFIT_COLOR_GROUPS,
   GUTTER_COLORS,
@@ -447,7 +448,7 @@ export default function ISSEstimateEditor() {
                   data-testid="iss-color-accessories"
                 >
                   <option value="">— Select —</option>
-                  {vinylSidingColorGroupsForEstimate(est.lines || []).map((g) => (
+                  {accessoryColorGroupsForEstimate(est.lines || []).map((g) => (
                     <optgroup key={g.label} label={g.label}>
                       {g.colors.map((c) => (
                         <option key={c} value={c}>{c}</option>
@@ -465,7 +466,7 @@ export default function ISSEstimateEditor() {
                   data-testid="iss-color-outside-corner"
                 >
                   <option value="">— Select —</option>
-                  {vinylSidingColorGroupsForEstimate(est.lines || []).map((g) => (
+                  {accessoryColorGroupsForEstimate(est.lines || []).map((g) => (
                     <optgroup key={g.label} label={g.label}>
                       {g.colors.map((c) => (
                         <option key={c} value={c}>{c}</option>
