@@ -303,12 +303,33 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       // matches what the contractor sees in the Wall Breakdown.
       if (data?.raw_ai?.walls?.length) {
         const totals = recomputeFromWalls(data.raw_ai.walls);
+        // Iter 58: force all LF / count fields back to whatever Claude
+        // just returned. Previously stale edits from the Linear
+        // Measurements panel (or a restored session with overrides)
+        // could leak through and produce mismatches like
+        // raw_ai.eaves_lf=72 but measurements.eaves_lf=5.
+        const r = data.raw_ai;
         data.measurements = {
           ...data.measurements,
           siding_sqft: totals.siding_sqft,
           siding_with_openings_sqft: totals.siding_sqft,
           _ai_gable_sqft: totals._ai_gable_sqft,
           _ai_dormer_sqft: totals._ai_dormer_sqft,
+          eaves_lf: Number(r.eaves_lf) || data.measurements.eaves_lf || 0,
+          rakes_lf: Number(r.rakes_lf) || data.measurements.rakes_lf || 0,
+          starter_lf:
+            Number(r.starter_lf) ||
+            Number(r.eaves_lf) ||
+            data.measurements.starter_lf ||
+            0,
+          outside_corner_lf:
+            Number(r.outside_corner_lf) ||
+            data.measurements.outside_corner_lf ||
+            0,
+          inside_corner_lf:
+            Number(r.inside_corner_lf) ||
+            data.measurements.inside_corner_lf ||
+            0,
         };
         // Lines came back from the backend with the OLD tiny qty — flag
         // dirty so Apply re-runs /measure/map with the corrected
