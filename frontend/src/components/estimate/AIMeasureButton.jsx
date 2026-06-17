@@ -1076,18 +1076,40 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         onExternalClose={() => setRefineOpen(false)}
         prefillUrls={photoUrls}
         onApply={async ({ measurements: refined }) => {
-          // Merge: any non-zero refined value overrides the AI's number.
+          // Iter 59: Merge ONLY the linear / count fields. The
+          // `siding_sqft` value coming out of PhotoMeasureButton is
+          // computed from local tap measurements; if the contractor
+          // only tapped a calibration ref + 1-2 things to refine, that
+          // siding_sqft is tiny and would clobber the AI's full-house
+          // estimate (the 0.02 SQ bug). Wall area stays anchored to
+          // the AI Wall Breakdown table — Refine on Photo is for
+          // fine-tuning specific LFs / counts, not for replacing the
+          // headline siding figure.
+          const MERGEABLE_KEYS = new Set([
+            "eaves_lf",
+            "rakes_lf",
+            "starter_lf",
+            "outside_corner_lf",
+            "inside_corner_lf",
+            "opening_perimeter_lf",
+            "opening_count",
+            "window_count",
+            "entry_door_count",
+            "patio_door_count",
+            "garage_door_count",
+          ]);
           setPreview((prev) => {
             if (!prev) return prev;
             const next = { ...prev.measurements };
             for (const [k, v] of Object.entries(refined || {})) {
-              if (k.startsWith("_")) continue;
+              if (!MERGEABLE_KEYS.has(k)) continue;
               if (v && Number(v) > 0) next[k] = v;
             }
             return { ...prev, measurements: next };
           });
+          setWallsDirty(true);
           setRefineOpen(false);
-          toast.success("Refined measurements merged into AI estimate");
+          toast.success("Refined LFs / counts merged — siding ft² unchanged");
         }}
       />
     </div>
