@@ -438,7 +438,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                 <div>
                   <div className="font-heading text-lg">AI Photo Measure</div>
                   <div className="text-xs opacity-90 mt-0.5">
-                    Upload 2-8 phone photos · Claude Sonnet 4.5
+                    Upload 2-8 phone photos · Claude Opus 4.5
                   </div>
                 </div>
               </div>
