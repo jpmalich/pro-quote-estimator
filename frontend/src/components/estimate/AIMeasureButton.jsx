@@ -114,6 +114,26 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     setWallsDirty(true);
   };
 
+  // Edit any of the linear-measurement fields (eaves, rakes, starter,
+  // corners, opening perimeter) inline. ISS soffit/gutter/etc. and the
+  // siding-flow soffit/J-channel rows all derive their qty from these,
+  // so a one-line override here propagates everywhere through the
+  // /measure/map refresh on Apply.
+  const setMeasurementField = (key, val) => {
+    setPreview((p) => {
+      if (!p?.measurements) return p;
+      return {
+        ...p,
+        measurements: {
+          ...p.measurements,
+          [key]: val === "" ? 0 : Number(val),
+        },
+      };
+    });
+    setWallsDirty(true);
+  };
+
+
   // ------------------------------------------------------------------
   // Server-side session persistence (Iter 50).
   // ------------------------------------------------------------------
@@ -837,13 +857,60 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       )}
                     </details>
                   )}
+
+                  {/* Iter 53: editable linear measurements panel — fixes
+                      the "soffit LF too small" complaint by letting the
+                      contractor type real numbers when Claude under-
+                      counts the perimeter (typically because not every
+                      elevation is photographed). Powers ISS soffit,
+                      gutter, J-channel, starter, corners, and capping
+                      rows downstream. */}
+                  {preview.measurements && (
+                    <details className="text-xs mb-3" open data-testid="ai-measure-lf-table">
+                      <summary className="cursor-pointer text-[#7C3AED] font-bold uppercase tracking-wider">
+                        Linear measurements — tap to edit
+                      </summary>
+                      <div className="text-[11px] text-[#71717A] mt-2 italic">
+                        If the AI under-counted (often because not every elevation was photographed),
+                        type the real numbers. ISS soffit / gutter / capping qty re-derives from these on Apply.
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                        {[
+                          ["eaves_lf", "Eaves LF"],
+                          ["rakes_lf", "Rakes LF"],
+                          ["starter_lf", "Starter LF"],
+                          ["outside_corner_lf", "Outside corner LF"],
+                          ["inside_corner_lf", "Inside corner LF"],
+                          ["opening_perimeter_lf", "Opening perimeter LF"],
+                          ["window_count", "Window count"],
+                          ["entry_door_count", "Entry door count"],
+                          ["patio_door_count", "Patio door count"],
+                          ["garage_door_count", "Garage door count"],
+                        ].map(([key, label]) => (
+                          <label key={key} className="flex flex-col text-[10px] text-[#71717A] uppercase tracking-wider">
+                            <span className="mb-1">{label}</span>
+                            <input
+                              type="number"
+                              step={key.endsWith("_count") ? "1" : "0.5"}
+                              min="0"
+                              value={Number(preview.measurements[key] || 0)}
+                              onChange={(e) => setMeasurementField(key, e.target.value)}
+                              className="px-2 py-1 border border-[#E4E4E7] font-mono-num text-sm text-[#09090B] normal-case"
+                              data-testid={`ai-measure-lf-${key}`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
                 </>
               )}
             </div>
 
             <div className="border-t border-[#E4E4E7] px-5 py-4 flex justify-between items-center">
               <div className="text-[10px] text-[#A1A1AA]">
-                Powered by Claude Sonnet 4.5
+                Powered by Claude Opus 4.5
               </div>
               <div className="flex gap-2">
                 <button
