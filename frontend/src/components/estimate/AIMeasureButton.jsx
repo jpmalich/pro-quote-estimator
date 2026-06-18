@@ -247,6 +247,11 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
           siding_pct: sidingPct,
           overhang_in: Number(overhangIn ?? 12),
           preview,
+          // Iter 56f: persist per-photo annotations so they survive
+          // page navigation / refresh too. Previously these were
+          // dropped on close because they weren't in the payload —
+          // contractors lost all their pin / scale / mask work.
+          photo_annotations: photoAnnotations,
         })
         .catch(() => {
           // Non-fatal: autosave failures are silent so they don't
@@ -254,7 +259,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         });
     }, 1000);
     return () => clearTimeout(t);
-  }, [estimateId, open, sessionChecked, photoUrls, refDim, wallHeight, sidingPct, overhangIn, preview]);
+  }, [estimateId, open, sessionChecked, photoUrls, refDim, wallHeight, sidingPct, overhangIn, preview, photoAnnotations]);
 
   const resumeSession = () => {
     const data = window.__aiMeasurePendingSession;
@@ -267,6 +272,8 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     setWallHeight(data.wall_height || "");
     setSidingPct(data.siding_pct || "");
     if (data.preview) setPreview(data.preview);
+    // Iter 56f: also restore per-photo annotations.
+    if (data.photo_annotations) setPhotoAnnotations(data.photo_annotations);
     setResumePrompt(false);
     delete window.__aiMeasurePendingSession;
     toast.success("Resumed your last AI Measure session");
@@ -281,6 +288,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     setWallHeight("");
     setSidingPct("");
     setWallsDirty(false);
+    setPhotoAnnotations({});
     delete window.__aiMeasurePendingSession;
     if (estimateId) {
       try {
@@ -580,6 +588,27 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     if (busy) return;
     // "Cancel" / X button: just hide the modal. State (photos, AI result,
     // refinements) is preserved so re-opening picks up where we left off.
+    //
+    // Iter 56f: flush the autosave IMMEDIATELY before closing. The 1-second
+    // debounce was getting cancelled if the contractor closed the modal
+    // within 1s of uploading photos / saving annotations — those changes
+    // would silently never reach MongoDB and the "Resume" prompt wouldn't
+    // appear when the contractor came back. Fire-and-forget; local state
+    // is the source of truth either way.
+    if (estimateId && (photoUrls.length > 0 || preview != null)) {
+      api
+        .put(`/measure/sessions/${estimateId}`, {
+          estimate_id: estimateId,
+          photo_urls: photoUrls,
+          reference_dim: refDim,
+          wall_height: wallHeight,
+          siding_pct: sidingPct,
+          overhang_in: Number(overhangIn ?? 12),
+          preview,
+          photo_annotations: photoAnnotations,
+        })
+        .catch(() => { /* non-fatal */ });
+    }
     setOpen(false);
   };
 

@@ -38,6 +38,10 @@ class AIMeasureSessionIn(BaseModel):
     siding_pct: Optional[str] = ""
     overhang_in: Optional[float] = 12.0
     preview: Optional[Dict[str, Any]] = None  # {measurements, raw_ai, lines, vero_openings}
+    # Iter 56: pre-AI per-photo annotations (elevation tag, scale anchor,
+    # zone masks, target-house pin). Keyed by upload filename. Lost on
+    # navigation/refresh prior to this addition — fixed in Iter 56f.
+    photo_annotations: Optional[Dict[str, Any]] = None
 
 
 @router.get("/sessions/{estimate_id}")
