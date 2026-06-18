@@ -563,13 +563,28 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       // siding/windows merge `lines` directly.
       await onApply(toApply);
       toast.success("AI measurements applied — verify all quantities before quoting");
-      // Successfully applied — clear the persisted session so the
-      // contractor isn't prompted to "Resume" stale data next time.
+      // Iter 56g: KEEP + FLUSH the session after Apply.
+      // Previously (Iter 50) we deleted the session on Apply. That made
+      // logout/login lose everything (photos, annotations, target pin,
+      // wall edits) even though re-applying is idempotent. Now we
+      // proactively SAVE the session before closing so even a quick
+      // Apply (< 1s after AI Measure) gets persisted ahead of the
+      // debounced autosave. Session is cleared only by Start Over.
       if (estimateId) {
         try {
-          await api.delete(`/measure/sessions/${estimateId}`);
+          await api.put(`/measure/sessions/${estimateId}`, {
+            estimate_id: estimateId,
+            photo_urls: photoUrls,
+            reference_dim: refDim,
+            wall_height: wallHeight,
+            siding_pct: sidingPct,
+            overhang_in: Number(overhangIn ?? 12),
+            preview,
+            photo_annotations: photoAnnotations,
+          });
         } catch {
-          // non-fatal
+          // non-fatal — local state still good; the next autosave will
+          // catch up if the modal stays open.
         }
       }
       // Close the modal but KEEP local state — re-opening AI Measure
