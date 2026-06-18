@@ -23,6 +23,11 @@ import { toast } from "sonner";
 
 const MODE_SCALE = "scale";
 const MODE_ZONE = "zone";
+// Iter 56e: single-tap "pin the target house" — needed mostly for the
+// satellite/aerial photo since Nominatim's geocoded lat/lon often lands
+// on the parcel center or road, not the actual structure (especially on
+// rural lots with multiple buildings).
+const MODE_TARGET = "target";
 
 const ZONE_CATEGORIES = [
   { key: "brick",       name: "Brick",       color: "#B45309" },
@@ -43,7 +48,8 @@ export default function PhotoAnnotateModal({
   elevation,
   reference,    // { p1, p2, inches } | null — saved in photo-pixel coords
   zones,        // array of saved zones (rect/poly)
-  onSave,       // ({ reference, zones }) => void
+  targetPin,    // { x, y } | null — single point marking the target house
+  onSave,       // ({ reference, zones, targetPin }) => void
 }) {
   const canvasRef = useRef();
   const [photo, setPhoto] = useState(null); // { width, height }
@@ -66,6 +72,7 @@ export default function PhotoAnnotateModal({
   // Local working copies so the modal can be canceled without committing.
   const [localRef, setLocalRef] = useState(reference || null);
   const [localZones, setLocalZones] = useState(zones || []);
+  const [localTarget, setLocalTarget] = useState(targetPin || null);
 
   useEffect(() => {
     try { localStorage.setItem("photoAnnotateScaleUnit", scaleUnit); } catch { /* ignore */ }
@@ -76,7 +83,10 @@ export default function PhotoAnnotateModal({
     if (!open) return;
     setLocalRef(reference || null);
     setLocalZones(zones || []);
-    setMode(MODE_SCALE);
+    setLocalTarget(targetPin || null);
+    // For aerial photos, default to Target Pin mode since that's the
+    // most common reason to annotate one (geocoder missed the house).
+    setMode(elevation === "aerial" ? MODE_TARGET : MODE_SCALE);
     setPending(null);
     setPolyPoints([]);
     setScalePending(null);
@@ -87,7 +97,7 @@ export default function PhotoAnnotateModal({
       img.onload = () => setPhoto({ width: img.naturalWidth, height: img.naturalHeight });
       img.src = photoUrl;
     }
-  }, [open, photoUrl, reference, zones]);
+  }, [open, photoUrl, reference, zones, targetPin, elevation]);
 
   if (!open) return null;
 
@@ -104,6 +114,11 @@ export default function PhotoAnnotateModal({
   const onCanvasClick = (e) => {
     if (!photo) return;
     const p = evtPoint(e);
+    if (mode === MODE_TARGET) {
+      // Single tap drops / replaces the target-house pin.
+      setLocalTarget(p);
+      return;
+    }
     if (mode === MODE_SCALE) {
       if (!pending) { setPending(p); return; }
       setScalePending({ p1: pending, p2: p, pxDistance: distPx(pending, p) });
@@ -156,9 +171,10 @@ export default function PhotoAnnotateModal({
 
   const removeZone = (id) => setLocalZones((prev) => prev.filter((z) => z.id !== id));
   const removeReference = () => setLocalRef(null);
+  const removeTarget = () => setLocalTarget(null);
 
   const save = () => {
-    onSave({ reference: localRef, zones: localZones });
+    onSave({ reference: localRef, zones: localZones, targetPin: localTarget });
     onClose();
   };
 
@@ -211,6 +227,36 @@ export default function PhotoAnnotateModal({
             </text>
           </g>
         )}
+        {localTarget && (() => {
+          const ringR = Math.max(40, photo.width / 14);
+          const lw = Math.max(4, photo.width / 240);
+          return (
+            <g>
+              <circle cx={localTarget.x} cy={localTarget.y} r={ringR}
+                      fill="none" stroke="#10B981" strokeWidth={lw} />
+              <circle cx={localTarget.x} cy={localTarget.y} r={Math.max(6, photo.width / 200)} fill="#10B981" />
+              <line x1={localTarget.x - ringR * 2} y1={localTarget.y}
+                    x2={localTarget.x - ringR - lw} y2={localTarget.y}
+                    stroke="#10B981" strokeWidth={lw} />
+              <line x1={localTarget.x + ringR + lw} y1={localTarget.y}
+                    x2={localTarget.x + ringR * 2} y2={localTarget.y}
+                    stroke="#10B981" strokeWidth={lw} />
+              <line x1={localTarget.x} y1={localTarget.y - ringR * 2}
+                    x2={localTarget.x} y2={localTarget.y - ringR - lw}
+                    stroke="#10B981" strokeWidth={lw} />
+              <line x1={localTarget.x} y1={localTarget.y + ringR + lw}
+                    x2={localTarget.x} y2={localTarget.y + ringR * 2}
+                    stroke="#10B981" strokeWidth={lw} />
+              <rect x={localTarget.x - 110} y={localTarget.y - ringR * 2 - 36}
+                    width={220} height={32} fill="#10B981" rx={3} />
+              <text x={localTarget.x} y={localTarget.y - ringR * 2 - 14}
+                    fill="#FFFFFF" fontSize={Math.max(15, photo.width / 65)}
+                    textAnchor="middle" fontWeight="bold">
+                TARGET HOUSE
+              </text>
+            </g>
+          );
+        })()}
         {/* In-progress polygon preview */}
         {mode === MODE_ZONE && zoneShape === "poly" && polyPoints.length > 0 && (() => {
           const c = ZONE_CATEGORIES.find((x) => x.key === zoneCategory) || ZONE_CATEGORIES[0];
@@ -247,7 +293,9 @@ export default function PhotoAnnotateModal({
             <div className="font-heading text-lg">Annotate Photo for AI</div>
             <div className="text-xs opacity-90 mt-0.5">
               {elevation && <>Elevation: <b>{elevation}</b> · </>}
-              {mode === MODE_SCALE
+              {mode === MODE_TARGET
+                ? "Tap once on the actual house — overrides the auto-geocoded crosshair on aerial photos"
+                : mode === MODE_SCALE
                 ? "Tap two points on a known reference (door, garage), then enter its real length"
                 : (zoneShape === "rect"
                     ? `Tap top-left then bottom-right to mark a ${ZONE_CATEGORIES.find((c) => c.key === zoneCategory)?.name} zone`
@@ -326,7 +374,16 @@ export default function PhotoAnnotateModal({
 
           {/* Controls */}
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-1">
+            <div className="grid grid-cols-3 gap-1">
+              <button type="button"
+                      onClick={() => { setMode(MODE_TARGET); setPending(null); setPolyPoints([]); }}
+                      className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border flex items-center justify-center gap-1 ${
+                        mode === MODE_TARGET ? "bg-[#10B981] text-white border-[#10B981]" : "bg-white text-[#52525B] border-[#E4E4E7] hover:bg-[#F4F4F5]"
+                      }`}
+                      data-testid="annotate-mode-target"
+                      title="Tap once on the actual target house — overrides the auto-geocoded crosshair on aerial photos">
+                <Check className="w-3 h-3" /> Pin
+              </button>
               <button type="button"
                       onClick={() => { setMode(MODE_SCALE); setPending(null); setPolyPoints([]); }}
                       className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border flex items-center justify-center gap-1 ${
@@ -341,7 +398,7 @@ export default function PhotoAnnotateModal({
                         mode === MODE_ZONE ? "bg-[#B45309] text-white border-[#B45309]" : "bg-white text-[#52525B] border-[#E4E4E7] hover:bg-[#F4F4F5]"
                       }`}
                       data-testid="annotate-mode-zone">
-                <Square className="w-3 h-3" /> Mask zone
+                <Square className="w-3 h-3" /> Mask
               </button>
             </div>
 
@@ -379,6 +436,25 @@ export default function PhotoAnnotateModal({
             )}
 
             {/* Existing annotations */}
+            <div className="border-t border-[#E4E4E7] pt-2">
+              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1">
+                Target house pin
+              </div>
+              {localTarget ? (
+                <div className="text-xs flex items-center justify-between gap-2 bg-[#D1FAE5] px-2 py-1.5 border-l-2 border-[#10B981]">
+                  <span className="font-mono-num text-[#065F46]">
+                    Pinned at ({Math.round(localTarget.x)}, {Math.round(localTarget.y)})
+                  </span>
+                  <button onClick={removeTarget} className="text-[#A1A1AA] hover:text-[#DC2626]" data-testid="annotate-target-remove">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="text-[11px] text-[#A1A1AA] italic">
+                  No pin set — tap on the actual house in Pin mode (overrides the auto-geocoded crosshair).
+                </div>
+              )}
+            </div>
             <div className="border-t border-[#E4E4E7] pt-2">
               <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1">
                 Scale anchor
@@ -421,9 +497,9 @@ export default function PhotoAnnotateModal({
               </ul>
             </div>
 
-            {(localRef || localZones.length > 0) && (
+            {(localRef || localZones.length > 0 || localTarget) && (
               <button type="button"
-                      onClick={() => { setLocalRef(null); setLocalZones([]); setPending(null); setPolyPoints([]); }}
+                      onClick={() => { setLocalRef(null); setLocalZones([]); setLocalTarget(null); setPending(null); setPolyPoints([]); }}
                       className="text-[10px] text-[#A1A1AA] uppercase tracking-wider font-bold flex items-center gap-1 hover:text-[#DC2626]"
                       data-testid="annotate-clear-all">
                 <RotateCcw className="w-3 h-3" /> Clear all

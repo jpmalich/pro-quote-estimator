@@ -26,7 +26,7 @@ const ELEVATION_OPTIONS = [
   { key: "detail", label: "Detail" },
 ];
 const annotEmpty = (a) =>
-  !a || (!a.reference && (!a.zones || a.zones.length === 0) && (!a.elevation || a.elevation === ""));
+  !a || (!a.reference && (!a.zones || a.zones.length === 0) && (!a.elevation || a.elevation === "") && !a.targetPin);
 
 const KEY_LABELS = {
   siding_sqft: "Siding",
@@ -777,6 +777,11 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                                         Scale ✓
                                       </span>
                                     )}
+                                    {annot.targetPin && (
+                                      <span className="bg-[#10B981] text-white text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-bold">
+                                        Pin ✓
+                                      </span>
+                                    )}
                                     {zoneCount > 0 && (
                                       <span className="bg-[#B45309] text-white text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-bold">
                                         {zoneCount} mask{zoneCount > 1 ? "s" : ""}
@@ -1351,7 +1356,10 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         zones={
           annotateOpenFor ? (photoAnnotations[annotateOpenFor]?.zones || []) : []
         }
-        onSave={({ reference, zones }) => {
+        targetPin={
+          annotateOpenFor ? (photoAnnotations[annotateOpenFor]?.targetPin || null) : null
+        }
+        onSave={({ reference, zones, targetPin }) => {
           if (!annotateOpenFor) return;
           setPhotoAnnotations((prev) => ({
             ...prev,
@@ -1359,6 +1367,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
               ...(prev[annotateOpenFor] || {}),
               reference,
               zones,
+              targetPin,
             },
           }));
           toast.success("Annotations saved · Claude will see them when you Run AI Measure");

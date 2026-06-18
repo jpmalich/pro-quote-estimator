@@ -101,13 +101,18 @@ CRITICAL accuracy rules (read every time):
    • Purple corner badge "AERIAL ELEVATION" — this is a top-down
      satellite view of the property from Esri World Imagery. There is
      a RED CROSSHAIR + RING in the exact center of the image with a
-     "TARGET" label — that ring surrounds the TARGET PROPERTY. Other
-     houses visible in the frame are NEIGHBORS — IGNORE them. Use this
-     aerial ONLY to measure the roof outline of the targeted structure:
-     `eaves_lf` (total horizontal roof edges) and `rakes_lf` (total
-     sloped gable-edge legs). DO NOT use it for wall heights, story
-     count, openings, or siding %. Those must come from the ground-level
-     elevation photos.
+     "TARGET" label — that ring marks the geocoded address. ⚠ The
+     geocoder often misses on rural / multi-building lots, so look for
+     an OVERRIDE: a GREEN ring + crosshair labeled "TARGET HOUSE". If a
+     green "TARGET HOUSE" marker is present, IT IS AUTHORITATIVE —
+     ignore the red auto-crosshair and measure ONLY the structure
+     inside the green ring. If only the red crosshair is present, use
+     it as your best guess. Any other houses visible in the frame are
+     NEIGHBORS — IGNORE them. Use this aerial ONLY to measure the roof
+     outline of the targeted structure: `eaves_lf` (total horizontal
+     roof edges) and `rakes_lf` (total sloped gable-edge legs). DO NOT
+     use it for wall heights, story count, openings, or siding %.
+     Those must come from the ground-level elevation photos.
    • Red line with red endpoints + red label like 'REF = 80"' — this is
      a contractor-confirmed scale anchor. The red line spans a real-world
      distance of exactly that many inches in the photo. Use it to lock

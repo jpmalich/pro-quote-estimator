@@ -134,6 +134,47 @@ export async function renderAnnotated(photoUrl, annot) {
     ctx.fillText(label, mx, my);
   }
 
+  // Target house pin — green crosshair + ring + "TARGET HOUSE" label.
+  // For aerial photos this OVERRIDES the auto-burned red crosshair the
+  // satellite endpoint added from the geocoded lat/lon (which often
+  // misses on rural addresses with multiple structures).
+  if (annot?.targetPin) {
+    const { x, y } = annot.targetPin;
+    const ringR = Math.max(40, naturalW / 14);
+    const lw = Math.max(4, naturalW / 240);
+    const armLen = ringR * 2;
+    ctx.strokeStyle = "#10B981";
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#10B981";
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(6, naturalW / 200), 0, Math.PI * 2);
+    ctx.fill();
+    // Crosshair arms broken at the ring so the house roof remains visible.
+    const gap = ringR + lw * 2;
+    ctx.beginPath();
+    ctx.moveTo(x - armLen, y); ctx.lineTo(x - gap, y);
+    ctx.moveTo(x + gap, y);    ctx.lineTo(x + armLen, y);
+    ctx.moveTo(x, y - armLen); ctx.lineTo(x, y - gap);
+    ctx.moveTo(x, y + gap);    ctx.lineTo(x, y + armLen);
+    ctx.stroke();
+    const fontPx = Math.max(22, naturalW / 55);
+    ctx.font = `bold ${fontPx}px sans-serif`;
+    const label = "TARGET HOUSE";
+    const tw = ctx.measureText(label).width;
+    const pad = fontPx * 0.4;
+    const labelY = y - ringR - armLen / 2 - fontPx - pad;
+    const ty = labelY < pad ? y + ringR + armLen / 2 + pad : labelY;
+    ctx.fillStyle = "#10B981";
+    ctx.fillRect(x - tw / 2 - pad, ty - pad, tw + pad * 2, fontPx + pad * 2);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x, ty);
+  }
+
   // Elevation badge — top-left corner.
   if (annot?.elevation && annot.elevation !== "detail") {
     const fontPx = Math.max(28, naturalW / 45);
@@ -172,6 +213,9 @@ export function describeAnnotations(entries) {
     }
     if (e.reference) {
       parts.push(`Red line marked "REF = ${e.reference.inches}\"" is a known ${e.reference.inches}-inch span — anchor scale to this`);
+    }
+    if (e.targetPin) {
+      parts.push(`Green ring labeled "TARGET HOUSE" marks the contractor-confirmed target structure — measure ONLY this house, ignore any other buildings in frame (overrides any red auto-crosshair)`);
     }
     const zoneBits = (e.zones || []).map((z) => `${ZONE_NAMES[z.category] || z.category}`);
     if (zoneBits.length) {
