@@ -340,7 +340,7 @@ export default function ISSEstimateEditor() {
             <ISSHoverImportButton est={est} applyLines={applyHoverLines} />
             <AIMeasureButton
               kind="iss"
-              address={est?.customer_address}
+              address={est?.address}
               overhangIn={est?.overhang_in ?? 12}
               estimateId={est?.id}
               onApply={async ({ measurements }) => {

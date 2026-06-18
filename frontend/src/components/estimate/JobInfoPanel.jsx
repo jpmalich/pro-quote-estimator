@@ -29,7 +29,7 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
           <BlueprintMeasureButton est={est} update={update} save={save} />
           <AIMeasureButton
             kind={est.kind || "siding"}
-            address={est?.customer_address}
+            address={est?.address}
             overhangIn={est?.overhang_in ?? 12}
             estimateId={est?.id}
             onApply={async ({ lines: aiLines, measurements }) => {
