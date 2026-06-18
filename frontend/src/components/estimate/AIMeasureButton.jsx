@@ -22,6 +22,7 @@ const ELEVATION_OPTIONS = [
   { key: "back",   label: "Back" },
   { key: "left",   label: "Left" },
   { key: "right",  label: "Right" },
+  { key: "aerial", label: "Aerial (satellite)" },
   { key: "detail", label: "Detail" },
 ];
 const annotEmpty = (a) =>
@@ -61,6 +62,8 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // before sending to Claude, and described as text alongside.
   const [photoAnnotations, setPhotoAnnotations] = useState({});
   const [annotateOpenFor, setAnnotateOpenFor] = useState(null); // filename or null
+  // Iter 56c — free aerial fetch via Esri World Imagery.
+  const [satBusy, setSatBusy] = useState(false);
   const [resumePrompt, setResumePrompt] = useState(false); // shows banner
   const [refDim, setRefDim] = useState("");
   const [wallHeight, setWallHeight] = useState("");
@@ -304,8 +307,42 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     setFiles((prev) => prev.filter((f) => !arr.includes(f)));
   };
 
-  const removePhoto = (idx) => {
-    setPhotoUrls((prev) => prev.filter((_, i) => i !== idx));
+  // Iter 56c: pull a free Esri aerial tile for the estimate's address
+  // and add it as an 8th photo. The endpoint resolves the address →
+  // lat/lon → satellite JPEG and writes the file straight into the same
+  // UPLOAD_DIR /api/uploads uses, so we just append the filename to
+  // photoUrls and auto-tag it as "aerial" so Claude knows what it is.
+  const fetchSatellite = async () => {
+    if (!address || satBusy) return;
+    if (photoUrls.length >= 8) {
+      toast.error("Already at 8 photos — remove one to add the aerial view");
+      return;
+    }
+    setSatBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("address", address);
+      const { data } = await api.post("/measure/satellite-tile", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 30000,
+      });
+      const name = data?.filename;
+      if (!name) throw new Error("No filename in response");
+      setPhotoUrls((prev) => [...prev, name]);
+      setPhotoAnnotations((prev) => ({
+        ...prev,
+        [name]: { ...(prev[name] || {}), elevation: "aerial" },
+      }));
+      toast.success(`Aerial view added · ${(data.bytes / 1024).toFixed(0)} KB`);
+    } catch (err) {
+      const detail = err?.response?.data?.detail || err?.message || "Satellite fetch failed";
+      toast.error(detail);
+    } finally {
+      setSatBusy(false);
+    }
+  };
+
+  const removePhoto = (idx) => {    setPhotoUrls((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const runMeasure = async () => {
@@ -650,6 +687,26 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       <div className="text-[10px] text-[#A1A1AA] mt-1">
                         Tip: front, back, left, right elevations + any tricky corners
                       </div>
+                      {/* Iter 56c: free aerial view via Esri World Imagery.
+                          Auto-fetches a top-down photo of the property
+                          from the estimate address — dramatically
+                          sharpens eaves/rakes since rooflines read much
+                          cleaner from above. No API key required. */}
+                      {address && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={fetchSatellite}
+                            disabled={satBusy || photoUrls.length >= 8}
+                            className="px-3 py-1.5 bg-white text-[#0EA5E9] border border-[#0EA5E9] hover:bg-[#F0F9FF] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5 disabled:opacity-50"
+                            data-testid="ai-measure-satellite-btn"
+                            title="Fetch a free top-down satellite view of the property from Esri World Imagery"
+                          >
+                            {satBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            {satBusy ? "Fetching aerial…" : "Add aerial view (free)"}
+                          </button>
+                        </div>
+                      )}
                       {(photoUrls.length > 0 || files.length > 0) && (
                         <div className="mt-3 text-xs text-[#52525B] flex items-center justify-center gap-2 flex-wrap" data-testid="ai-measure-file-count">
                           <span>

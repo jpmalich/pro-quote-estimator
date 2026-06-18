@@ -98,6 +98,12 @@ CRITICAL accuracy rules (read every time):
      authoritative elevation tag for that photo. Use it to label the
      `walls[]` entry. If a badge says "FRONT ELEVATION", the wall in
      that photo IS the front wall — do not relabel it as "other".
+   • Purple corner badge "AERIAL ELEVATION" — this is a top-down
+     satellite view of the property from Esri World Imagery. Use it
+     ONLY to measure the roof outline: `eaves_lf` (total horizontal
+     roof edges) and `rakes_lf` (total sloped gable-edge legs). DO NOT
+     use it for wall heights, story count, openings, or siding %.
+     Those must come from the ground-level elevation photos.
    • Red line with red endpoints + red label like 'REF = 80"' — this is
      a contractor-confirmed scale anchor. The red line spans a real-world
      distance of exactly that many inches in the photo. Use it to lock
