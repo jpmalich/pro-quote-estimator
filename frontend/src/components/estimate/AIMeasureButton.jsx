@@ -329,7 +329,11 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // UPLOAD_DIR /api/uploads uses, so we just append the filename to
   // photoUrls and auto-tag it as "aerial" so Claude knows what it is.
   const fetchSatellite = async () => {
-    if (!address || satBusy) return;
+    if (satBusy) return;
+    if (!address || !String(address).trim()) {
+      toast.error("Fill in the Address in Job Information first — I need it to find the property");
+      return;
+    }
     if (photoUrls.length >= 8) {
       toast.error("Already at 8 photos — remove one to add the aerial view");
       return;
@@ -707,22 +711,30 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                           Auto-fetches a top-down photo of the property
                           from the estimate address — dramatically
                           sharpens eaves/rakes since rooflines read much
-                          cleaner from above. No API key required. */}
-                      {address && (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={fetchSatellite}
-                            disabled={satBusy || photoUrls.length >= 8}
-                            className="px-3 py-1.5 bg-white text-[#0EA5E9] border border-[#0EA5E9] hover:bg-[#F0F9FF] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5 disabled:opacity-50"
-                            data-testid="ai-measure-satellite-btn"
-                            title="Fetch a free top-down satellite view of the property from Esri World Imagery"
-                          >
-                            {satBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                            {satBusy ? "Fetching aerial…" : "Add aerial view (free)"}
-                          </button>
-                        </div>
-                      )}
+                          cleaner from above. No API key required.
+                          Iter 56d: button stays visible even when the
+                          address is missing so contractors can see the
+                          option exists; clicking it without an address
+                          gives a helpful toast pointing them to the
+                          right field. */}
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={fetchSatellite}
+                          disabled={satBusy || photoUrls.length >= 8}
+                          className="px-3 py-1.5 bg-white text-[#0EA5E9] border border-[#0EA5E9] hover:bg-[#F0F9FF] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5 disabled:opacity-50"
+                          data-testid="ai-measure-satellite-btn"
+                          title={address ? "Fetch a free top-down satellite view from Esri World Imagery" : "Fill in the Address field in Job Information first"}
+                        >
+                          {satBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                          {satBusy ? "Fetching aerial…" : "Add aerial view (free)"}
+                        </button>
+                        {!address && (
+                          <div className="text-[10px] text-[#A1A1AA] mt-1">
+                            Address required — fill in <b>Address</b> in Job Information first.
+                          </div>
+                        )}
+                      </div>
                       {(photoUrls.length > 0 || files.length > 0) && (
                         <div className="mt-3 text-xs text-[#52525B] flex items-center justify-center gap-2 flex-wrap" data-testid="ai-measure-file-count">
                           <span>
