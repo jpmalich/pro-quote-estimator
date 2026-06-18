@@ -39,10 +39,15 @@ ESRI_EXPORT_URL = (
 )
 USER_AGENT = "ProQuoteEstimator/1.0 (contractor siding estimator)"
 
-# House-scale bbox at the equator: 75 m radius in each direction
-# (≈ a 150 m × 150 m square around the address). One degree of
-# latitude ≈ 111 km. Longitude shrinks by cos(lat) toward the poles.
-DEFAULT_RADIUS_M = 75
+# House-scale bbox at the equator: 120 m radius in each direction
+# (≈ a 240 m × 240 m square around the address). Esri's World Imagery
+# tile pyramid throws a 500 "Error: bytes" when the bbox is tighter
+# than ~150 m square (the imagery service can't synthesize from its
+# top-zoom tiles at that scale), so we default to 120 m and back off
+# to 250 m on retry. One degree of latitude ≈ 111 km. Longitude shrinks
+# by cos(lat) toward the poles.
+DEFAULT_RADIUS_M = 120
+RETRY_RADIUS_M = 250
 EARTH_M_PER_DEG_LAT = 111_320
 
 DEFAULT_SIZE_PX = 1600  # 1600×1600 is plenty for Claude to read roof outline
@@ -99,35 +104,53 @@ async def fetch_satellite_tile(
             raise HTTPException(status_code=502, detail=f"Bad geocode reply: {e}") from e
         resolved_label = hit.get("display_name") or address
 
-        # 2) Fetch the satellite tile from Esri ExportMap.
-        bbox = _bbox_around(lat, lon, radius_m)
-        try:
-            img = await client.get(
-                ESRI_EXPORT_URL,
-                params={
-                    "bbox": ",".join(str(x) for x in bbox),
-                    "bboxSR": "4326",  # WGS84 lat/lon
-                    "imageSR": "3857", # Web Mercator output (square pixels)
-                    "size": f"{size_px},{size_px}",
-                    "format": "jpg",
-                    "transparent": "false",
-                    "f": "image",
-                },
+        # 2) Fetch the satellite tile from Esri ExportMap. Esri returns
+        #    a 500 "Error: bytes" when the bbox is too tight — fall back
+        #    to a larger radius if the first attempt fails. Tracks
+        #    `radius_used_m` so the frontend can show what scale we
+        #    actually got.
+        radius_used_m = radius_m
+        body = b""
+        ctype = ""
+        last_err = ""
+        for attempt_radius in (radius_m, RETRY_RADIUS_M) if radius_m < RETRY_RADIUS_M else (radius_m,):
+            bbox = _bbox_around(lat, lon, attempt_radius)
+            try:
+                img = await client.get(
+                    ESRI_EXPORT_URL,
+                    params={
+                        "bbox": ",".join(str(x) for x in bbox),
+                        "bboxSR": "4326",  # WGS84 lat/lon
+                        "size": f"{size_px},{size_px}",
+                        "format": "jpg",
+                        "transparent": "false",
+                        "f": "image",
+                    },
+                )
+            except httpx.HTTPError as e:
+                last_err = f"network error: {e}"
+                continue
+            ctype = img.headers.get("content-type", "").lower()
+            # Esri responds 200 with text/html when it actually errored,
+            # so check content-type too.
+            if img.status_code != 200 or "image" not in ctype:
+                last_err = (
+                    f"esri returned status={img.status_code} ctype={ctype!r} "
+                    f"body={img.text[:200]!r} at radius={attempt_radius}m"
+                )
+                continue
+            body = img.content
+            radius_used_m = attempt_radius
+            break
+        if not body:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Esri imagery fetch failed: {last_err}",
             )
-            img.raise_for_status()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Esri imagery fetch failed: {e}") from e
-        body = img.content
-        if not body or len(body) < 2048:
+        if len(body) < 2048:
             raise HTTPException(
                 status_code=502,
                 detail=f"Esri returned an unexpectedly small payload ({len(body)} bytes)",
-            )
-        ctype = img.headers.get("content-type", "image/jpeg").lower()
-        if "image" not in ctype:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Esri returned non-image content-type {ctype!r}",
             )
 
     # 3) Persist to UPLOAD_DIR (same place /api/uploads writes) so the
@@ -144,7 +167,7 @@ async def fetch_satellite_tile(
         "lat": lat,
         "lon": lon,
         "address_resolved": resolved_label,
-        "radius_m": radius_m,
+        "radius_m": radius_used_m,
         "size_px": size_px,
         "bytes": len(body),
     }
