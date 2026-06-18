@@ -216,6 +216,10 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     }
   });
   const [calibValue, setCalibValue] = useState("");
+  // Pending measurement awaiting a label tap. Replaces the legacy
+  // window.prompt("1-9") that was painful on an iPad.
+  // shape: { feet, p1, p2, photoUrl }
+  const [labelPending, setLabelPending] = useState(null);
   useEffect(() => {
     try { localStorage.setItem("photoMeasureCalibUnit", calibUnit); } catch { /* ignore */ }
   }, [calibUnit]);
@@ -248,6 +252,7 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     setPolyPoints([]);
     setCalibPending(null);
     setCalibValue("");
+    setLabelPending(null);
   };
 
   const pickPhoto = (e) => {
@@ -366,30 +371,11 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
         return;
       }
       const feet = px / pxPerFt;
-      // Quick label menu via prompt — keeps UI tight
-      const labelInput = prompt(
-        `Length = ${feet.toFixed(1)} ft. Label this measurement?\n\n` +
-          LABEL_OPTIONS.map((o, i) => `${i + 1}) ${o.name}`).join("\n") +
-          "\n\nEnter 1-" + LABEL_OPTIONS.length,
-        "1"
-      );
-      const idx = parseInt(labelInput || "0", 10) - 1;
-      if (idx < 0 || idx >= LABEL_OPTIONS.length) {
-        setPending(null);
-        return;
-      }
-      const opt = LABEL_OPTIONS[idx];
-      // Convert to ft for storage. If the option is inches (windows), keep
-      // ft anyway since the contractor entered the reference as inches and
-      // the conversion is consistent.
-      setMeasures((prev) => [
-        ...prev,
-        {
-          id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          p1: pending, p2: p, feet, label: opt.key, labelName: opt.name,
-          photoUrl: photo.url,
-        },
-      ]);
+      // Open a tap-friendly label picker instead of window.prompt(). The
+      // legacy prompt with numbered 1-9 options was painful on an iPad —
+      // contractors had to type a digit from a keyboard popover. The
+      // modal below renders each option as a big tap target.
+      setLabelPending({ feet, p1: pending, p2: p, photoUrl: photo.url });
       setPending(null);
     }
   };
@@ -423,6 +409,22 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
     setCalibPending(null);
     setCalibValue("");
   };
+
+  // Commit the pending tap measurement under the chosen label.
+  const pickMeasureLabel = (opt) => {
+    if (!labelPending) return;
+    setMeasures((prev) => [
+      ...prev,
+      {
+        id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        p1: labelPending.p1, p2: labelPending.p2, feet: labelPending.feet,
+        label: opt.key, labelName: opt.name,
+        photoUrl: labelPending.photoUrl,
+      },
+    ]);
+    setLabelPending(null);
+  };
+  const cancelLabelPick = () => setLabelPending(null);
 
   // Switch to a different photo without wiping the contractor's tap
   // measurements. Each measurement/opening is tagged with its source
@@ -793,6 +795,62 @@ export default function PhotoMeasureButton({ onApply, externalOpen, onExternalCl
                 </div>
               );
             })()}
+
+            {/* Measurement label tap-picker — replaces the legacy
+                window.prompt("1-9") with a grid of big tap targets so
+                iPad contractors can label each measurement with one
+                finger tap instead of typing a digit on a keyboard
+                popover. */}
+            {labelPending && (
+              <div
+                className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center p-4"
+                onClick={cancelLabelPick}
+                data-testid="photo-measure-label-modal"
+              >
+                <div
+                  className="bg-white max-w-md w-full shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="bg-[#F97316] text-white px-4 py-2.5">
+                    <div className="font-heading text-base">
+                      Label this measurement
+                    </div>
+                    <div className="text-[11px] opacity-90 mt-0.5">
+                      Length = <span className="font-mono-num font-bold">{labelPending.feet.toFixed(1)} ft</span>{" "}
+                      · tap what you just measured
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <div className="grid grid-cols-2 gap-2" data-testid="photo-measure-label-grid">
+                      {LABEL_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => pickMeasureLabel(opt)}
+                          className="px-3 py-3 text-xs font-bold uppercase tracking-wider bg-white text-[#09090B] border border-[#E4E4E7] hover:bg-[#FAFAFA] hover:border-[#F97316] active:bg-[#FEF3C7] text-left leading-tight"
+                          data-testid={`photo-measure-label-${opt.key}`}
+                        >
+                          {opt.name}
+                          <div className="text-[10px] text-[#A1A1AA] font-normal mt-0.5">
+                            {opt.unit === "in" ? "(window size · in)" : "(ft)"}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border-t border-[#E4E4E7] px-4 py-2.5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={cancelLabelPick}
+                      className="px-3 py-2 bg-white text-[#52525B] border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold uppercase tracking-wider"
+                      data-testid="photo-measure-label-cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="overflow-y-auto flex-1 p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Photo canvas */}
