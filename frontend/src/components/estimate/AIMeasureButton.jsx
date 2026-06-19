@@ -1038,6 +1038,11 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                                         {zoneCount} mask{zoneCount > 1 ? "s" : ""}
                                       </span>
                                     )}
+                                    {(annot.windows?.length || 0) > 0 && (
+                                      <span className="bg-[#FBBF24] text-[#92400E] text-[9px] px-1.5 py-0.5 uppercase tracking-wider font-bold border border-[#92400E]" data-testid={`ai-measure-photo-windows-badge-${i}`}>
+                                        {annot.windows.length} win
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="p-1.5 space-y-1 border-t border-[#E4E4E7] bg-white">
@@ -1808,7 +1813,10 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         targetPin={
           annotateOpenFor ? (photoAnnotations[annotateOpenFor]?.targetPin || null) : null
         }
-        onSave={({ reference, zones, targetPin }) => {
+        windows={
+          annotateOpenFor ? (photoAnnotations[annotateOpenFor]?.windows || []) : []
+        }
+        onSave={({ reference, zones, targetPin, windows }) => {
           if (!annotateOpenFor) return;
           setPhotoAnnotations((prev) => ({
             ...prev,
@@ -1817,6 +1825,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
               reference,
               zones,
               targetPin,
+              windows,
             },
           }));
           toast.success("Annotations saved · Claude will see them when you Run AI Measure");

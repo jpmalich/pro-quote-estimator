@@ -130,6 +130,26 @@ Schema:
 CRITICAL accuracy rules (read every time):
 
 0a. PRE-AI PHOTO ANNOTATIONS (highest-priority signal):
+   The user may have added overlays to the photos BEFORE you saw them.
+   When present, treat them as AUTHORITATIVE — they override anything
+   you'd otherwise infer from pixels:
+
+   • PURPLE "ELEVATION" badge top-left → photo is that exact wall
+   • RED line + "REF = N in" → known scale; anchor your measurements to it
+   • GREEN "TARGET HOUSE" rectangle → measure only what's inside it (aerial)
+   • RED hatched zone marked "NO SIDING" → exclude that area from siding %
+   • YELLOW circle pin + brown badge ("DH 36×60", "PIC 60×48", etc.) →
+     CONTRACTOR-TAGGED WINDOW. Each yellow pin marks ONE window. The
+     brown badge tells you the EXACT style + size. Use these as the
+     ground-truth window list — emit them in `openings[]` with
+     `style_confidence: 100` and the contractor's exact style + W×H.
+     If you ALSO see windows that don't have yellow pins, you can add
+     those (with normal confidence), but the tagged ones win on style
+     and size. Never demote a tagged window's style — the contractor
+     is standing 25 ft from the house with their eyes on it, you are
+     looking at a JPEG.
+
+
    The contractor may have marked up some photos BEFORE sending them.
    Look for these visual marks — they are ground truth, NOT guesses:
    • Purple corner badge "FRONT/BACK/LEFT/RIGHT ELEVATION" — this is the

@@ -28,6 +28,52 @@ const MODE_ZONE = "zone";
 // on the parcel center or road, not the actual structure (especially on
 // rural lots with multiple buildings).
 const MODE_TARGET = "target";
+// Iter 57e: tap-to-tag individual windows. Each tap drops a pin at the
+// window centre and pops a picker (style + W×H). Claude then receives
+// the tagged windows as GROUND TRUTH (rule #14b in the prompt) — beats
+// its own photo-inference of style/size, which is the biggest source
+// of wrong-window-on-quote errors.
+const MODE_WINDOW = "window";
+
+// Same vocabulary as AIMeasureButton's WINDOW_STYLES — duplicated here so
+// the modal stays self-contained. Keep in sync.
+const WIN_STYLES = [
+  "Double Hung", "Single Hung",
+  "Casement", "Twin Casement",
+  "Awning", "Hopper",
+  "2-Lite Slider", "3-Lite Slider",
+  "Picture",
+  "Twin Double Hung", "Twin Single Hung", "Triple Double Hung",
+  "Bay Window", "Bow Window",
+  "Half-Round", "Quarter-Round", "Arch", "Octagon", "Hexagon",
+  "Garden Window", "Other Shape",
+];
+// Short codes used on the photo marker (kept tiny — 2-3 chars — so the
+// badge doesn't cover the window itself). Order matches WIN_STYLES so a
+// switch (vs map lookup) is unnecessary.
+const STYLE_ABBR = {
+  "Double Hung": "DH",
+  "Single Hung": "SH",
+  "Casement": "CA",
+  "Twin Casement": "2CA",
+  "Awning": "AW",
+  "Hopper": "HP",
+  "2-Lite Slider": "2SL",
+  "3-Lite Slider": "3SL",
+  "Picture": "PIC",
+  "Twin Double Hung": "2DH",
+  "Twin Single Hung": "2SH",
+  "Triple Double Hung": "3DH",
+  "Bay Window": "BAY",
+  "Bow Window": "BOW",
+  "Half-Round": "1/2",
+  "Quarter-Round": "1/4",
+  "Arch": "ARC",
+  "Octagon": "OCT",
+  "Hexagon": "HEX",
+  "Garden Window": "GDN",
+  "Other Shape": "OTH",
+};
 
 const ZONE_CATEGORIES = [
   { key: "brick",       name: "Brick",       color: "#B45309" },
@@ -49,7 +95,8 @@ export default function PhotoAnnotateModal({
   reference,    // { p1, p2, inches } | null — saved in photo-pixel coords
   zones,        // array of saved zones (rect/poly)
   targetPin,    // { x, y } | null — single point marking the target house
-  onSave,       // ({ reference, zones, targetPin }) => void
+  windows,      // Iter 57e — array of {x,y,style,width_in,height_in,id}
+  onSave,       // ({ reference, zones, targetPin, windows }) => void
 }) {
   const canvasRef = useRef();
   const [photo, setPhoto] = useState(null); // { width, height }
@@ -73,6 +120,13 @@ export default function PhotoAnnotateModal({
   const [localRef, setLocalRef] = useState(reference || null);
   const [localZones, setLocalZones] = useState(zones || []);
   const [localTarget, setLocalTarget] = useState(targetPin || null);
+  const [localWindows, setLocalWindows] = useState(windows || []);
+  // Pending window-tag entry: after the contractor taps a window pixel,
+  // we open a small picker (style + W×H). Saved with `confirmWindow`.
+  const [windowPending, setWindowPending] = useState(null); // { x, y }
+  const [windowStyle, setWindowStyle] = useState("Double Hung");
+  const [windowWidth, setWindowWidth] = useState("36");
+  const [windowHeight, setWindowHeight] = useState("60");
 
   useEffect(() => {
     try { localStorage.setItem("photoAnnotateScaleUnit", scaleUnit); } catch { /* ignore */ }
@@ -84,6 +138,8 @@ export default function PhotoAnnotateModal({
     setLocalRef(reference || null);
     setLocalZones(zones || []);
     setLocalTarget(targetPin || null);
+    setLocalWindows(windows || []);
+    setWindowPending(null);
     // For aerial photos, default to Target Pin mode since that's the
     // most common reason to annotate one (geocoder missed the house).
     setMode(elevation === "aerial" ? MODE_TARGET : MODE_SCALE);
@@ -97,7 +153,7 @@ export default function PhotoAnnotateModal({
       img.onload = () => setPhoto({ width: img.naturalWidth, height: img.naturalHeight });
       img.src = photoUrl;
     }
-  }, [open, photoUrl, reference, zones, targetPin, elevation]);
+  }, [open, photoUrl, reference, zones, targetPin, windows, elevation]);
 
   if (!open) return null;
 
@@ -114,6 +170,11 @@ export default function PhotoAnnotateModal({
   const onCanvasClick = (e) => {
     if (!photo) return;
     const p = evtPoint(e);
+    if (mode === MODE_WINDOW) {
+      // Single tap at the window centre → open the picker submodal.
+      setWindowPending({ x: p.x, y: p.y });
+      return;
+    }
     if (mode === MODE_TARGET) {
       // Two-tap rectangle: first tap = corner 1, second tap = corner 2.
       // Lets the contractor draw a TIGHT box around just the structure
@@ -185,9 +246,40 @@ export default function PhotoAnnotateModal({
   const removeZone = (id) => setLocalZones((prev) => prev.filter((z) => z.id !== id));
   const removeReference = () => setLocalRef(null);
   const removeTarget = () => setLocalTarget(null);
+  const removeWindow = (id) =>
+    setLocalWindows((prev) => prev.filter((w) => w.id !== id));
+
+  const confirmWindow = () => {
+    if (!windowPending) return;
+    const w = parseFloat(windowWidth);
+    const h = parseFloat(windowHeight);
+    if (!w || w <= 0 || !h || h <= 0) {
+      toast.error("Enter positive width + height in inches");
+      return;
+    }
+    setLocalWindows((prev) => [
+      ...prev,
+      {
+        id: `w-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        x: windowPending.x,
+        y: windowPending.y,
+        style: windowStyle,
+        width_in: w,
+        height_in: h,
+      },
+    ]);
+    setWindowPending(null);
+    toast.success(`Tagged: ${windowStyle} ${w}×${h} in`);
+  };
+  const cancelWindow = () => setWindowPending(null);
 
   const save = () => {
-    onSave({ reference: localRef, zones: localZones, targetPin: localTarget });
+    onSave({
+      reference: localRef,
+      zones: localZones,
+      targetPin: localTarget,
+      windows: localWindows,
+    });
     onClose();
   };
 
@@ -236,7 +328,7 @@ export default function PhotoAnnotateModal({
                   y={(localRef.p1.y + localRef.p2.y) / 2 + 5}
                   fill="#FFFFFF" fontSize={Math.max(15, photo.width / 65)}
                   textAnchor="middle" fontWeight="bold">
-              REF = {localRef.inches}"
+              REF = {localRef.inches}&quot;
             </text>
           </g>
         )}
@@ -296,6 +388,33 @@ export default function PhotoAnnotateModal({
             </g>
           );
         })()}
+        {/* Iter 57e — tagged windows: yellow pin + style abbreviation
+            badge + W×H label. Drawn on top of zones so contractors can
+            see windows that overlap a brick mask. */}
+        {localWindows.map((w) => {
+          const r = Math.max(8, photo.width / 200);
+          const fontPx = Math.max(11, photo.width / 95);
+          const abbr = STYLE_ABBR[w.style] || "?";
+          const sizeLabel = `${Math.round(w.width_in)}×${Math.round(w.height_in)}`;
+          return (
+            <g key={w.id}>
+              <circle cx={w.x} cy={w.y} r={r} fill="#FBBF24" stroke="#92400E" strokeWidth={Math.max(2, photo.width / 700)} />
+              <rect x={w.x + r + 4} y={w.y - fontPx} width={Math.max(56, fontPx * 4)} height={fontPx * 2 + 6} fill="#92400E" rx={2} />
+              <text x={w.x + r + 8} y={w.y - 4} fill="#FFFFFF" fontSize={fontPx} fontWeight="bold">
+                {abbr}
+              </text>
+              <text x={w.x + r + 8} y={w.y + fontPx - 1} fill="#FFFFFF" fontSize={fontPx - 1} fontFamily="monospace">
+                {sizeLabel}
+              </text>
+            </g>
+          );
+        })}
+        {/* In-progress window pin (before picker confirm) */}
+        {mode === MODE_WINDOW && windowPending && (
+          <circle cx={windowPending.x} cy={windowPending.y}
+                  r={Math.max(10, photo.width / 180)}
+                  fill="none" stroke="#FBBF24" strokeWidth={Math.max(3, photo.width / 600)} strokeDasharray="6 4" />
+        )}
         {pending && (
           <circle cx={pending.x} cy={pending.y} r={Math.max(6, photo.width / 300)}
                   fill="none" stroke="#DC2626" strokeWidth={Math.max(3, photo.width / 600)} strokeDasharray="6 4" />
@@ -383,6 +502,71 @@ export default function PhotoAnnotateModal({
           );
         })()}
 
+        {/* Iter 57e — Window-tag picker submodal. After tap on a window
+            pixel, pick style + W×H so Claude treats it as ground truth. */}
+        {windowPending && (
+          <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center p-4" onClick={cancelWindow}>
+            <div className="bg-white max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-[#92400E] text-white px-4 py-2.5">
+                <div className="font-heading text-base">Tag this window</div>
+                <div className="text-[11px] opacity-90 mt-0.5">
+                  Claude treats your tag as GROUND TRUTH — beats its own photo-guess.
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1">Style</div>
+                  <select
+                    value={windowStyle}
+                    onChange={(e) => setWindowStyle(e.target.value)}
+                    className="w-full px-3 py-2 border border-[#E4E4E7] rounded-sm text-sm focus:outline-none focus:border-[#92400E]"
+                    data-testid="annotate-window-style"
+                    autoFocus
+                  >
+                    {WIN_STYLES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1">Width (in)</div>
+                    <input
+                      type="number" step="0.5" min="0" inputMode="decimal"
+                      value={windowWidth}
+                      onChange={(e) => setWindowWidth(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmWindow(); } if (e.key === "Escape") { e.preventDefault(); cancelWindow(); } }}
+                      className="w-full px-2 py-2 border border-[#E4E4E7] rounded-sm font-mono-num focus:outline-none focus:border-[#92400E]"
+                      data-testid="annotate-window-width"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1">Height (in)</div>
+                    <input
+                      type="number" step="0.5" min="0" inputMode="decimal"
+                      value={windowHeight}
+                      onChange={(e) => setWindowHeight(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmWindow(); } if (e.key === "Escape") { e.preventDefault(); cancelWindow(); } }}
+                      className="w-full px-2 py-2 border border-[#E4E4E7] rounded-sm font-mono-num focus:outline-none focus:border-[#92400E]"
+                      data-testid="annotate-window-height"
+                    />
+                  </div>
+                </div>
+                <div className="text-[10px] text-[#A1A1AA] leading-snug">
+                  Common: DH 30×52, 36×60. Picture 60×48. Casement 24×48. Sliding 60×36. Garden 36×36.
+                </div>
+              </div>
+              <div className="border-t border-[#E4E4E7] px-4 py-3 flex justify-end gap-2">
+                <button type="button" onClick={cancelWindow}
+                        className="px-3 py-2 bg-white text-[#52525B] border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold uppercase tracking-wider">Cancel</button>
+                <button type="button" onClick={confirmWindow}
+                        className="px-3 py-2 bg-[#92400E] text-white hover:bg-[#78350F] text-xs font-bold uppercase tracking-wider"
+                        data-testid="annotate-window-confirm">Tag Window</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Canvas */}
           <div className="md:col-span-2">
@@ -400,7 +584,7 @@ export default function PhotoAnnotateModal({
 
           {/* Controls */}
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-4 gap-1">
               <button type="button"
                       onClick={() => { setMode(MODE_TARGET); setPending(null); setPolyPoints([]); }}
                       className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border flex items-center justify-center gap-1 ${
@@ -425,6 +609,15 @@ export default function PhotoAnnotateModal({
                       }`}
                       data-testid="annotate-mode-zone">
                 <Square className="w-3 h-3" /> Mask
+              </button>
+              <button type="button"
+                      onClick={() => { setMode(MODE_WINDOW); setPending(null); setPolyPoints([]); setWindowPending(null); }}
+                      className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border flex items-center justify-center gap-1 ${
+                        mode === MODE_WINDOW ? "bg-[#FBBF24] text-[#09090B] border-[#92400E]" : "bg-white text-[#52525B] border-[#E4E4E7] hover:bg-[#F4F4F5]"
+                      }`}
+                      data-testid="annotate-mode-window"
+                      title="Tap a window in the photo to tag its style + size. Claude treats your tags as GROUND TRUTH (overrides its photo-inference).">
+                <Square className="w-3 h-3" /> Window
               </button>
             </div>
 
@@ -490,7 +683,7 @@ export default function PhotoAnnotateModal({
               {localRef ? (
                 <div className="text-xs flex items-center justify-between gap-2 bg-[#FEE2E2] px-2 py-1.5 border-l-2 border-[#DC2626]">
                   <span>
-                    <span className="font-mono-num font-bold">{localRef.inches}"</span> ({(localRef.inches / 12).toFixed(2)} ft)
+                    <span className="font-mono-num font-bold">{localRef.inches}&quot;</span> ({(localRef.inches / 12).toFixed(2)} ft)
                   </span>
                   <button onClick={removeReference} className="text-[#A1A1AA] hover:text-[#DC2626]" data-testid="annotate-ref-remove">
                     <Trash2 className="w-3 h-3" />
@@ -525,9 +718,34 @@ export default function PhotoAnnotateModal({
               </ul>
             </div>
 
-            {(localRef || localZones.length > 0 || localTarget) && (
+            {/* Iter 57e — tagged windows list */}
+            <div className="border-t border-[#E4E4E7] pt-2">
+              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-[#FBBF24] border border-[#92400E]"></span>
+                Tagged windows ({localWindows.length})
+              </div>
+              <ul className="space-y-1 max-h-32 overflow-y-auto" data-testid="annotate-window-list">
+                {localWindows.map((w) => (
+                  <li key={w.id} className="text-xs flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1">
+                      <span className="font-bold text-[#92400E]">{STYLE_ABBR[w.style] || "?"}</span>
+                      <span>{w.style}</span>
+                      <span className="font-mono-num text-[#71717A]">{Math.round(w.width_in)}×{Math.round(w.height_in)}&quot;</span>
+                    </span>
+                    <button onClick={() => removeWindow(w.id)} className="text-[#A1A1AA] hover:text-[#DC2626]" data-testid={`annotate-window-remove-${w.id}`}>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </li>
+                ))}
+                {!localWindows.length && (
+                  <li className="text-[11px] text-[#A1A1AA] italic">No windows tagged — switch to Window mode and tap each window.</li>
+                )}
+              </ul>
+            </div>
+
+            {(localRef || localZones.length > 0 || localTarget || localWindows.length > 0) && (
               <button type="button"
-                      onClick={() => { setLocalRef(null); setLocalZones([]); setLocalTarget(null); setPending(null); setPolyPoints([]); }}
+                      onClick={() => { setLocalRef(null); setLocalZones([]); setLocalTarget(null); setLocalWindows([]); setPending(null); setPolyPoints([]); }}
                       className="text-[10px] text-[#A1A1AA] uppercase tracking-wider font-bold flex items-center gap-1 hover:text-[#DC2626]"
                       data-testid="annotate-clear-all">
                 <RotateCcw className="w-3 h-3" /> Clear all

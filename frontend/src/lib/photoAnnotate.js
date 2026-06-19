@@ -196,6 +196,56 @@ export async function renderAnnotated(photoUrl, annot) {
     }
   }
 
+  // Iter 57e — Tagged windows: yellow circle + STYLE / W×H badge, drawn
+  // on top of zones so the contractor-confirmed window markers always
+  // win the visual fight against a brick mask that overlaps a window.
+  // STYLE_ABBR matches the PhotoAnnotateModal map exactly.
+  const STYLE_ABBR = {
+    "Double Hung": "DH", "Single Hung": "SH",
+    "Casement": "CA", "Twin Casement": "2CA",
+    "Awning": "AW", "Hopper": "HP",
+    "2-Lite Slider": "2SL", "3-Lite Slider": "3SL",
+    "Picture": "PIC",
+    "Twin Double Hung": "2DH", "Twin Single Hung": "2SH", "Triple Double Hung": "3DH",
+    "Bay Window": "BAY", "Bow Window": "BOW",
+    "Half-Round": "1/2", "Quarter-Round": "1/4",
+    "Arch": "ARC", "Octagon": "OCT", "Hexagon": "HEX",
+    "Garden Window": "GDN", "Other Shape": "OTH",
+  };
+  for (const win of annot?.windows || []) {
+    const r = Math.max(12, naturalW / 200);
+    ctx.fillStyle = "#FBBF24";
+    ctx.strokeStyle = "#92400E";
+    ctx.lineWidth = Math.max(2, naturalW / 700);
+    ctx.beginPath();
+    ctx.arc(win.x, win.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Badge to the right of the pin: STYLE abbreviation on top,
+    // W×H below in monospace.
+    const abbr = STYLE_ABBR[win.style] || "?";
+    const sizeLabel = `${Math.round(win.width_in)}×${Math.round(win.height_in)}`;
+    const fontPx = Math.max(20, naturalW / 60);
+    ctx.font = `bold ${fontPx}px sans-serif`;
+    const wMax = Math.max(
+      ctx.measureText(abbr).width,
+      ctx.measureText(sizeLabel).width,
+    );
+    const pad = fontPx * 0.35;
+    const bx = win.x + r + pad;
+    const by = win.y - fontPx;
+    const bw = wMax + pad * 2;
+    const bh = fontPx * 2 + pad * 3;
+    ctx.fillStyle = "#92400E";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(abbr, bx + pad, by + pad);
+    ctx.font = `${fontPx}px monospace`;
+    ctx.fillText(sizeLabel, bx + pad, by + fontPx + pad * 1.5);
+  }
+
   // Elevation badge — top-left corner.
   if (annot?.elevation && annot.elevation !== "detail") {
     const fontPx = Math.max(28, naturalW / 45);
@@ -241,6 +291,19 @@ export function describeAnnotations(entries) {
     const zoneBits = (e.zones || []).map((z) => `${ZONE_NAMES[z.category] || z.category}`);
     if (zoneBits.length) {
       parts.push(`Red hatched areas marked NO SIDING are NOT siding (${zoneBits.join(", ")}) — exclude from siding_pct_this_wall`);
+    }
+    if (e.windows && e.windows.length) {
+      // Iter 57e — pre-AI window tags are AUTHORITATIVE.
+      const winBits = e.windows.map((w) => `${w.style} ${Math.round(w.width_in)}"×${Math.round(w.height_in)}"`);
+      parts.push(
+        `YELLOW PINS with brown badges mark CONTRACTOR-TAGGED WINDOWS — ` +
+        `treat each as GROUND TRUTH for that exact window's style + size, ` +
+        `overriding whatever your photo-inference would have guessed. ` +
+        `Tagged: ${winBits.join("; ")}. ` +
+        `Each yellow pin = one window — include in your openings list ` +
+        `with the contractor's exact style + width_in + height_in, ` +
+        `style_confidence=100 (contractor-verified).`
+      );
     }
     if (parts.length) {
       lines.push(`Photo ${i + 1}: ${parts.join(". ")}.`);
