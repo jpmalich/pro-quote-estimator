@@ -83,6 +83,9 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // independently by emptying the field.
   const [brickCourse, setBrickCourse] = useState("");
   const [sidingExposure, setSidingExposure] = useState("");
+  // Iter 57h — popover state for the inline "📐 Calibrate window sizing"
+  // mini-panel that hangs next to the Run AI Measure button.
+  const [calibOpen, setCalibOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState(null); // {measurements, raw_ai}
@@ -1097,50 +1100,6 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                     </div>
                   </label>
 
-                  {/* Iter 57g — course-counting overrides. Optional —
-                      contractor can leave blank to use Claude's
-                      defaults. Filled in, Claude is told to size
-                      windows by counting brick courses / siding rows
-                      visible in the photo (way more accurate than
-                      eyeballing pixel ratios). */}
-                  <details className="text-xs mb-3" data-testid="ai-measure-course-sizing">
-                    <summary className="cursor-pointer text-[#7C3AED] font-bold uppercase tracking-wider text-[10px]">
-                      Course / row sizing (optional · improves window accuracy)
-                    </summary>
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <label className="block">
-                        <span className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Brick course (in)</span>
-                        <input
-                          type="number"
-                          step="0.25"
-                          min="0"
-                          className="input text-sm"
-                          placeholder="8.0 = standard"
-                          value={brickCourse}
-                          onChange={(e) => setBrickCourse(e.target.value)}
-                          data-testid="ai-measure-brick-course"
-                          title="Height of one brick + mortar joint. Standard is 8 in (3 bricks per 8 in = 1 course). Used by Claude to count courses between window sill and head."
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Siding exposure (in)</span>
-                        <input
-                          type="number"
-                          step="0.25"
-                          min="0"
-                          className="input text-sm"
-                          placeholder="D5=5, D6=6, CI=7"
-                          value={sidingExposure}
-                          onChange={(e) => setSidingExposure(e.target.value)}
-                          data-testid="ai-measure-siding-exposure"
-                          title="Visible height of one siding row. D5 lap = 5 in, D6 = 6 in, Cedar Impressions = 7 in. Claude counts rows between sill and head."
-                        />
-                      </label>
-                    </div>
-                    <div className="text-[10px] text-[#A1A1AA] mt-2 italic">
-                      Tip — fill these in if you see brick or siding in the photos. Backend snaps every window to nearest standard size after Claude runs, regardless.
-                    </div>
-                  </details>
                 </>
               )}
 
@@ -1673,9 +1632,81 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
               )}
             </div>
 
-            <div className="border-t border-[#E4E4E7] px-5 py-4 flex justify-between items-center">
-              <div className="text-[10px] text-[#A1A1AA]">
-                Powered by Claude Opus 4.5
+            <div className="border-t border-[#E4E4E7] px-5 py-4 flex justify-between items-center relative">
+              {/* Iter 57h — inline calibration popover. Hidden by default;
+                  pops up just above the Run button when the contractor
+                  hits the "Calibrate window sizing" link. Stays out of
+                  the way for the 80% of jobs that don't need it. */}
+              {calibOpen && (
+                <div
+                  className="absolute bottom-full right-5 mb-2 bg-white border border-[#7C3AED] shadow-xl p-3 min-w-[280px] z-10"
+                  data-testid="ai-measure-course-sizing"
+                  onMouseLeave={() => { /* keep open on hover-leave — user explicitly closes */ }}
+                >
+                  <div className="flex items-start justify-between mb-2 gap-2">
+                    <div className="text-[10px] uppercase tracking-wider text-[#7C3AED] font-bold leading-tight">
+                      Calibrate window sizing
+                      <div className="text-[9px] text-[#A1A1AA] font-normal mt-0.5">
+                        Tell Claude the brick course or siding row height. Optional — leave blank for defaults.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalibOpen(false)}
+                      className="text-[#A1A1AA] hover:text-[#09090B]"
+                      title="Close"
+                      data-testid="ai-measure-course-sizing-close"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Brick course (in)</span>
+                      <input
+                        type="number"
+                        step="0.25"
+                        min="0"
+                        className="input text-sm"
+                        placeholder="8 = standard"
+                        value={brickCourse}
+                        onChange={(e) => setBrickCourse(e.target.value)}
+                        data-testid="ai-measure-brick-course"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Siding exposure (in)</span>
+                      <input
+                        type="number"
+                        step="0.25"
+                        min="0"
+                        className="input text-sm"
+                        placeholder="D5=5, D6=6, CI=7"
+                        value={sidingExposure}
+                        onChange={(e) => setSidingExposure(e.target.value)}
+                        data-testid="ai-measure-siding-exposure"
+                      />
+                    </label>
+                  </div>
+                  <div className="text-[9px] text-[#A1A1AA] mt-2 italic">
+                    Backend snaps every window to nearest standard size after Claude runs, regardless.
+                  </div>
+                </div>
+              )}
+              <div className="text-[10px] text-[#A1A1AA] flex items-center gap-3">
+                <span>Powered by Claude Opus 4.5</span>
+                <button
+                  type="button"
+                  onClick={() => setCalibOpen((v) => !v)}
+                  className={`text-[10px] uppercase tracking-wider font-bold flex items-center gap-1 ${
+                    (brickCourse || sidingExposure) ? "text-[#7C3AED]" : "text-[#A1A1AA] hover:text-[#7C3AED]"
+                  }`}
+                  data-testid="ai-measure-course-sizing-toggle"
+                  title="Tell Claude the brick course or siding row height for sharper window measurements (optional)"
+                >
+                  <Ruler className="w-3 h-3" />
+                  {(brickCourse || sidingExposure) ? "Calibration on" : "Calibrate window sizing"}
+                </button>
               </div>
               <div className="flex gap-2">
                 <button
