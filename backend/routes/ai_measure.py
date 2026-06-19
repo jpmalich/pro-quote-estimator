@@ -78,7 +78,11 @@ Schema:
     // Use this to auto-tag elevations (saves the contractor from manually
     // labelling each thumb in the UI).
     {"index": number,                     // 0-based index matching the order the photos were attached
-     "elevation": "front" | "back" | "left" | "right" | "aerial" | "detail" | "other",
+     "elevation": "front" | "front-left" | "left" | "rear-left" | "back" | "rear-right" | "right" | "front-right" | "aerial" | "detail" | "other",
+     // 4 cardinals = a centered shot of that wall. 4 corners = a 45° corner
+     // shot showing TWO walls. Tag corners as their specific corner name
+     // (front-left, rear-left, etc.) so the contractor's photo grid
+     // shows distinct badges instead of "FRONT, FRONT, FRONT".
      "elevation_confidence": number,      // 0-100, how confident are you in the elevation tag
      "elevation_reasoning": "<1 short sentence — what told you which side this is>"
     }
@@ -327,12 +331,23 @@ CRITICAL accuracy rules (read every time):
 
 13. PHOTOS ARRAY — emit ONE entry in `photos[]` PER attached image, in
    the exact attachment order (photos[0] = first image you saw,
-   photos[1] = second, ...). For each, infer the elevation (front /
-   back / left / right / aerial / detail) so the frontend can auto-tag
-   thumbnails. The purple "ELEVATION" annotation badge — when present —
+   photos[1] = second, ...). For each, infer the elevation so the
+   frontend can auto-tag thumbnails. Use one of these 11 values:
+     • front / back / left / right — centered shot of ONE wall
+     • front-left / rear-left / rear-right / front-right — 45° CORNER
+       shot showing TWO walls. Pick the corner whose two walls are
+       both visible in the frame. A photo taken from the SE corner
+       looking NW shows front + right → "front-right".
+     • aerial — top-down satellite/drone
+     • detail — close-up of a single feature (window, dormer, corner
+       post). Use this for the "Scale ✓" reference shot.
+     • other — none of the above (rare).
+   The purple "ELEVATION" annotation badge — when present —
    is always authoritative; otherwise lean on entry-door cues (front),
    driveway+garage (front or side), backyard cues (back), and footprint
    geometry. `elevation_confidence` 0-100 mirrors your certainty.
+   Tag corner shots as their corner (not as one of the two walls) so
+   the contractor sees distinct badges in the photo grid.
 
 14. WINDOW STYLE / OPERATION (REQUIRED — emit `style` on EVERY window opening):
    For each `openings[]` row of type=window AND each `openings_schedule[]`

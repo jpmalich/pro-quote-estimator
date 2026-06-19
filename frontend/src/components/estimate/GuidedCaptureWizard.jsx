@@ -33,7 +33,7 @@ const STEPS = [
   },
   {
     key: "front-left",
-    elevation: "front",
+    elevation: "front-left",
     title: "Front-Left Corner",
     hint: "Step to the front-left corner. Frame the front wall AND the left wall at ~45°.",
     diagram: "🏠     ↙ YOU",
@@ -47,7 +47,7 @@ const STEPS = [
   },
   {
     key: "rear-left",
-    elevation: "left",
+    elevation: "rear-left",
     title: "Rear-Left Corner",
     hint: "Step to the rear-left corner. Frame the left wall AND the back wall at ~45°.",
     diagram: "↘ YOU\n🏠",
@@ -61,7 +61,7 @@ const STEPS = [
   },
   {
     key: "rear-right",
-    elevation: "right",
+    elevation: "rear-right",
     title: "Rear-Right Corner",
     hint: "Step to the rear-right corner. Frame the back wall AND the right wall at ~45°.",
     diagram: "    YOU ↙\n🏠",
@@ -75,7 +75,7 @@ const STEPS = [
   },
   {
     key: "front-right",
-    elevation: "front",
+    elevation: "front-right",
     title: "Front-Right Corner",
     hint: "Last one — step to the front-right corner. Frame the front wall AND the right wall at ~45°.",
     diagram: "🏠   ↘ YOU",

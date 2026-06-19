@@ -18,13 +18,17 @@ import GuidedCaptureWizard from "@/components/estimate/GuidedCaptureWizard";
 import { renderAnnotated, describeAnnotations } from "@/lib/photoAnnotate";
 
 const ELEVATION_OPTIONS = [
-  { key: "",       label: "Untagged" },
-  { key: "front",  label: "Front" },
-  { key: "back",   label: "Back" },
-  { key: "left",   label: "Left" },
-  { key: "right",  label: "Right" },
-  { key: "aerial", label: "Aerial (satellite)" },
-  { key: "detail", label: "Detail" },
+  { key: "",            label: "Untagged" },
+  { key: "front",       label: "Front" },
+  { key: "front-left",  label: "Front-Left corner" },
+  { key: "left",        label: "Left" },
+  { key: "rear-left",   label: "Rear-Left corner" },
+  { key: "back",        label: "Back" },
+  { key: "rear-right",  label: "Rear-Right corner" },
+  { key: "right",       label: "Right" },
+  { key: "front-right", label: "Front-Right corner" },
+  { key: "aerial",      label: "Aerial (satellite)" },
+  { key: "detail",      label: "Detail" },
 ];
 const annotEmpty = (a) =>
   !a || (!a.reference && (!a.zones || a.zones.length === 0) && (!a.elevation || a.elevation === "") && !a.targetPin);
