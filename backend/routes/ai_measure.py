@@ -105,7 +105,13 @@ Schema:
     {"type": "window" | "entry_door" | "patio_door" | "garage_door" | "vent" | "other",
      "style": "Double Hung" | "Single Hung" | "Casement" | "Twin Casement" | "Awning" | "Hopper" | "2-Lite Slider" | "3-Lite Slider" | "Picture" | "Twin Double Hung" | "Twin Single Hung" | "Triple Double Hung" | "Bay Window" | "Bow Window" | "Half-Round" | "Quarter-Round" | "Arch" | "Octagon" | "Hexagon" | "Garden Window" | "Other Shape" | "",
      "style_confidence": number,         // 0-100 — required when `style` is filled
-     "width_in": number, "height_in": number, "wall": "front"|"back"|"left"|"right"|"other"}
+     "width_in": number, "height_in": number, "wall": "front"|"back"|"left"|"right"|"other",
+     // Iter 57n — per-opening photo location. Helps us draw labeled
+     // arrows on the photo AND place each opening at its TRUE
+     // x-position on the 2D wall diagram instead of guessing.
+     "photo_idx": number,                // 0-based index of the photo this opening is visible in (matching the order you were given). If you can't pinpoint, omit.
+     "bbox": {"x": number, "y": number, "w": number, "h": number}  // normalized 0.0–1.0 bounding box of the opening on photo_idx. Origin top-left. Omit if you're not confident enough to draw the box.
+    }
   ],
   "openings_schedule": [
     // GROUPED roll-up of `openings` above — collapses duplicate sizes
@@ -117,7 +123,11 @@ Schema:
      "style": "Double Hung" | "Casement" | "Picture" | etc. | "",  // SAME set as `openings[].style` above
      "width_in": number, "height_in": number,
      "count": number,                     // how many of this size on this elevation
-     "size_label": "<e.g. '36\\"×60\\"' or 'Patio 72\\"×80\\"'>"
+     "size_label": "<e.g. '36\\"×60\\"' or 'Patio 72\\"×80\\"'>",
+     // Iter 57n — array of {photo_idx, bbox} entries — ONE per
+     // physical opening in this row. Length must equal `count` when
+     // you're confident. Omit individual entries you can't pinpoint.
+     "locations": [{"photo_idx": number, "bbox": {"x": number, "y": number, "w": number, "h": number}}]
     }
   ],
   "eaves_lf": number,          // sum of horizontal soffit/gutter run, linear feet

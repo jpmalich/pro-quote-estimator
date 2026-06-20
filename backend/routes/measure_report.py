@@ -188,6 +188,28 @@ def _wall_diagram_svg(wall: dict, openings_on_wall: list[dict]) -> str:
     #      its allotted slot.
     door_types = ("entry_door", "patio_door", "garage_door")
     gable_ops, door_ops, window_ops = [], [], []
+    # Iter 57n — when Claude returns a bbox + photo_idx per opening (via
+    # `locations: [{photo_idx, bbox: {x,y,w,h}}]` on each schedule row,
+    # OR `photo_idx` + `bbox` directly on `openings[]` rows), we can
+    # place each opening at its TRUE x-position on the wall diagram
+    # instead of guessing via the clustering algorithm. If no bbox is
+    # given, we fall back to the old centered-cluster layout.
+    def _bbox_center_x_norm(entry: dict) -> float | None:
+        """Return the normalized 0..1 x-center on the photo where this
+        opening lives, or None if Claude didn't give us a bbox."""
+        loc = entry.get("_location")
+        if not loc:
+            return None
+        bb = loc.get("bbox") or {}
+        try:
+            x = float(bb.get("x"))
+            w = float(bb.get("w") or 0)
+        except (TypeError, ValueError):
+            return None
+        if 0 <= x <= 1 and 0 <= x + w <= 1.001:
+            return max(0.0, min(1.0, x + w / 2))
+        return None
+
     for o in openings_on_wall:
         try:
             wi_in = float(o.get("width_in") or 0)
@@ -198,9 +220,14 @@ def _wall_diagram_svg(wall: dict, openings_on_wall: list[dict]) -> str:
             continue
         kind = (o.get("type") or "window").lower()
         cnt = max(1, int(o.get("count") or 1))
-        for _ in range(min(cnt, 12)):
+        # Pull locations (one per physical opening). When Claude
+        # short-changes us (locations list shorter than count), the
+        # missing ones get None → falls back to clustering for those.
+        locations = o.get("locations") or []
+        for i in range(min(cnt, 12)):
+            loc = locations[i] if i < len(locations) else None
             entry = {"type": kind, "w_ft": wi_in / 12.0, "h_ft": hi_in / 12.0,
-                     "w_in": wi_in, "h_in": hi_in}
+                     "w_in": wi_in, "h_in": hi_in, "_location": loc}
             if kind in door_types:
                 door_ops.append(entry)
             elif gable_ft > 0 and wi_in <= 48 and hi_in <= 42 and wi_in >= hi_in * 0.9:
@@ -216,68 +243,95 @@ def _wall_diagram_svg(wall: dict, openings_on_wall: list[dict]) -> str:
     stroke_door = "#78350F"
     gap_ft = 4.0 / 12.0  # 4-inch min gap between adjacent items
 
-    # --- Place doors as a centered cluster along the floor
+    # --- Place doors. When EVERY door has a bbox → use TRUE x-positions
+    # (sorted left-to-right by bbox center, with the door rectangle
+    # CENTERED on that pixel-derived x). When some don't, fall back to
+    # the clustered centering algorithm.
     door_x_centers: list[tuple[float, float]] = []  # (start_x, end_x) of placed doors
     if door_ops:
-        # Sort: garage doors first (biggest first to anchor), then patio, then entry
-        prio = {"garage_door": 0, "patio_door": 1, "entry_door": 2}
-        door_ops.sort(key=lambda d: (prio.get(d["type"], 9), -d["w_ft"]))
-        total_door_w = sum(d["w_ft"] for d in door_ops) + gap_ft * (len(door_ops) - 1)
-        # Center horizontally; clamp inside the wall
-        cluster_start = x0 + (width_ft - total_door_w) / 2
-        cluster_start = max(x0 + 0.2, min(x0 + width_ft - total_door_w - 0.2, cluster_start))
-        cursor = cluster_start
-        for d in door_ops:
-            ox = cursor
-            oy = y_floor - d["h_ft"]
-            parts.append(
-                f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{d["w_ft"]:.2f}" height="{d["h_ft"]:.2f}" '
-                f'fill="{fill_door}" fill-opacity="0.55" stroke="{stroke_door}" stroke-width="{stroke_thin:.3f}" />'
-            )
-            door_x_centers.append((ox, ox + d["w_ft"]))
-            cursor = ox + d["w_ft"] + gap_ft
+        doors_with_bbox = [d for d in door_ops if _bbox_center_x_norm(d) is not None]
+        if len(doors_with_bbox) == len(door_ops) and door_ops:
+            # All doors have bbox → place by bbox
+            sorted_doors = sorted(door_ops, key=lambda d: _bbox_center_x_norm(d))
+            for d in sorted_doors:
+                cx = x0 + width_ft * _bbox_center_x_norm(d)
+                ox = cx - d["w_ft"] / 2
+                ox = max(x0 + 0.1, min(x0 + width_ft - d["w_ft"] - 0.1, ox))
+                oy = y_floor - d["h_ft"]
+                parts.append(
+                    f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{d["w_ft"]:.2f}" height="{d["h_ft"]:.2f}" '
+                    f'fill="{fill_door}" fill-opacity="0.55" stroke="{stroke_door}" stroke-width="{stroke_thin:.3f}" />'
+                )
+                door_x_centers.append((ox, ox + d["w_ft"]))
+        else:
+            # Fallback: cluster sort + centered packing
+            prio = {"garage_door": 0, "patio_door": 1, "entry_door": 2}
+            door_ops.sort(key=lambda d: (prio.get(d["type"], 9), -d["w_ft"]))
+            total_door_w = sum(d["w_ft"] for d in door_ops) + gap_ft * (len(door_ops) - 1)
+            cluster_start = x0 + (width_ft - total_door_w) / 2
+            cluster_start = max(x0 + 0.2, min(x0 + width_ft - total_door_w - 0.2, cluster_start))
+            cursor = cluster_start
+            for d in door_ops:
+                ox = cursor
+                oy = y_floor - d["h_ft"]
+                parts.append(
+                    f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{d["w_ft"]:.2f}" height="{d["h_ft"]:.2f}" '
+                    f'fill="{fill_door}" fill-opacity="0.55" stroke="{stroke_door}" stroke-width="{stroke_thin:.3f}" />'
+                )
+                door_x_centers.append((ox, ox + d["w_ft"]))
+                cursor = ox + d["w_ft"] + gap_ft
 
-    # --- Place wall windows in the free space (NOT on top of doors)
+    # --- Place wall windows. Same pattern: TRUE x when every window has
+    # a bbox, otherwise free-range distribution.
     if window_ops:
-        # Build the list of "free" x ranges along the wall = wall span
-        # minus the door clusters (with a small buffer).
-        free_ranges: list[tuple[float, float]] = []
-        cursor = x0 + 0.3
-        for ds, de in sorted(door_x_centers):
-            if ds - cursor > 1.0:  # at least 1 ft of free space worth using
-                free_ranges.append((cursor, ds - 0.3))
-            cursor = max(cursor, de + 0.3)
-        if x0 + width_ft - 0.3 - cursor > 1.0:
-            free_ranges.append((cursor, x0 + width_ft - 0.3))
-        if not free_ranges:
-            free_ranges = [(x0 + 0.3, x0 + width_ft - 0.3)]
-        # Distribute windows across the free ranges by their total length
-        total_free = sum(end - start for start, end in free_ranges) or width_ft
-        wins_per_range = []
-        remaining = list(window_ops)
-        for start, end in free_ranges:
-            share = (end - start) / total_free
-            cnt = max(0, round(len(window_ops) * share))
-            wins_per_range.append([remaining.pop(0) for _ in range(min(cnt, len(remaining)))])
-        # Anything left over (rounding): dump into the largest range
-        if remaining:
-            biggest = max(range(len(free_ranges)), key=lambda i: free_ranges[i][1] - free_ranges[i][0])
-            wins_per_range[biggest].extend(remaining)
-        for (start, end), wins in zip(free_ranges, wins_per_range):
-            if not wins:
-                continue
-            span = end - start
-            slot = span / (len(wins) + 1)
-            for i, w in enumerate(wins):
-                ox = start + slot * (i + 1) - w["w_ft"] / 2
-                ox = max(start, min(end - w["w_ft"], ox))
-                # Window sill at ~38% of wall height from floor (typical)
+        wins_with_bbox = [w for w in window_ops if _bbox_center_x_norm(w) is not None]
+        if len(wins_with_bbox) == len(window_ops) and window_ops:
+            for w in sorted(window_ops, key=lambda x: _bbox_center_x_norm(x)):
+                cx = x0 + width_ft * _bbox_center_x_norm(w)
+                ox = cx - w["w_ft"] / 2
+                ox = max(x0 + 0.1, min(x0 + width_ft - w["w_ft"] - 0.1, ox))
                 oy = y_eave + eave_ft * 0.55 - w["h_ft"] / 2
                 oy = max(y_eave + 0.1, min(y_floor - w["h_ft"] - 0.05, oy))
                 parts.append(
                     f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{w["w_ft"]:.2f}" height="{w["h_ft"]:.2f}" '
                     f'fill="{fill_window}" fill-opacity="0.55" stroke="{stroke_window}" stroke-width="{stroke_thin:.3f}" />'
                 )
+        else:
+            # Fallback: distribute across free ranges (not on top of doors)
+            free_ranges: list[tuple[float, float]] = []
+            cursor = x0 + 0.3
+            for ds, de in sorted(door_x_centers):
+                if ds - cursor > 1.0:
+                    free_ranges.append((cursor, ds - 0.3))
+                cursor = max(cursor, de + 0.3)
+            if x0 + width_ft - 0.3 - cursor > 1.0:
+                free_ranges.append((cursor, x0 + width_ft - 0.3))
+            if not free_ranges:
+                free_ranges = [(x0 + 0.3, x0 + width_ft - 0.3)]
+            total_free = sum(end - start for start, end in free_ranges) or width_ft
+            wins_per_range: list[list[dict]] = []
+            remaining = list(window_ops)
+            for start, end in free_ranges:
+                share = (end - start) / total_free
+                cnt = max(0, round(len(window_ops) * share))
+                wins_per_range.append([remaining.pop(0) for _ in range(min(cnt, len(remaining)))])
+            if remaining:
+                biggest = max(range(len(free_ranges)), key=lambda i: free_ranges[i][1] - free_ranges[i][0])
+                wins_per_range[biggest].extend(remaining)
+            for (start, end), wins in zip(free_ranges, wins_per_range):
+                if not wins:
+                    continue
+                span = end - start
+                slot = span / (len(wins) + 1)
+                for i, w in enumerate(wins):
+                    ox = start + slot * (i + 1) - w["w_ft"] / 2
+                    ox = max(start, min(end - w["w_ft"], ox))
+                    oy = y_eave + eave_ft * 0.55 - w["h_ft"] / 2
+                    oy = max(y_eave + 0.1, min(y_floor - w["h_ft"] - 0.05, oy))
+                    parts.append(
+                        f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{w["w_ft"]:.2f}" height="{w["h_ft"]:.2f}" '
+                        f'fill="{fill_window}" fill-opacity="0.55" stroke="{stroke_window}" stroke-width="{stroke_thin:.3f}" />'
+                    )
 
     # --- Place gable-end windows inside the triangle
     if gable_ops and gable_ft > 0:
@@ -646,6 +700,93 @@ def _build_html(
     sched_html = "".join(grouped_blocks) or '<div style="padding:12px;text-align:center;color:#A1A1AA;font-size:11px;">No openings detected</div>'
 
     # --- photo strip -----------------------------------------------------
+    # Iter 57n — when Claude returns per-opening bboxes via
+    # `openings_schedule[].locations`, overlay labeled callouts on each
+    # photo pointing at every opening visible in it. Mimics HOVER's
+    # "labels stamped on the house" look.
+    def _build_photo_overlays(photo_idx: int) -> str:
+        callouts = []
+        seen_keys: set[tuple[float, float, float, float]] = set()  # dedupe
+        for row in (openings_schedule or []):
+            for loc in (row.get("locations") or []):
+                if int(loc.get("photo_idx", -1)) != photo_idx:
+                    continue
+                bb = loc.get("bbox") or {}
+                try:
+                    bx = float(bb.get("x"))
+                    by = float(bb.get("y"))
+                    bw = float(bb.get("w") or 0)
+                    bh = float(bb.get("h") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not (0 <= bx <= 1 and 0 <= by <= 1 and 0 < bw <= 1 and 0 < bh <= 1):
+                    continue
+                key = (round(bx, 3), round(by, 3), round(bw, 3), round(bh, 3))
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                # Build label — short, type-aware
+                t = (row.get("type") or "window").lower()
+                wi = float(row.get("width_in") or 0)
+                hi = float(row.get("height_in") or 0)
+                style = (row.get("style") or "").strip()
+                if t == "garage_door":
+                    label = f'{int(wi)}×{int(hi)} Garage'
+                elif t == "entry_door":
+                    label = f'{int(wi)}×{int(hi)} Entry'
+                elif t == "patio_door":
+                    label = f'{int(wi)}×{int(hi)} Patio'
+                else:
+                    short = ""
+                    if "Double Hung" in style or "Twin Double" in style:
+                        short = "DH"
+                    elif "Single Hung" in style:
+                        short = "SH"
+                    elif "Casement" in style:
+                        short = "CS"
+                    elif "Slider" in style:
+                        short = "SL"
+                    elif "Picture" in style:
+                        short = "PIC"
+                    elif "Awning" in style:
+                        short = "AW"
+                    elif "Hopper" in style:
+                        short = "HP"
+                    label = f'{int(wi)}×{int(hi)}'
+                    if short:
+                        label = f'{short} {label}'
+                # Position the label above the bbox when there's room, else inside
+                label_y = by - 0.025 if by > 0.07 else by + 0.005
+                # Anchor label to the center of the box width
+                lcx = bx + bw / 2
+                # Use a yellow bbox rect (high contrast on any background)
+                stroke = "#FACC15"
+                lbl_fs = 3.0  # font-size in viewBox % units
+                # Estimate width of the label background — chars × 0.45 viewBox-%
+                bg_w = min(0.98 - lcx + 0.5, max(0.10, len(label) * lbl_fs * 0.0048))
+                bg_x = max(0.005, min(1 - bg_w - 0.005, lcx - bg_w / 2))
+                callouts.append(
+                    # bbox rectangle
+                    f'<rect x="{bx*100:.2f}" y="{by*100:.2f}" width="{bw*100:.2f}" height="{bh*100:.2f}" '
+                    f'fill="none" stroke="{stroke}" stroke-width="0.6" />'
+                    # label background
+                    f'<rect x="{bg_x*100:.2f}" y="{label_y*100:.2f}" width="{bg_w*100:.2f}" height="{lbl_fs+0.6:.2f}" '
+                    f'fill="#09090B" />'
+                    # label text
+                    f'<text x="{(bg_x+bg_w/2)*100:.2f}" y="{(label_y)*100+lbl_fs*0.85:.2f}" '
+                    f'text-anchor="middle" font-size="{lbl_fs}" font-weight="700" fill="#FACC15">'
+                    f'{label}</text>'
+                )
+        if not callouts:
+            return ""
+        return (
+            '<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
+            'style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;" '
+            'xmlns="http://www.w3.org/2000/svg">'
+            + "".join(callouts) +
+            "</svg>"
+        )
+
     photo_cells = []
     for i, fname in enumerate(photo_urls or []):
         data_uri = _img_to_data_uri(fname)
@@ -662,10 +803,12 @@ def _build_html(
                 f'background:{chip_bg};color:#FFF;font-size:9px;font-weight:700;'
                 f'padding:2px 6px;letter-spacing:0.5px;">{ec}%</div>'
             )
+        overlays = _build_photo_overlays(i)
         photo_cells.append(
             f'<div style="width:48%;display:inline-block;vertical-align:top;margin:0 1% 12px 1%;">'
             f'<div style="position:relative;">'
             f'<img src="{data_uri}" style="width:100%;height:auto;display:block;border:1px solid #E4E4E7;" />'
+            f'{overlays}'
             f'<div style="position:absolute;top:4px;left:4px;background:#7C3AED;color:#FFF;font-size:9px;font-weight:700;padding:2px 6px;letter-spacing:0.5px;">{elev}</div>'
             f"{ec_chip}"
             f"</div></div>"
