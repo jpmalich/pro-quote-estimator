@@ -75,6 +75,355 @@ def _img_to_data_uri(filename: str) -> str | None:
     return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
+# =====================================================================
+# Iter 57m — HOVER-style per-elevation wall diagrams + measurement cards
+# =====================================================================
+# Howard asked: "how do we get the measurements on the house in the pdf
+# like hover give me some ideas". Picked options #1 (2D wall diagrams)
+# + #2 (per-wall measurement cards). Both are pure SVG/HTML — no extra
+# AI calls — and stack as two extra pages between the per-wall table
+# and the photo strip in the existing report.
+def _ft_in_label(ft_value: float) -> str:
+    """Format a decimal-feet value as feet+inches, e.g. 32.5 -> 32' 6\""""
+    if ft_value is None or ft_value <= 0:
+        return "—"
+    ft = int(ft_value)
+    inches = round((ft_value - ft) * 12)
+    if inches == 12:
+        ft += 1
+        inches = 0
+    if inches == 0:
+        return f"{ft}\u2032"
+    return f"{ft}\u2032 {inches}\u2033"
+
+
+def _wall_label_color(label: str) -> tuple[str, str]:
+    """Return (accent, soft) hex pair matching the openings-schedule colors."""
+    ELEV_COLORS = {
+        "front": ("#3B82F6", "#EFF6FF"),
+        "back":  ("#16A34A", "#F0FDF4"),
+        "left":  ("#EA580C", "#FFF7ED"),
+        "right": ("#7C3AED", "#FAF5FF"),
+        "other": ("#52525B", "#FAFAFA"),
+    }
+    return ELEV_COLORS.get((label or "other").lower(), ELEV_COLORS["other"])
+
+
+def _net_siding_sqft(wall: dict) -> float:
+    width = float(wall.get("width_ft") or 0)
+    eave = float(wall.get("height_ft") or 0)
+    gable = float(wall.get("gable_triangle_height_ft") or 0)
+    dormer = float(wall.get("dormer_face_sqft") or 0)
+    pct = float(wall.get("siding_pct_this_wall") or 100)
+    if 0 < pct < 1:
+        pct = pct * 100
+    pct = max(0, min(100, pct))
+    return (width * eave) * (pct / 100.0) + 0.5 * width * gable + dormer
+
+
+def _wall_diagram_svg(wall: dict, openings_on_wall: list[dict]) -> str:
+    """Render an SVG 2D elevation diagram for one wall with measurements
+    labeled around it. Windows/doors are laid out proportionally inside
+    the wall rectangle, evenly spaced (Claude doesn't return X-coords
+    per opening so we distribute them — good enough for an at-a-glance
+    diagram and far closer to HOVER's look than a bare table)."""
+    width_ft = max(0.1, float(wall.get("width_ft") or 0))
+    eave_ft = max(0.1, float(wall.get("height_ft") or 0))
+    gable_ft = float(wall.get("gable_triangle_height_ft") or 0)
+    if gable_ft < 0:
+        gable_ft = 0
+    total_h_ft = eave_ft + gable_ft
+
+    # ViewBox padding for labels around the wall
+    pad = max(width_ft * 0.20, total_h_ft * 0.18, 4)
+    vb_w = width_ft + pad * 2
+    vb_h = total_h_ft + pad * 1.8
+
+    x0 = pad
+    y_top_gable = pad * 0.6           # top of gable triangle
+    y_eave = y_top_gable + gable_ft   # eave line — top of wall rect
+    y_floor = y_eave + eave_ft
+
+    stroke_main = max(vb_w * 0.004, 0.06)
+    stroke_thin = max(vb_w * 0.002, 0.03)
+    label_fs = vb_w * 0.045
+
+    parts = [
+        f'<svg viewBox="0 0 {vb_w:.2f} {vb_h:.2f}" xmlns="http://www.w3.org/2000/svg" '
+        f'style="width:100%;height:auto;display:block;background:#FAFAFA;font-family:-apple-system,Arial,sans-serif;">'
+    ]
+
+    # Gable triangle (if any)
+    if gable_ft > 0:
+        parts.append(
+            f'<polygon points="{x0:.2f},{y_eave:.2f} {x0+width_ft/2:.2f},{y_top_gable:.2f} {x0+width_ft:.2f},{y_eave:.2f}" '
+            f'fill="#F4F4F5" stroke="#27272A" stroke-width="{stroke_main:.3f}" />'
+        )
+        # Gable height label inside the triangle
+        parts.append(
+            f'<text x="{x0+width_ft/2:.2f}" y="{(y_top_gable+y_eave)/2 + label_fs*0.3:.2f}" '
+            f'text-anchor="middle" font-size="{label_fs*0.6:.2f}" font-weight="600" fill="#7C3AED">'
+            f'gable {_ft_in_label(gable_ft)}</text>'
+        )
+
+    # Wall rectangle
+    parts.append(
+        f'<rect x="{x0:.2f}" y="{y_eave:.2f}" width="{width_ft:.2f}" height="{eave_ft:.2f}" '
+        f'fill="#FFFFFF" stroke="#09090B" stroke-width="{stroke_main:.3f}" />'
+    )
+
+    # Openings (windows + doors): explode counts, lay out evenly along the wall
+    placed = []
+    for o in openings_on_wall:
+        try:
+            wi_in = float(o.get("width_in") or 0)
+            hi_in = float(o.get("height_in") or 0)
+        except (TypeError, ValueError):
+            continue
+        if wi_in <= 0 or hi_in <= 0:
+            continue
+        cnt = max(1, int(o.get("count") or 1))
+        for _ in range(min(cnt, 12)):  # cap visualization
+            placed.append({
+                "type": (o.get("type") or "window").lower(),
+                "w_ft": wi_in / 12.0,
+                "h_ft": hi_in / 12.0,
+            })
+
+    n = len(placed)
+    if n > 0:
+        slot_w = width_ft / (n + 1)
+        for idx, op in enumerate(placed):
+            ox = x0 + slot_w * (idx + 1) - op["w_ft"] / 2
+            if op["type"] in ("entry_door", "patio_door", "garage_door"):
+                oy = y_floor - op["h_ft"]      # sit on the floor
+                fill = "#B45309"
+                stroke = "#78350F"
+            else:
+                # Window sill at ~38% of wall height from floor (typical)
+                oy = y_eave + eave_ft * 0.55 - op["h_ft"] / 2
+                fill = "#3B82F6"
+                stroke = "#1E40AF"
+            # Clamp inside wall
+            ox = max(x0 + 0.1, min(x0 + width_ft - op["w_ft"] - 0.1, ox))
+            oy = max(y_eave + 0.1, min(y_floor - op["h_ft"] - 0.05, oy))
+            parts.append(
+                f'<rect x="{ox:.2f}" y="{oy:.2f}" width="{op["w_ft"]:.2f}" height="{op["h_ft"]:.2f}" '
+                f'fill="{fill}" fill-opacity="0.55" stroke="{stroke}" stroke-width="{stroke_thin:.3f}" />'
+            )
+
+    # Width label (top) with leader-line arrows
+    parts.append(
+        f'<line x1="{x0:.2f}" y1="{pad*0.30:.2f}" x2="{x0+width_ft:.2f}" y2="{pad*0.30:.2f}" '
+        f'stroke="#52525B" stroke-width="{stroke_thin:.3f}" />'
+        f'<line x1="{x0:.2f}" y1="{pad*0.20:.2f}" x2="{x0:.2f}" y2="{pad*0.40:.2f}" stroke="#52525B" stroke-width="{stroke_thin:.3f}" />'
+        f'<line x1="{x0+width_ft:.2f}" y1="{pad*0.20:.2f}" x2="{x0+width_ft:.2f}" y2="{pad*0.40:.2f}" stroke="#52525B" stroke-width="{stroke_thin:.3f}" />'
+        f'<rect x="{x0+width_ft/2 - vb_w*0.08:.2f}" y="{pad*0.05:.2f}" width="{vb_w*0.16:.2f}" height="{label_fs*1.3:.2f}" fill="#FAFAFA" />'
+        f'<text x="{x0+width_ft/2:.2f}" y="{pad*0.05 + label_fs:.2f}" '
+        f'text-anchor="middle" font-size="{label_fs:.2f}" font-weight="800" fill="#09090B">'
+        f'{_ft_in_label(width_ft)}</text>'
+    )
+
+    # Eave height label (right side, rotated)
+    h_label_x = x0 + width_ft + pad * 0.5
+    h_label_y = (y_eave + y_floor) / 2
+    parts.append(
+        f'<line x1="{x0+width_ft+pad*0.15:.2f}" y1="{y_eave:.2f}" x2="{x0+width_ft+pad*0.15:.2f}" y2="{y_floor:.2f}" '
+        f'stroke="#52525B" stroke-width="{stroke_thin:.3f}" />'
+        f'<text x="{h_label_x:.2f}" y="{h_label_y:.2f}" '
+        f'text-anchor="middle" font-size="{label_fs:.2f}" font-weight="800" fill="#09090B" '
+        f'transform="rotate(90 {h_label_x:.2f} {h_label_y:.2f})">'
+        f'{_ft_in_label(eave_ft)}</text>'
+    )
+
+    parts.append('</svg>')
+    return "".join(parts)
+
+
+def _build_wall_diagrams_section(walls: list[dict], openings_schedule: list[dict]) -> str:
+    """Render the per-elevation 2D wall-diagram page. Each wall gets a
+    panel with the SVG diagram + a tight summary footer."""
+    if not walls:
+        return ""
+    # Group openings by wall label for fast lookup
+    ops_by_wall: dict[str, list[dict]] = {}
+    for o in openings_schedule or []:
+        elev = (o.get("elevation") or "other").lower()
+        ops_by_wall.setdefault(elev, []).append(o)
+
+    panels = []
+    for w in walls:
+        label = (w.get("label") or "other").lower()
+        accent, soft = _wall_label_color(label)
+        width_ft = float(w.get("width_ft") or 0)
+        eave_ft = float(w.get("height_ft") or 0)
+        net = _net_siding_sqft(w)
+        conf = float(w.get("confidence") or 0)
+        chip_bg, chip_label = _conf_chip_color(conf)
+        if width_ft <= 0 and eave_ft <= 0:
+            continue
+        diagram = _wall_diagram_svg(w, ops_by_wall.get(label, []))
+        ops_count = sum(int(o.get("count") or 1) for o in ops_by_wall.get(label, []))
+        dormer_sf = float(w.get("dormer_face_sqft") or 0)
+        gable_ft = float(w.get("gable_triangle_height_ft") or 0)
+        meta_bits = [f'{_ft_in_label(width_ft)} wide', f'{_ft_in_label(eave_ft)} eave']
+        if gable_ft > 0:
+            meta_bits.append(f'gable {_ft_in_label(gable_ft)}')
+        if dormer_sf > 0:
+            meta_bits.append(f'dormer {dormer_sf:.0f} ft\u00b2')
+        meta_bits.append(f'{ops_count} opening{"s" if ops_count != 1 else ""}')
+        meta_joined = " \u00b7 ".join(meta_bits)
+        panels.append(
+            f'<div style="width:48%;display:inline-block;vertical-align:top;margin:0 1% 14px 1%;border:1px solid #E4E4E7;background:#FFFFFF;">'
+            f'<div style="background:{soft};border-left:4px solid {accent};padding:6px 10px;display:flex;justify-content:space-between;align-items:center;">'
+            f'<span style="background:{accent};color:#FFF;font-size:10px;font-weight:800;letter-spacing:1.5px;padding:3px 10px;text-transform:uppercase;">{label}</span>'
+            f'<span style="background:{chip_bg};color:#FFF;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 6px;">{chip_label} {int(conf)}</span>'
+            f'</div>'
+            f'<div style="padding:8px;">{diagram}</div>'
+            f'<div style="padding:6px 10px;border-top:1px solid #F4F4F5;display:flex;justify-content:space-between;align-items:center;font-size:10px;">'
+            f'<span style="color:#71717A;">{meta_joined}</span>'
+            f'<span style="font-family:Menlo,Consolas,monospace;font-weight:800;color:#09090B;">{net:.0f} ft\u00b2</span>'
+            f'</div>'
+            f'</div>'
+        )
+    if not panels:
+        return ""
+    return (
+        '<div style="page-break-before:always;">'
+        '<h2>Per-elevation diagrams</h2>'
+        '<div style="font-size:10px;color:#71717A;margin-bottom:8px;">'
+        'Each wall drawn to scale with windows + doors placed proportionally. Net siding ft\u00b2 includes gable + dormer adds and subtracts brick/stone zones.'
+        '</div>'
+        + "".join(panels) +
+        '</div>'
+    )
+
+
+def _build_wall_cards_section(
+    walls: list[dict],
+    photo_meta: list[dict],
+    photo_urls: list[str],
+    openings_schedule: list[dict],
+) -> str:
+    """Render the per-wall measurement cards page: 4-up grid where each
+    card pairs the wall's matched photo with a tight measurement table."""
+    if not walls:
+        return ""
+    # Map elevation → photo filename (first photo per elevation wins)
+    elev_to_photo: dict[str, str] = {}
+    for i, fname in enumerate(photo_urls or []):
+        meta = next((p for p in (photo_meta or []) if int(p.get("index", -1)) == i), {})
+        elev = (meta.get("elevation") or "").lower()
+        if elev and elev not in elev_to_photo:
+            elev_to_photo[elev] = fname
+
+    # Tally openings per wall
+    ops_by_wall: dict[str, dict] = {}
+    for o in openings_schedule or []:
+        elev = (o.get("elevation") or "other").lower()
+        bucket = ops_by_wall.setdefault(elev, {"window": 0, "entry_door": 0, "patio_door": 0, "garage_door": 0})
+        t = (o.get("type") or "").lower()
+        if t in bucket:
+            bucket[t] += int(o.get("count") or 1)
+
+    cards = []
+    for w in walls:
+        label = (w.get("label") or "other").lower()
+        accent, soft = _wall_label_color(label)
+        width_ft = float(w.get("width_ft") or 0)
+        eave_ft = float(w.get("height_ft") or 0)
+        gable_ft = float(w.get("gable_triangle_height_ft") or 0)
+        dormer_sf = float(w.get("dormer_face_sqft") or 0)
+        pct = float(w.get("siding_pct_this_wall") or 100)
+        if 0 < pct < 1:
+            pct = pct * 100
+        pct = max(0, min(100, pct))
+        net = _net_siding_sqft(w)
+        gross = width_ft * eave_ft
+        conf = float(w.get("confidence") or 0)
+        chip_bg, chip_label = _conf_chip_color(conf)
+        ops = ops_by_wall.get(label, {})
+        window_count = ops.get("window", 0)
+        door_count = ops.get("entry_door", 0) + ops.get("patio_door", 0) + ops.get("garage_door", 0)
+        if width_ft <= 0 and eave_ft <= 0:
+            continue
+
+        # Photo inset (optional)
+        photo_html = (
+            '<div style="width:42%;background:#F4F4F5;display:flex;align-items:center;'
+            'justify-content:center;color:#A1A1AA;font-size:9px;">No photo</div>'
+        )
+        photo_fname = elev_to_photo.get(label)
+        if photo_fname:
+            data_uri = _img_to_data_uri(photo_fname)
+            if data_uri:
+                photo_html = (
+                    f'<div style="width:42%;position:relative;">'
+                    f'<img src="{data_uri}" style="width:100%;height:100%;object-fit:cover;display:block;" />'
+                    f'<div style="position:absolute;top:4px;left:4px;background:{accent};color:#FFF;'
+                    f'font-size:8px;font-weight:800;letter-spacing:1px;padding:2px 6px;">{label.upper()}</div>'
+                    f'</div>'
+                )
+
+        # Measurement rows
+        rows = [
+            ("Width", _ft_in_label(width_ft)),
+            ("Eave height", _ft_in_label(eave_ft)),
+        ]
+        if gable_ft > 0:
+            rows.append(("Gable", f'{_ft_in_label(gable_ft)} \u00b7 {0.5*width_ft*gable_ft:.0f} ft\u00b2'))
+        if dormer_sf > 0:
+            rows.append(("Dormer face", f'{dormer_sf:.0f} ft\u00b2'))
+        rows.append(("Gross wall", f'{gross:.0f} ft\u00b2'))
+        if pct < 100:
+            rows.append(("Siding coverage", f'{pct:.0f}%'))
+        if window_count:
+            rows.append(("Windows", f'\u00d7{window_count}'))
+        if door_count:
+            rows.append(("Doors", f'\u00d7{door_count}'))
+
+        rows_html = "".join(
+            f'<tr><td style="padding:3px 8px;font-size:9px;color:#71717A;text-transform:uppercase;letter-spacing:0.5px;">{k}</td>'
+            f'<td style="padding:3px 8px;font-family:Menlo,Consolas,monospace;font-size:10px;font-weight:700;text-align:right;">{v}</td></tr>'
+            for k, v in rows
+        )
+        reason = (w.get("confidence_reasoning") or "").strip()
+        reason_html = (
+            f'<div style="padding:4px 8px;font-size:8px;color:#71717A;font-style:italic;border-top:1px dashed #E4E4E7;line-height:1.3;">'
+            f'{reason[:140]}</div>'
+        ) if reason else ""
+
+        cards.append(
+            f'<div style="width:48%;display:inline-block;vertical-align:top;margin:0 1% 12px 1%;'
+            f'border:2px solid {accent};background:#FFFFFF;height:200px;overflow:hidden;">'
+            f'<div style="display:flex;height:100%;">'
+            + photo_html +
+            f'<div style="width:58%;display:flex;flex-direction:column;">'
+            f'<div style="background:{soft};border-bottom:1px solid {accent};padding:5px 8px;display:flex;justify-content:space-between;align-items:center;">'
+            f'<span style="font-size:10px;font-weight:800;color:{accent};text-transform:uppercase;letter-spacing:1.5px;">{label}</span>'
+            f'<span style="background:{chip_bg};color:#FFF;font-size:8px;font-weight:700;padding:2px 5px;letter-spacing:0.5px;">{chip_label} {int(conf)}</span>'
+            f'</div>'
+            f'<table style="width:100%;border-collapse:collapse;">{rows_html}</table>'
+            f'<div style="margin-top:auto;background:#09090B;color:#FFF;padding:5px 8px;display:flex;justify-content:space-between;align-items:center;">'
+            f'<span style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:#FAFAFA;">Net siding</span>'
+            f'<span style="font-family:Menlo,Consolas,monospace;font-weight:800;font-size:13px;">{net:.0f} ft\u00b2</span>'
+            f'</div>'
+            + reason_html +
+            '</div></div></div>'
+        )
+    if not cards:
+        return ""
+    return (
+        '<div style="page-break-before:always;">'
+        '<h2>Per-wall summary cards</h2>'
+        '<div style="font-size:10px;color:#71717A;margin-bottom:8px;">'
+        'Photo + measurements + confidence at-a-glance, one card per elevation. Border color = elevation. Footer ribbon = net siding ft\u00b2 after gable + dormer adds.'
+        '</div>'
+        + "".join(cards) +
+        '</div>'
+    )
+
+
 def _build_html(
     *,
     address: str,
@@ -248,6 +597,12 @@ def _build_html(
             f"add photos to capture them: {', '.join(missing_elevations)}.</div>"
         )
 
+    # Iter 57m — per-elevation 2D diagrams + per-wall cards (HOVER-style)
+    wall_diagrams_html = _build_wall_diagrams_section(walls, openings_schedule or [])
+    wall_cards_html = _build_wall_cards_section(
+        walls, photo_meta or [], photo_urls or [], openings_schedule or [],
+    )
+
     return f"""
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"/>
@@ -289,6 +644,10 @@ def _build_html(
     </tr></thead>
     <tbody>{wall_table_html}</tbody>
   </table>
+
+  {wall_diagrams_html}
+
+  {wall_cards_html}
 
   <h2>Openings schedule</h2>
   <div>{sched_html}</div>
