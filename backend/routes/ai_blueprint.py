@@ -555,13 +555,20 @@ async def ai_blueprint_latest_for_estimate(
     )
     if not doc:
         return {"run": None}
-    created = doc.get("created_at")
-    completed = doc.get("completed_at") or doc.get("updated_at")
+    # Iter 57x — same offset-aware safety fix that ai_measure has.
+    # Mongo returns naive datetimes by default which breaks the
+    # subtraction against `datetime.now(timezone.utc)`.
+    def _as_aware_utc(dt):
+        if not isinstance(dt, datetime):
+            return None
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    created = _as_aware_utc(doc.get("created_at"))
+    completed = _as_aware_utc(doc.get("completed_at") or doc.get("updated_at"))
     now = datetime.now(timezone.utc)
     elapsed_ms = None
     age_seconds = None
-    if isinstance(created, datetime):
-        ref = completed if isinstance(completed, datetime) else now
+    if created is not None:
+        ref = completed if completed is not None else now
         elapsed_ms = int((ref - created).total_seconds() * 1000)
         age_seconds = int((now - created).total_seconds())
     return {

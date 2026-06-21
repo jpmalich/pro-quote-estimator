@@ -468,3 +468,13 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
     - Verified: Howard's last blueprint run (4 walls 74+74+50+50, gables on front+back) recomputes from 248 → 100 LF; downspouts drop from 9×10=90 LF → 4×10=40 LF coil. Unit tests pass for both gable + hip cases.
 
     - **Files**: `backend/routes/ai_blueprint.py` (system prompt + defensive eaves recompute), `backend/routes/hover.py` (added 2 ISS-tab rules to `HOVER_MAPPING_SPEC`), `frontend/src/components/estimate/ISSHoverImportButton.jsx` (`buildISSLinesFromMeasurements` now pushes Downspout).
+
+  - **Iter 57x — Balcer PDF "won't read" → Cloudflare 502 on slow upload + Restore banner (2026-06-20)**: Howard uploaded an 8 MB / 12-page D-size architectural PDF (Balcer Residence) and saw "Blueprint read failed". Reproduced exactly with curl: upload takes ~60 s for the 7.5 MB body, Cloudflare hits the ingress timeout and returns **HTTP 502** to the client — BUT the backend has already received the body, started the worker, and the worker completes. The frontend never sees the `run_id` so polling can't recover the orphaned result. Fixes:
+    1. **Backend `routes/ai_blueprint.py`** — fixed the offset-aware datetime bug in `ai_blueprint_latest_for_estimate` (same fix as Iter 57r for AI Measure).
+    2. **Frontend `BlueprintMeasureButton.jsx`** — three fixes:
+       - **Restore banner**: on mount + after any upload, the modal calls `GET /measure/ai-blueprint/latest-for-estimate/{est.id}` and surfaces a yellow "Previous read available — click to restore" banner when a recent (< 30 min) run exists. Tap **Restore** → loads the preview (`status=done`), resumes polling (`status=running`), or shows the error toast (`status=error`). Dismiss hides it for the session.
+       - **Axios upload timeout 60 s → 180 s** so most slow connections finish before axios bails. The 502 still happens at the Cloudflare layer in the worst case but the Restore banner is the safety net.
+       - **estimate_id appended to the upload FormData** so the backend tags each run record (previously never sent — orphaned runs couldn't be looked up by the user).
+       - **Better error toast**: detects timeout/502/network/aborted and tells the user "your read may still be processing — check the Restore banner in a moment".
+    - Verified: backend successfully reads the Balcer PDF — 12 pages, eaves_lf=112 (correctly excludes the two gable ends after Iter 57w), 20 windows, 3 garage doors, 3 patio doors, 27 openings, 66 lines. ISS Apply produces 10 lines including Downspout 40 LF.
+    - **Files**: `backend/routes/ai_blueprint.py`, `frontend/src/components/estimate/BlueprintMeasureButton.jsx`.

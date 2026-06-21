@@ -85,6 +85,81 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null); // { measurements, lines, vero_openings, mezzo_openings, raw_ai, pages_processed }
   const [showRawJson, setShowRawJson] = useState(false);
+  // Iter 57x — Resume support. When Cloudflare 502s the upload (slow
+  // connection on a multi-MB PDF), the backend worker still completes.
+  // On modal open we check for a recent blueprint run on this estimate
+  // and offer a one-tap "Restore" so Howard can recover the orphaned
+  // result instead of re-uploading.
+  const [resumeRun, setResumeRun] = useState(null);
+  const [resumeDismissed, setResumeDismissed] = useState(false);
+
+  // Check for a recoverable run on mount + after the busy flag drops
+  // (so a 502 immediately surfaces a recovery offer).
+  React.useEffect(() => {
+    if (!est?.id || resumeDismissed) return;
+    if (busy || result) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await api.get(
+          `/measure/ai-blueprint/latest-for-estimate/${est.id}`,
+          { timeout: 8000 }
+        );
+        const run = resp?.data?.run;
+        if (cancelled || !run) return;
+        // Only surface if recent (< 30 min) and final-ish (done/error). A
+        // still-running worker is fine too — frontend will poll its
+        // status when the user clicks "Restore".
+        const ageOk = (run.age_seconds ?? 99999) < 1800;
+        const restorable = ["done", "error", "running"].includes(run.status);
+        if (ageOk && restorable) setResumeRun(run);
+      } catch {
+        /* offline / not authed → silently no banner */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [est?.id, busy, result, resumeDismissed]);
+
+  const restoreResume = async () => {
+    if (!resumeRun) return;
+    if (resumeRun.status === "done" && resumeRun.result) {
+      setResult(resumeRun.result);
+      setResumeRun(null);
+      toast.success("Restored previous blueprint read");
+      return;
+    }
+    if (resumeRun.status === "error") {
+      toast.error(resumeRun.error || "Previous blueprint read errored — try again");
+      setResumeDismissed(true);
+      setResumeRun(null);
+      return;
+    }
+    // status === "running" — pick up polling
+    setBusy(true);
+    setBusyStage(resumeRun.stage || "running");
+    setResumeRun(null);
+    try {
+      let pollResult = null;
+      for (let i = 0; i < 100; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        let statusResp;
+        try {
+          statusResp = await api.get(`/measure/ai-blueprint/status/${resumeRun.run_id}`);
+        } catch { continue; }
+        const s = statusResp?.data || {};
+        if (s.stage && s.stage !== busyStage) setBusyStage(s.stage);
+        if (s.status === "error") throw new Error(s.error || "Blueprint read failed");
+        if (s.status === "done") { pollResult = s.result; break; }
+      }
+      if (!pollResult) throw new Error("Resume timed out — try a fresh upload");
+      setResult(pollResult);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || err?.message || "Resume failed");
+    } finally {
+      setBusy(false);
+      setBusyStage("");
+    }
+  };
 
   const pickAndUpload = async (e) => {
     const f = e.target.files?.[0];
@@ -100,14 +175,22 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
       fd.append(isPdf ? "file" : "files", f);
       if (est?.address) fd.append("address", est.address);
       fd.append("overhang_in", String(est?.overhang_in ?? 12));
+      // Iter 57x — Send estimate_id so the backend tags the run record;
+      // enables the "Restore" banner to find this run if the upload
+      // 502s before the response makes it back to the frontend.
+      if (est?.id) fd.append("estimate_id", est.id);
       // Iter 57q-bp — async launcher + polling. Backend now returns
       // `{run_id, status: "running"}` in under a second instead of
       // waiting 60–120 s for Claude. We poll the status endpoint
       // every 3 s until the worker writes the result. Kills the
       // Cloudflare 524 timeouts that bit Howard's blueprint uploads.
+      // Iter 57x — 180 s upload window so the multi-MB PDF transit
+      // over slow connections finishes before axios bails. The
+      // backend still finishes the read even on 502 — Restore banner
+      // recovers it.
       const launch = await api.post("/measure/ai-blueprint", fd, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 60000,
+        timeout: 180000,
       });
       const runId = launch?.data?.run_id;
       if (!runId) throw new Error("Backend didn't return a run_id");
@@ -133,7 +216,18 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
       setResult(pollResult);
     } catch (err) {
       const detail = err?.response?.data?.detail || err?.message || "Blueprint read failed";
-      toast.error(detail);
+      // Iter 57x — Cloudflare 502 / axios timeout: the upload may have
+      // 502'd but the backend often still completed the read. The
+      // useEffect-driven Restore banner will re-check on busy=false
+      // because resumeDismissed defaults to false.
+      const isTimeout =
+        /timeout|502|bad gateway|network|aborted/i.test(detail) ||
+        err?.code === "ECONNABORTED";
+      toast.error(
+        isTimeout
+          ? "Upload timed out — your read may still be processing. Check the 'Restore' banner in a moment."
+          : detail
+      );
     } finally {
       setBusy(false);
       setBusyStage("");
@@ -310,6 +404,51 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
             : "Reading plans…")
           : "Read Blueprints"}
       </button>
+
+      {/* Iter 57x — Restore banner. Surfaces when a blueprint run for
+          this estimate completed on the backend but the frontend never
+          received the run_id (typical Cloudflare 502 on slow upload). */}
+      {resumeRun && !busy && !result && (
+        <div
+          className="mt-2 px-3 py-2 bg-[#FEF3C7] border border-[#F59E0B] flex items-center justify-between gap-3 text-xs"
+          data-testid="blueprint-resume-banner"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-3.5 h-3.5 text-[#92400E] flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="font-bold uppercase tracking-wider text-[10px] text-[#92400E]">
+                Previous read available
+              </div>
+              <div className="text-[#92400E] truncate">
+                {resumeRun.status === "done"
+                  ? `Completed ${Math.round((resumeRun.age_seconds || 0) / 60)} min ago · ${resumeRun.page_count || "?"} page(s) · click to restore preview`
+                  : resumeRun.status === "running"
+                  ? `Still processing in background · click to resume polling`
+                  : "Errored — see toast"}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={restoreResume}
+              className="px-2.5 py-1 bg-[#F59E0B] text-white text-[10px] font-bold uppercase tracking-wider hover:bg-[#D97706]"
+              data-testid="blueprint-resume-btn"
+            >
+              Restore
+            </button>
+            <button
+              type="button"
+              onClick={() => { setResumeDismissed(true); setResumeRun(null); }}
+              className="px-2.5 py-1 bg-transparent text-[#92400E] text-[10px] font-bold uppercase tracking-wider hover:bg-[#FDE68A]"
+              data-testid="blueprint-resume-dismiss"
+              aria-label="Dismiss restore banner"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {result && (
         <div
