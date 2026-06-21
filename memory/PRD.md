@@ -478,3 +478,7 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
        - **Better error toast**: detects timeout/502/network/aborted and tells the user "your read may still be processing — check the Restore banner in a moment".
     - Verified: backend successfully reads the Balcer PDF — 12 pages, eaves_lf=112 (correctly excludes the two gable ends after Iter 57w), 20 windows, 3 garage doors, 3 patio doors, 27 openings, 66 lines. ISS Apply produces 10 lines including Downspout 40 LF.
     - **Files**: `backend/routes/ai_blueprint.py`, `frontend/src/components/estimate/BlueprintMeasureButton.jsx`.
+
+
+## Saved for Later (Howard's deferred ideas)
+- **Pre-send "common items not quoted" safety net (parked 2026-06-20).** When a contractor hits "Send Quote" and one or more of the highlighted/lightbulb lines (Pocket Install, .019 Coil, Caulking per color, etc.) still has qty=0, pop a one-tap confirm modal: *"You haven't quoted [Pocket Install / Coil / Caulking] yet — continue anyway?"* Turns the visual lightbulb hint into an actual blocker so window-job essentials don't get forgotten. Implementation hook: `useEstimate.sendQuote` (or wherever the email/PDF modal opens) — read `commonItems.unfilledCountFor(est, tab)` and intercept if > 0.
