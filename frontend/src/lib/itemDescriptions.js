@@ -30,6 +30,12 @@ const ITEM_DESCRIPTIONS = {
     en: "Finish trim is used to lock down the cut edge of a siding panel where there's no built-in lock to grab onto. Used under window sills and eaves, or under any horizontal trim or band where a panel terminates against it.",
     es: "El finish trim (riel de cierre) se usa para fijar el borde cortado de un panel de revestimiento cuando no hay un seguro integrado para sujetarlo. Se instala bajo los alféizares de las ventanas, los aleros, o debajo de cualquier moldura horizontal donde un panel termina contra ella.",
   },
+
+  // ----- Window install methods -----
+  "Window DH/Slider - Pocket Install": {
+    en: "Pocket Install (also called insert, retrofit, or frame-in-frame) is the method. The new window is set into the existing window frame — you pull out just the old sashes, balances, and stops, then slide the new unit into the pocket that's left and fasten it to the old frame. The existing exterior trim, brickmould, casing, and interior trim all stay put.",
+    es: "Instalación tipo Pocket (también llamada insert, retrofit o marco dentro de marco). La ventana nueva se coloca dentro del marco existente: se quitan solo las hojas viejas, los balanceadores y los topes, luego se desliza la unidad nueva en el hueco que queda y se fija al marco existente. La moldura exterior, el brickmould, los marcos y la moldura interior se mantienen en su lugar.",
+  },
 };
 
 export function getItemDescription(name, lang = "en") {
