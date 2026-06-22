@@ -269,7 +269,7 @@ HOVER_MAPPING_SPEC = [
     {
         "tabs": ["lp_smart"],
         "section": "LP Siding Accessories",
-        "item": "LP Outside corners 4\" x 16'",
+        "item": "540 Series OSC 5/4\" x 4\" x 16'",
         "unit": "PCS",
         "extract": lambda m: max(1, round((m.get("outside_corner_lf") or 0) / 16)),
         "note": "LP 16' outside-corner pieces / corner LF",
@@ -507,7 +507,7 @@ HOVER_MAPPING_SPEC = [
     {
         "tabs": ["lp_smart"],
         "section": "LP SmartSide Soffit",
-        "item": "LP Soffit 3/8\" x 16\" x 16' Vented",
+        "item": "38 Series Soffit 16 x 16 Vented",
         "unit": "PCS",
         "extract": lambda m: max(
             1, round(((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 16)
