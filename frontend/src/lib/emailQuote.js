@@ -142,6 +142,57 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
     </td></tr>`
     : "";
 
+  // Iter 71 — Per-Elevation Breakdown card. Pulled from HOVER measurements
+  // persisted on the estimate (hover_measurements.per_elevation_siding).
+  // Shows the homeowner exactly which side of the house is driving the
+  // siding cost — natural lead-in for "want to do front + sides only?"
+  // conversations. Hidden when measurements weren't imported from HOVER
+  // (manual / Photo Measure / AI Measure estimates skip this section).
+  const elevations = estimate.hover_measurements?.per_elevation_siding || null;
+  const elevationEntries = elevations
+    ? Object.entries(elevations).filter(([, v]) => Number(v) > 0)
+    : [];
+  const elevationTotal = elevationEntries.reduce(
+    (s, [, v]) => s + Number(v || 0), 0
+  );
+  const elevationLabel = {
+    front: t("email.elevationFront"),
+    back: t("email.elevationBack"),
+    left: t("email.elevationLeft"),
+    right: t("email.elevationRight"),
+  };
+  const elevationBlock = elevationEntries.length > 0
+    ? `
+    <tr><td style="padding:18px 32px 8px 32px;border-top:1px solid ${C.line};font-family:${FONT};">
+      <div style="font-family:${FONT};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${C.faint};font-weight:bold;margin-bottom:10px;">${esc(t("email.elevationTitle"))}</div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        ${elevationEntries.map(([key, sqft]) => {
+          const pct = elevationTotal > 0 ? Math.round((Number(sqft) / elevationTotal) * 100) : 0;
+          const label = elevationLabel[key] || key;
+          return `
+        <tr>
+          <td style="padding:8px 0;font-family:${FONT};font-size:13px;color:${C.ink};border-bottom:1px solid ${C.line};width:30%;">${esc(label)}</td>
+          <td style="padding:8px 8px;font-family:${FONT};font-size:13px;color:${C.muted};border-bottom:1px solid ${C.line};width:50%;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td style="padding:0;background:${C.line};height:6px;">
+                <table role="presentation" width="${pct}%" cellspacing="0" cellpadding="0" border="0"><tr>
+                  <td style="padding:0;background:${C.accent};height:6px;line-height:6px;font-size:0;">&nbsp;</td>
+                </tr></table>
+              </td>
+            </tr></table>
+          </td>
+          <td align="right" style="padding:8px 0;font-family:${FONT};font-size:13px;color:${C.ink};font-weight:600;border-bottom:1px solid ${C.line};white-space:nowrap;width:20%;">${Math.round(Number(sqft)).toLocaleString()} ft² <span style="color:${C.faint};font-weight:400;">· ${pct}%</span></td>
+        </tr>`;
+        }).join("")}
+        <tr>
+          <td style="padding:10px 0 0 0;font-family:${FONT};font-size:13px;color:${C.muted};font-weight:600;">${esc(t("email.elevationTotal"))}</td>
+          <td></td>
+          <td align="right" style="padding:10px 0 0 0;font-family:${FONT};font-size:13px;color:${C.ink};font-weight:700;">${Math.round(elevationTotal).toLocaleString()} ft²</td>
+        </tr>
+      </table>
+    </td></tr>`
+    : "";
+
   const sigBlock = estimate.estimator
     ? `
     <tr><td style="padding:8px 32px 24px 32px;font-family:${FONT};font-size:14px;line-height:1.5;color:${C.muted};">
@@ -208,6 +259,8 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
               <div style="font-family:${FONT};font-size:14px;line-height:1.55;color:${C.ink};white-space:pre-line;">${nl2br(estimate.notes)}</div>
             </td></tr>`
           : ""}
+
+        ${elevationBlock}
 
         <!-- Line items -->
         <tr><td style="padding:0 32px 20px 32px;border-top:1px solid ${C.line};">

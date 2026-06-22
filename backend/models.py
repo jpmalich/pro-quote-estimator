@@ -1,5 +1,5 @@
 """All Pydantic request/response models live here."""
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr
 
 
@@ -211,6 +211,14 @@ class EstimateIn(BaseModel):
     # Photo Measure "Mask zone" tool.
     photo_zones_summary: str = ""
     photo_zones_deducted_sqft: float = 0
+    # Iter 71 (2026-06-22): persist HOVER-extracted measurements on the
+    # estimate so the customer PDF / email can render a per-elevation
+    # breakdown (and other future displays like drip-edge totals, story
+    # premium banners, etc.) without re-running the LLM. Populated by the
+    # HOVER apply flow with whatever the parser returned. Free-form dict
+    # so adding new extracted fields (Iter 70 banked 6) doesn't require
+    # a schema bump on each addition.
+    hover_measurements: Optional[Dict[str, Any]] = None
 
 
 class MezzoOpening(BaseModel):

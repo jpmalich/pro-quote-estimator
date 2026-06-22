@@ -282,6 +282,54 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
             </div>
           )}
 
+          {/* Iter 71 — Per-Elevation Siding Breakdown card. Renders when
+              HOVER import populated `hover_measurements.per_elevation_siding`.
+              Mirrors the same block in `buildEmailHtml` so the on-screen
+              preview matches the customer-facing email/PDF. */}
+          {(() => {
+            const elev = estimate.hover_measurements?.per_elevation_siding;
+            if (!elev) return null;
+            const entries = Object.entries(elev).filter(([, v]) => Number(v) > 0);
+            if (entries.length === 0) return null;
+            const total = entries.reduce((s, [, v]) => s + Number(v || 0), 0);
+            const labels = { front: "Front", back: "Back", left: "Left", right: "Right" };
+            return (
+              <div className="px-8 sm:px-12 py-5 border-b border-[#E4E4E7]" data-testid="per-elevation-card">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-[#A1A1AA] mb-3 font-bold">
+                  Per-Elevation Siding Breakdown
+                </div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {entries.map(([key, sqft]) => {
+                      const pct = total > 0 ? Math.round((Number(sqft) / total) * 100) : 0;
+                      return (
+                        <tr key={key} className="border-b border-[#E4E4E7]">
+                          <td className="py-2 text-[#09090B] w-[28%]">{labels[key] || key}</td>
+                          <td className="py-2 px-2 w-[52%]">
+                            <div className="h-1.5 bg-[#E4E4E7] w-full">
+                              <div className="h-1.5 bg-[#F97316]" style={{ width: `${pct}%` }} />
+                            </div>
+                          </td>
+                          <td className="py-2 text-right text-[#09090B] font-semibold font-mono-num whitespace-nowrap w-[20%]">
+                            {Math.round(Number(sqft)).toLocaleString()} ft²
+                            <span className="text-[#A1A1AA] font-normal"> · {pct}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <td className="pt-3 text-[#52525B] font-semibold">Total Siding Area</td>
+                      <td></td>
+                      <td className="pt-3 text-right text-[#09090B] font-bold font-mono-num whitespace-nowrap">
+                        {Math.round(total).toLocaleString()} ft²
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+
           <div className="px-8 sm:px-12 py-6">
             {tabOrder.map((tabId) => (
               <div key={tabId} className="mb-6">

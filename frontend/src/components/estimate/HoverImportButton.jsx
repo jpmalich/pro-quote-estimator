@@ -178,7 +178,7 @@ export default function HoverImportButton({ est, update, save }) {
       ...sourceMezzoOpenings,
     ];
 
-    update({ lines: nextLines, vero_openings: nextOpenings, mezzo_openings: nextMezzoOpenings });
+    update({ lines: nextLines, vero_openings: nextOpenings, mezzo_openings: nextMezzoOpenings, hover_measurements: result?.measurements || null });
     setApplying(true);
     try {
       if (save) {
@@ -187,6 +187,7 @@ export default function HoverImportButton({ est, update, save }) {
           lines: nextLines,
           vero_openings: nextOpenings,
           mezzo_openings: nextMezzoOpenings,
+          hover_measurements: result?.measurements || null,
         });
       }
 
