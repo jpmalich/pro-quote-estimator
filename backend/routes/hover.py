@@ -247,20 +247,13 @@ HOVER_MAPPING_SPEC = [
         "note": "11 PCS per Sq (LP 8\" lap exposure); sqft × 0.11 rounded",
     },
     # Iter 68 (2026-06-22) — LP starter-pack auto-fill so HOVER imports
-    # don't leave the LP tab empty. 6" Lap is an alternative to 8"; both
-    # are populated and the contractor zeros out whichever they're NOT
-    # using. Lightbulb stays on for visual reminder.
-    {
-        "tabs": ["lp_smart"],
-        "section": "LP Smart Siding",
-        "item": '38 Series Lap 3/8" x 6" x 16\'',
-        "unit": "PCS",
-        "extract": lambda m: max(
-            1,
-            round(((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) * 0.15),
-        ),
-        "note": "15 PCS per Sq (LP 6\" lap, ~5\" exposure); alt to 8\" Lap — use one or the other",
-    },
+    # don't leave the LP tab empty. Note: 6" Lap is intentionally NOT
+    # auto-filled — it's an ALTERNATIVE to 8" Lap, not additive. If the
+    # contractor wants 6" instead, they zero out 8" and type the 6" qty
+    # (or we can build a one-tap "swap to 6"" button later).
+    # Iter 68a: 6" Lap auto-fill removed after Howard caught the double-
+    # count in preview. Row stays in the catalog at $26.45 PCS (whole-sale)
+    # but qty starts at 0.
     # 440 Series Trim 4/4" x 4" — inside corners + level/sloped runs
     # (Howard's formula: (eaves + rakes) ÷ 16).
     {
