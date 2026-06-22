@@ -23,6 +23,7 @@ export const COMMONLY_NEEDED_ITEMS = new Set([
   'Fascia/rake or frieze up to 8" coverage',
   'Downspout 6"',
   "elbow",
+  "End Cap",
   "Capping general",
   "Flashing",
   // Items the HOVER importer fills in — flag these for non-HOVER users too
