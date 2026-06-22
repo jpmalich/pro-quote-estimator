@@ -576,24 +576,184 @@ async def ensure_tiers_seeded():
         '3/4" Soffit J-Channel (Charter Oak) Standard color',
         '3/4" Soffit J-Channel (Charter Oak) Architectural color',
     ]
-    # Iter 28: LP trim moved from per-piece to per-LF pricing (Howard's
-    # request — 16' boards, so LF price = PCS price ÷ 16). Force-update mat
-    # on these 11 items across all 4 tiers so the new LF prices show up
-    # without a manual reseed. Idempotent: only updates rows whose current
-    # mat doesn't match the new LF price in TIER_PRICES.
-    LP_TRIM_RELIST = [
-        'LP 190 Trim 5/8" x 3" x 16\'',
-        'LP 440 Trim 3/4" x 4" x 16\'',
-        'LP 440 Trim 3/4" x 6" x 16\'',
-        'LP 440 Trim 3/4" x 8" x 16\'',
-        'LP 440 Trim 3/4" x 10" x 16\'',
-        'LP 440 Trim 3/4" x 12" x 16\'',
-        'LP 540 Trim 3/4" x 4" x 16\'',
-        'LP 540 Trim 3/4" x 6" x 16\'',
-        'LP 540 Trim 3/4" x 8" x 16\'',
-        'LP 540 Trim 3/4" x 10" x 16\'',
-        'LP 540 Trim 3/4" x 12" x 16\'',
-    ]
+    # Iter 67 (2026-06-22): LP SmartSide renamed to BlueLinx names + units
+    # consolidated to PCS-only (Howard's "I want only pcs pricing" + new
+    # BlueLinx Expertfinish price sheet). Migrations applied at boot:
+    #   1. Rename 19 LP items in tier docs + estimate lines.
+    #   2. Flip 11 trim items LF → PCS and convert saved qty: ceil(LF / 16).
+    #   3. Flip the 8" Lap row SQ → PCS and convert saved qty: round(SQ × 11).
+    #   4. Drop "LP Color Match Coil" — replaced by 3 vinyl-matching coils.
+    # Each step is idempotent — second boot finds nothing to do.
+    LP_RENAME_MAP = {
+        # Lap / Shake / Nickel Gap / Panels
+        'LP Strand Lap Siding 3/8" x 8" x 16\'': '38 Series Lap 3/8" x 8" x 16\'',
+        'LP Strand Shake 3/8" x 12" x 4\'':       'Shake',
+        'LP Nickel Gap 1/2" x 8" x 16\'':         'Nickel Gap',
+        "LP Strand Panel 3/8\" x 4' x 8'":        "38 Series 4' x 8' Panel",
+        "LP Strand Panel 3/8\" x 4' x 10'":       "38 Series 4' x 10' Panel",
+        'LP Strand Panel 3/8" x 16" x 16\'':      '38 Series Vertical Panel',
+        # Trim (190 + 440 × 5 + 540 × 5)
+        'LP 190 Trim 5/8" x 3" x 16\'':           '190 Series Trim 19/32" x 3" x 16\'',
+        'LP 440 Trim 3/4" x 4" x 16\'':           '440 Series Trim 4/4" x 4" x 16\'',
+        'LP 440 Trim 3/4" x 6" x 16\'':           '440 Series Trim 4/4" x 6" x 16\'',
+        'LP 440 Trim 3/4" x 8" x 16\'':           '440 Series Trim 4/4" x 8" x 16\'',
+        'LP 440 Trim 3/4" x 10" x 16\'':          '440 Series Trim 4/4" x 10" x 16\'',
+        'LP 440 Trim 3/4" x 12" x 16\'':          '440 Series Trim 4/4" x 12" x 16\'',
+        'LP 540 Trim 3/4" x 4" x 16\'':           '540 Series Trim 5/4" x 4" x 16\'',
+        'LP 540 Trim 3/4" x 6" x 16\'':           '540 Series Trim 5/4" x 6" x 16\'',
+        'LP 540 Trim 3/4" x 8" x 16\'':           '540 Series Trim 5/4" x 8" x 16\'',
+        'LP 540 Trim 3/4" x 10" x 16\'':          '540 Series Trim 5/4" x 10" x 16\'',
+        'LP 540 Trim 3/4" x 12" x 16\'':          '540 Series Trim 5/4" x 12" x 16\'',
+        # Accessories
+        'LP Outside corners 4" x 16\'':           '540 Series OSC 5/4" x 4" x 16\'',
+        'LP Outside corners 6" x 16\'':           '540 Series OSC 5/4" x 6" x 16\'',
+        'LP Touch-up Kit':                        'Touch up kits',
+        'LP Caulking Color Match':                'OSI Quad Max Caulking',
+        'LP J-blocks 1" W/FLASHING':              'J blocks',
+        'LP Mini Split 1" W/FLASHING':            'Mini Splits',
+        # Soffit (16" Vented kept; 24" Vented→VSSFT, 24" Solid→CTW)
+        'LP Soffit 3/8" x 16" x 16\' Vented':     '38 Series Soffit 16 x 16 Vented',
+        'LP Soffit 3/8" x 24" x 16\' Vented':     '24 inch VSSFT',
+        'LP Soffit 3/8" x 24" x 16\' Solid':      '24 inch CTW soffit',
+    }
+    LP_DROP_NAMES = ['LP Color Match Coil']
+    LP_TRIM_NEW_NAMES = {
+        '190 Series Trim 19/32" x 3" x 16\'',
+        '440 Series Trim 4/4" x 4" x 16\'',
+        '440 Series Trim 4/4" x 6" x 16\'',
+        '440 Series Trim 4/4" x 8" x 16\'',
+        '440 Series Trim 4/4" x 10" x 16\'',
+        '440 Series Trim 4/4" x 12" x 16\'',
+        '540 Series Trim 5/4" x 4" x 16\'',
+        '540 Series Trim 5/4" x 6" x 16\'',
+        '540 Series Trim 5/4" x 8" x 16\'',
+        '540 Series Trim 5/4" x 10" x 16\'',
+        '540 Series Trim 5/4" x 12" x 16\'',
+    }
+    LP_LAP_NEW_NAME = '38 Series Lap 3/8" x 8" x 16\''
+    # Estimate-line migration: rename + unit/qty flips. Bounded to LP
+    # estimates only via line-name match — safe to run on every boot.
+    async for est in db.estimates.find(
+        {"lines.name": {"$in": list(LP_RENAME_MAP.keys()) + LP_DROP_NAMES}},
+        {"lines": 1},
+    ):
+        lines = est.get("lines", [])
+        changed = False
+        new_lines = []
+        for ln in lines:
+            name = ln.get("name")
+            if name in LP_DROP_NAMES:
+                # Drop "LP Color Match Coil" entirely from saved estimates.
+                changed = True
+                continue
+            if name in LP_RENAME_MAP:
+                ln["name"] = LP_RENAME_MAP[name]
+                changed = True
+            # Trim LF → PCS: ceil(qty / 16), unit "LF" → "PCS", mat × 16
+            # (old LF mat × 16 = per-16'-board mat → preserves line total).
+            if ln.get("name") in LP_TRIM_NEW_NAMES and ln.get("unit") == "LF":
+                ln["qty"] = max(1, math.ceil(float(ln.get("qty") or 0) / 16.0))
+                ln["unit"] = "PCS"
+                old_mat = float(ln.get("mat") or 0)
+                if old_mat > 0:
+                    ln["mat"] = round(old_mat * 16, 2)
+                changed = True
+            # Lap SQ → PCS: qty × 11, unit "SQ" → "PCS", mat ÷ 11
+            # (old SQ mat ÷ 11 = per-board mat → preserves line total).
+            if ln.get("name") == LP_LAP_NEW_NAME and ln.get("unit") == "SQ":
+                ln["qty"] = max(1, round(float(ln.get("qty") or 0) * 11))
+                ln["unit"] = "PCS"
+                old_mat = float(ln.get("mat") or 0)
+                if old_mat > 0:
+                    ln["mat"] = round(old_mat / 11.0, 2)
+                changed = True
+            new_lines.append(ln)
+        if changed:
+            await db.estimates.update_one(
+                {"_id": est["_id"]}, {"$set": {"lines": new_lines}}
+            )
+    # In-flight cleanup: an earlier hot-reload migrated qty + unit but
+    # forgot to rescale `mat`, leaving Lap lines at "229 PCS × $298.24/SQ"
+    # and Trim lines at "5 PCS × $1.08/LF". Heuristic catch:
+    #   - Lap PCS row with mat > $100 → clearly still the old SQ value → ÷ 11.
+    #   - Trim PCS row with mat < $5  → clearly still the old LF value → × 16.
+    # Bounded to the renamed LP item names so it can't disturb anything else.
+    async for est in db.estimates.find(
+        {"lines.name": {"$in": [LP_LAP_NEW_NAME] + list(LP_TRIM_NEW_NAMES)}},
+        {"lines": 1},
+    ):
+        lines = est.get("lines", [])
+        fixed = False
+        for ln in lines:
+            nm = ln.get("name")
+            mat = float(ln.get("mat") or 0)
+            if (nm == LP_LAP_NEW_NAME and ln.get("unit") == "PCS"
+                    and mat > 100):
+                ln["mat"] = round(mat / 11.0, 2)
+                fixed = True
+            if (nm in LP_TRIM_NEW_NAMES and ln.get("unit") == "PCS"
+                    and 0 < mat < 5):
+                ln["mat"] = round(mat * 16, 2)
+                fixed = True
+        if fixed:
+            await db.estimates.update_one(
+                {"_id": est["_id"]}, {"$set": {"lines": lines}}
+            )
+    # Tier-doc migration: rename, unit-flip, drop the dropped names.
+    for old_name, new_name in LP_RENAME_MAP.items():
+        await db.price_tiers.update_many(
+            {"sections.items.name": old_name},
+            {"$set": {"sections.$[].items.$[it].name": new_name}},
+            array_filters=[{"it.name": old_name}],
+        )
+    # Pull dropped LP item rows out of every section.
+    await db.price_tiers.update_many(
+        {"sections.items.name": {"$in": LP_DROP_NAMES}},
+        {"$pull": {"sections.$[].items": {"name": {"$in": LP_DROP_NAMES}}}},
+    )
+    # Flip trim unit LF → PCS in tier docs (qty doesn't live on tier docs;
+    # only estimate lines carry qty — already migrated above).
+    for trim_name in LP_TRIM_NEW_NAMES:
+        await db.price_tiers.update_many(
+            {"sections.items": {"$elemMatch": {"name": trim_name, "unit": "LF"}}},
+            {"$set": {"sections.$[].items.$[it].unit": "PCS"}},
+            array_filters=[{"it.name": trim_name, "it.unit": "LF"}],
+        )
+    # Flip Lap unit SQ → PCS on tier docs.
+    await db.price_tiers.update_many(
+        {"sections.items": {"$elemMatch": {"name": LP_LAP_NEW_NAME, "unit": "SQ"}}},
+        {"$set": {"sections.$[].items.$[it].unit": "PCS"}},
+        array_filters=[{"it.name": LP_LAP_NEW_NAME, "it.unit": "SQ"}],
+    )
+    # Force-sync mat for every LP item per the new BlueLinx + margin
+    # tier pricing in TIER_PRICES. Bounded to LP item names so it can't
+    # touch any non-LP supplier override. Idempotent.
+    LP_ITEM_NAMES = set(LP_RENAME_MAP.values()) | LP_TRIM_NEW_NAMES | {
+        LP_LAP_NEW_NAME,
+        '38 Series Lap 3/8" x 6" x 16\'',
+        '38 Series Soffit 12 x 16 Vented',
+        '38 Series Soffit 12 x 16 Closed',
+        '38 Series Soffit 16 x 16 Closed',
+        '.019 Coil', 'PVC Trim Coil', 'Performance G8 Trim Coil',
+    }
+    async for tier in db.price_tiers.find({}, {"_id": 0, "id": 1, "name": 1, "sections": 1}):
+        prices = TIER_PRICES.get(tier["name"]) or {}
+        sections = tier.get("sections") or []
+        dirty = False
+        for sec in sections:
+            for it in sec.get("items", []) or []:
+                if it.get("name") in LP_ITEM_NAMES:
+                    want = float(prices.get(it["name"], 0))
+                    if want > 0 and float(it.get("mat") or 0) != want:
+                        it["mat"] = want
+                        dirty = True
+        if dirty:
+            await db.price_tiers.update_one(
+                {"id": tier["id"]},
+                {"$set": {"sections": sections,
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            logger.info("Iter 67: synced LP prices on tier %s", tier["name"])
     # Iter 29: the Windows tab sections were appended to existing tier docs
     # at $0 mat/lab on first boot (before TIER_PRICES + ITEM_META had real
     # values). Force-reconcile mat (from TIER_PRICES) and lab (from
@@ -628,18 +788,6 @@ async def ensure_tiers_seeded():
                     meta = ITEM_META.get(it["name"])
                     if meta and float(meta[1]) > 0:
                         it["lab"] = float(meta[1])
-                        changed = True
-                # LP trim PCS→LF conversion (Iter 28): force the new LF price
-                # AND the new "LF" unit. Doesn't touch any other item, so it
-                # won't clobber contractor-side overrides made via the bulk
-                # pricing admin.
-                if it.get("name") in LP_TRIM_RELIST:
-                    want_mat = float(prices.get(it["name"], 0))
-                    if want_mat > 0 and float(it.get("mat") or 0) != want_mat:
-                        it["mat"] = want_mat
-                        changed = True
-                    if it.get("unit") != "LF":
-                        it["unit"] = "LF"
                         changed = True
                 # Windows-tab price sync (Iter 29): see WINDOWS_SECTIONS_FOR_
                 # PRICE_SYNC comment above. Forces mat from TIER_PRICES + lab

@@ -48,8 +48,11 @@ EXPECTED = [
         {"whole-sale": 0, "Contractor": 0, "Builder-Dealer": 0, "one-opp": 0},
     ),
     (
-        "LP Strand Lap Siding 3/8\" x 8' x 16'".replace("8' x 16'", "8\" x 16'"),  # exact key
-        {"whole-sale": 298.24, "Contractor": 298.24, "Builder-Dealer": 298.24, "one-opp": 298.24},
+        # Iter 67: LP renamed to BlueLinx names + per-tier margin pricing.
+        # 8" Lap cost $21.69/board × margin divisors → 4-tier price grid.
+        # Lap also flipped from SQ → PCS unit (price is per 16' board).
+        '38 Series Lap 3/8" x 8" x 16\'',
+        {"whole-sale": 33.37, "Contractor": 30.99, "Builder-Dealer": 28.92, "one-opp": 27.11},
     ),
 ]
 

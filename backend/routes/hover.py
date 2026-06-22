@@ -238,13 +238,13 @@ HOVER_MAPPING_SPEC = [
     {
         "tabs": ["lp_smart"],
         "section": "LP Smart Siding",
-        "item": "LP Strand Lap Siding 3/8\" x 8\" x 16'",
-        "unit": "SQ",
-        "extract": lambda m: round(
-            ((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) / 100.0,
+        "item": '38 Series Lap 3/8" x 8" x 16\'',
+        "unit": "PCS",
+        "extract": lambda m: max(
             1,
+            round(((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) * 0.11),
         ),
-        "note": "LP Strand Lap priced per SQ (11 PCS per SQ per LP price sheet)",
+        "note": "11 PCS per Sq (LP 8\" lap exposure); sqft × 0.11 rounded",
     },
     # =====================================================================
     # OUTSIDE CORNERS — count is HOVER outside-corner LF ÷ piece length.

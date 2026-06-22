@@ -485,6 +485,23 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Recent Changes
 
+- **Iter 67 — LP SmartSide repriced + renamed to BlueLinx names (2026-06-22)**: Howard re-enabled the LP tab and supplied a new BlueLinx Expertfinish price sheet (PIT00003 v2.26.2026). Rebuilt LP catalog end-to-end:
+  - **Per-tier margin pricing** (replaces flat single-tier LP pricing). Sell = Cost ÷ (1 − margin). Tier margins: `one-opp` 20% (÷0.80), `Builder-Dealer` 25% (÷0.75), `Contractor` 30% (÷0.70), `whole-sale` 35% (÷0.65). All 26 LP line items + 3 new coil items computed at module-load time from `LP_COSTS` (cost dict) + `_LP_MARGIN_DIVISOR`.
+  - **Unit consolidation: only PCS pricing** (Howard's directive "remove LF pricing and its formula"). All 11 trim items flipped LF → PCS per 16' board; 8" Lap flipped SQ → PCS per board (HOVER mapper now emits `round(sqft × 0.11)`).
+  - **BlueLinx names** — 19 renames (e.g. `LP Strand Lap Siding 3/8" x 8" x 16'` → `38 Series Lap 3/8" x 8" x 16'`, `LP 440 Trim 3/4" x 4" x 16'` → `440 Series Trim 4/4" x 4" x 16'`, `LP Outside corners 4" x 16'` → `540 Series OSC 5/4" x 4" x 16'`, `LP Touch-up Kit` → `Touch up kits`, `LP Caulking Color Match` → `OSI Quad Max Caulking`, etc). Trim dimensions corrected: 190 Series 5/8 → 19/32, 440 Series 3/4 → 4/4, 540 Series 3/4 → 5/4. Two 24" soffit rows renamed to BlueLinx codes (`24 inch CTW soffit`, `24 inch VSSFT`).
+  - **4 new items added**: 38 Series Lap 3/8" x 6" x 16', Soffit 12 x 16 Vented + Closed, Soffit 16 x 16 Closed.
+  - **3 new coil rows** added to LP Siding Accessories — `.019 Coil` / `PVC Trim Coil` / `Performance G8 Trim Coil`. Per-tier prices mirror the vinyl-side rows exactly (driven from `PER_TIER_PRICES` at module-load so any vinyl coil price change propagates automatically). Replaces the dropped `LP Color Match Coil`.
+  - **Idempotent migration** in `services.ensure_tiers_seeded` (Iter 67 block): renames in tier docs + estimate lines, LF→PCS qty conversion (`ceil(qty/16)`) + mat rescale (`× 16`), SQ→PCS Lap qty conversion (`× 11`) + mat rescale (`÷ 11`) so line totals stay consistent across the migration. In-flight cleanup heuristic catches half-migrated lines from earlier hot-reload races (Lap PCS row with mat > $100 → ÷ 11; Trim PCS row with mat < $5 → × 16).
+  - **HOVER mapper** updated: 8" Lap extract now emits PCS qty = `round(sqft × 0.11)` (11 PCS per Sq).
+  - **Lightbulb highlights** (`commonItems.js`) updated to new BlueLinx names.
+  - **Pricing-parity test** updated to the new 8" Lap per-tier grid.
+  - **Verified**: 46 tests pass; UI screenshot confirms LP tab renders all 4 sections with new names, PCS units, and correct per-tier prices. Existing John Derunk estimate's Lap line correctly migrated from `21 SQ × $298.24` → `229 PCS × $27.11 = $6,208.19` (same line total, new schema).
+  - **Files**: `backend/catalog_seed.py` (SECTION_LAYOUT + ITEM_META + LP_COSTS + per-tier merger), `backend/services.py` (Iter 67 migration block), `backend/routes/hover.py` (Lap mapper PCS update), `backend/tests/test_pricing_parity.py`, `frontend/src/lib/commonItems.js`, `frontend/src/lib/tabsConfig.js` (lp_smart re-enabled).
+
+- **Iter 66 — End Cap lightbulb + LP tab visibility (2026-06-22)**:
+  - End Cap row added to `COMMONLY_NEEDED_ITEMS` (yellow row + 💡 lightbulb across all 3 siding tabs).
+  - LP Smart tab flipped back to visible in `tabsConfig.js` per Howard's request to work on LP pricing.
+
 - **Iter 65 — End Cap added to Seamless Gutter (2026-06-22)**: Howard's ask: "I do need to add end caps to the gutter section in siding estimates each end cap costs $2.08 for all pricing tiers." Shipped:
   - **Catalog**: new `End Cap` row added to `Seamless Gutter` section across all 3 siding tabs (vinyl / ascend / lp_smart). Priced at **$2.08 / Each** on all 4 tiers (whole-sale / Contractor / Builder-Dealer / one-opp) via `IDENTICAL_PRICES`. Inserted between `Mitre` and `Gutter Guard (USA Shurflo)` in the section's item list.
   - **HOVER auto-population**: new spec in `HOVER_MAPPING_SPEC` extracts End Cap qty using the rule **2 end caps per gutter run** (industry standard — caps both ends of every continuous run). Run count estimated as `max(2, ceil(eaves_lf / 40))` since HOVER doesn't expose a gutter-run count directly. Sample: 100 LF eaves → 3 runs → 6 caps; 200 LF → 5 runs → 10 caps. Note string surfaces the formula breakdown to the contractor.

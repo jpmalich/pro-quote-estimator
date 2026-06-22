@@ -79,42 +79,61 @@ SECTION_LAYOUT = [
     # sections that LP also uses).
     # -----------------------------------------------------------------------
     ("LP Smart Siding", False, [
-        'LP Strand Lap Siding 3/8" x 8" x 16\'',
-        'LP Strand Shake 3/8" x 12" x 4\'',
-        'LP Nickel Gap 1/2" x 8" x 16\'',
-        'LP Strand Panel 3/8" x 4\' x 8\'',
-        'LP Strand Panel 3/8" x 4\' x 10\'',
-        'LP Strand Panel 3/8" x 16" x 16\'',
+        # Iter 67 (2026-06-22): renamed to BlueLinx names. "LP Strand" →
+        # "38 Series", added 6" Lap, Lap unit flipped SQ → PCS (Howard:
+        # "I want only pcs pricing"; previous SQ-based qty migrated via
+        # × 11 conversion in services.py).
+        '38 Series Lap 3/8" x 8" x 16\'',
+        '38 Series Lap 3/8" x 6" x 16\'',
+        'Nickel Gap',
+        'Shake',
+        "38 Series 4' x 8' Panel",
+        "38 Series 4' x 10' Panel",
+        '38 Series Vertical Panel',
     ]),
     ("LP SmartSide Trim", False, [
+        # Iter 67: renamed to BlueLinx names + flipped LF → PCS per 16'
+        # board. Trim dimensions corrected (5/8 → 19/32, 3/4 → 4/4/5/4).
         # 190 series — 4/4 thick
-        'LP 190 Trim 5/8" x 3" x 16\'',
+        '190 Series Trim 19/32" x 3" x 16\'',
         # 440 series — 4/4 thick
-        'LP 440 Trim 3/4" x 4" x 16\'',
-        'LP 440 Trim 3/4" x 6" x 16\'',
-        'LP 440 Trim 3/4" x 8" x 16\'',
-        'LP 440 Trim 3/4" x 10" x 16\'',
-        'LP 440 Trim 3/4" x 12" x 16\'',
+        '440 Series Trim 4/4" x 4" x 16\'',
+        '440 Series Trim 4/4" x 6" x 16\'',
+        '440 Series Trim 4/4" x 8" x 16\'',
+        '440 Series Trim 4/4" x 10" x 16\'',
+        '440 Series Trim 4/4" x 12" x 16\'',
         # 540 series — 5/4 thick
-        'LP 540 Trim 3/4" x 4" x 16\'',
-        'LP 540 Trim 3/4" x 6" x 16\'',
-        'LP 540 Trim 3/4" x 8" x 16\'',
-        'LP 540 Trim 3/4" x 10" x 16\'',
-        'LP 540 Trim 3/4" x 12" x 16\'',
+        '540 Series Trim 5/4" x 4" x 16\'',
+        '540 Series Trim 5/4" x 6" x 16\'',
+        '540 Series Trim 5/4" x 8" x 16\'',
+        '540 Series Trim 5/4" x 10" x 16\'',
+        '540 Series Trim 5/4" x 12" x 16\'',
     ]),
     ("LP Siding Accessories", False, [
-        "LP Color Match Coil",
-        'LP Outside corners 4" x 16\'',
-        'LP Outside corners 6" x 16\'',
-        "LP Touch-up Kit",
-        "LP Caulking Color Match",
-        'LP J-blocks 1" W/FLASHING',
-        'LP Mini Split 1" W/FLASHING',
+        # Iter 67: renamed to BlueLinx names. Outside Corners moved into
+        # the 540 series (5/4 thick). LP Color Match Coil dropped; the 3
+        # vinyl coil items (.019 / PVC / Performance G8) added in its
+        # place with vinyl-matching per-tier pricing.
+        '540 Series OSC 5/4" x 4" x 16\'',
+        '540 Series OSC 5/4" x 6" x 16\'',
+        'Touch up kits',
+        'OSI Quad Max Caulking',
+        'J blocks',
+        'Mini Splits',
+        '.019 Coil',
+        'PVC Trim Coil',
+        'Performance G8 Trim Coil',
     ]),
     ("LP SmartSide Soffit", False, [
-        'LP Soffit 3/8" x 16" x 16\' Vented',
-        'LP Soffit 3/8" x 24" x 16\' Vented',
-        'LP Soffit 3/8" x 24" x 16\' Solid',
+        # Iter 67: renamed to BlueLinx names. Added 3 new soffit sizes
+        # (12 x 16 Vented + Closed, 16 x 16 Closed); old 24" Vented/Solid
+        # replaced by CTW / VSSFT BlueLinx names.
+        '38 Series Soffit 12 x 16 Vented',
+        '38 Series Soffit 12 x 16 Closed',
+        '38 Series Soffit 16 x 16 Vented',
+        '38 Series Soffit 16 x 16 Closed',
+        '24 inch CTW soffit',
+        '24 inch VSSFT',
     ]),
     ("Siding Accessories", False, [
         ".019 Coil (1 per 5 Sq Siding)",
@@ -395,38 +414,48 @@ ITEM_META = {
     "Cap tops of bird boxes": ("Each", 0), "Dormer upcharge": ("Each", 0),
     "R&R Utilities": ("Each", 0), "Cut out 4x4 section of wall and insulate": ("Each", 0),
     # ----------------- LP SmartSide items -----------------
-    # Units pulled verbatim from the LP Smart siding tab in Howard's
-    # original Vinyl Siding app price layout.xls. Labor is 0 by default —
-    # LP labor varies job-to-job and the contractor sets it per estimate.
-    'LP Strand Lap Siding 3/8" x 8" x 16\'': ("SQ", 0),
-    'LP Strand Shake 3/8" x 12" x 4\'': ("PCS", 0),
-    'LP Nickel Gap 1/2" x 8" x 16\'': ("PCS", 0),
-    'LP Strand Panel 3/8" x 4\' x 8\'': ("PCS", 0),
-    'LP Strand Panel 3/8" x 4\' x 10\'': ("PCS", 0),
-    'LP Strand Panel 3/8" x 16" x 16\'': ("PCS", 0),
-    'LP 190 Trim 5/8" x 3" x 16\'': ("LF", 0),
-    'LP 440 Trim 3/4" x 4" x 16\'': ("LF", 0),
-    'LP 440 Trim 3/4" x 6" x 16\'': ("LF", 0),
-    'LP 440 Trim 3/4" x 8" x 16\'': ("LF", 0),
-    'LP 440 Trim 3/4" x 10" x 16\'': ("LF", 0),
-    'LP 440 Trim 3/4" x 12" x 16\'': ("LF", 0),
-    # Note: per Howard, all 540 (5/4) trim sizes are LF — converted from
-    # the original per-piece pricing by dividing 16' board length.
-    'LP 540 Trim 3/4" x 4" x 16\'': ("LF", 0),
-    'LP 540 Trim 3/4" x 6" x 16\'': ("LF", 0),
-    'LP 540 Trim 3/4" x 8" x 16\'': ("LF", 0),
-    'LP 540 Trim 3/4" x 10" x 16\'': ("LF", 0),
-    'LP 540 Trim 3/4" x 12" x 16\'': ("LF", 0),
-    "LP Color Match Coil": ("ROLL", 0),
-    'LP Outside corners 4" x 16\'': ("PCS", 0),
-    'LP Outside corners 6" x 16\'': ("PCS", 0),
-    "LP Touch-up Kit": ("PCS", 0),
-    "LP Caulking Color Match": ("Tube", 0),
-    'LP J-blocks 1" W/FLASHING': ("Each", 0),
-    'LP Mini Split 1" W/FLASHING': ("Each", 0),
-    'LP Soffit 3/8" x 16" x 16\' Vented': ("PCS", 0),
-    'LP Soffit 3/8" x 24" x 16\' Vented': ("PCS", 0),
-    'LP Soffit 3/8" x 24" x 16\' Solid': ("PCS", 0),
+    # Iter 67 (2026-06-22): renamed to BlueLinx names + units consolidated
+    # to PCS-only per Howard's "I want only pcs pricing" directive. All 11
+    # trim items flipped LF → PCS (per 16' board), Lap flipped SQ → PCS
+    # (per 11-PCS-per-Sq conversion handled in HOVER mapper + estimate
+    # migration). Soffit / panels / outside corners stay PCS.
+    '38 Series Lap 3/8" x 8" x 16\'': ("PCS", 0),
+    '38 Series Lap 3/8" x 6" x 16\'': ("PCS", 0),
+    'Shake': ("PCS", 0),
+    'Nickel Gap': ("PCS", 0),
+    "38 Series 4' x 8' Panel": ("PCS", 0),
+    "38 Series 4' x 10' Panel": ("PCS", 0),
+    '38 Series Vertical Panel': ("PCS", 0),
+    '190 Series Trim 19/32" x 3" x 16\'': ("PCS", 0),
+    '440 Series Trim 4/4" x 4" x 16\'': ("PCS", 0),
+    '440 Series Trim 4/4" x 6" x 16\'': ("PCS", 0),
+    '440 Series Trim 4/4" x 8" x 16\'': ("PCS", 0),
+    '440 Series Trim 4/4" x 10" x 16\'': ("PCS", 0),
+    '440 Series Trim 4/4" x 12" x 16\'': ("PCS", 0),
+    '540 Series Trim 5/4" x 4" x 16\'': ("PCS", 0),
+    '540 Series Trim 5/4" x 6" x 16\'': ("PCS", 0),
+    '540 Series Trim 5/4" x 8" x 16\'': ("PCS", 0),
+    '540 Series Trim 5/4" x 10" x 16\'': ("PCS", 0),
+    '540 Series Trim 5/4" x 12" x 16\'': ("PCS", 0),
+    '540 Series OSC 5/4" x 4" x 16\'': ("PCS", 0),
+    '540 Series OSC 5/4" x 6" x 16\'': ("PCS", 0),
+    'Touch up kits': ("PCS", 0),
+    'OSI Quad Max Caulking': ("Tube", 0),
+    'J blocks': ("Each", 0),
+    'Mini Splits': ("Each", 0),
+    '38 Series Soffit 12 x 16 Vented': ("PCS", 0),
+    '38 Series Soffit 12 x 16 Closed': ("PCS", 0),
+    '38 Series Soffit 16 x 16 Vented': ("PCS", 0),
+    '38 Series Soffit 16 x 16 Closed': ("PCS", 0),
+    '24 inch CTW soffit': ("PCS", 0),
+    '24 inch VSSFT': ("PCS", 0),
+    # 3 coil items added to LP — match the vinyl-side ROLL unit. Per-tier
+    # mat prices mirror the corresponding vinyl ".019 Coil (1 per 5 Sq
+    # Siding)" rows so the same coil price appears regardless of which
+    # tab the contractor is on.
+    '.019 Coil': ("ROLL", 0),
+    'PVC Trim Coil': ("ROLL", 0),
+    'Performance G8 Trim Coil': ("ROLL", 0),
     # ----------------- Window items (Vero product line) -----------------
     # Iter 36: each Vero product type now has its own section + its own
     # size buckets (per Howard's updated Excel "window Whole Sale" sheet).
@@ -681,49 +710,82 @@ TIER_PRICES = {
 
 
 # ---------------------------------------------------------------------------
-# LP SmartSide pricing — SAME PRICE ACROSS ALL 4 TIERS (per Howard, LP is
-# single-pricing). Values from the "LP Smart siding" tab in his Excel sheet.
-# Merged into every tier at module load so the existing TIER_PRICES /
-# pricing-admin / catalog-merge flow continues to work without special-casing.
+# LP SmartSide pricing — Iter 67 (2026-06-22): renamed to BlueLinx names and
+# converted to PER-TIER pricing using Howard's margin formula
+# (sell = cost ÷ (1 − margin)). Tier margins:
+#   one-opp        20% → divisor 0.80
+#   Builder-Dealer 25% → divisor 0.75
+#   Contractor     30% → divisor 0.70
+#   whole-sale     35% → divisor 0.65
+# Costs sourced from BlueLinx Expertfinish pricing sheet (PIT00003 v2.26.2026).
 # ---------------------------------------------------------------------------
-LP_PRICES = {
-    # LP Smart Siding (main panels & laps)
-    'LP Strand Lap Siding 3/8" x 8" x 16\'': 298.24,
-    'LP Strand Shake 3/8" x 12" x 4\'': 20.78,
-    'LP Nickel Gap 1/2" x 8" x 16\'': 63.30,
-    'LP Strand Panel 3/8" x 4\' x 8\'': 90.16,
-    'LP Strand Panel 3/8" x 4\' x 10\'': 119.45,
-    'LP Strand Panel 3/8" x 16" x 16\'': 80.34,
-    # 190 series trim (4/4) — priced per LF (16' board ÷ 16)
-    'LP 190 Trim 5/8" x 3" x 16\'': 1.08,
-    # 440 series trim (4/4) — priced per LF
-    'LP 440 Trim 3/4" x 4" x 16\'': 1.54,
-    'LP 440 Trim 3/4" x 6" x 16\'': 2.31,
-    'LP 440 Trim 3/4" x 8" x 16\'': 3.09,
-    'LP 440 Trim 3/4" x 10" x 16\'': 4.02,
-    'LP 440 Trim 3/4" x 12" x 16\'': 4.82,
-    # 540 series trim (5/4) — priced per LF
-    'LP 540 Trim 3/4" x 4" x 16\'': 1.88,
-    'LP 540 Trim 3/4" x 6" x 16\'': 2.81,
-    'LP 540 Trim 3/4" x 8" x 16\'': 3.75,
-    'LP 540 Trim 3/4" x 10" x 16\'': 4.91,
-    'LP 540 Trim 3/4" x 12" x 16\'': 5.89,
-    # LP siding accessories
-    "LP Color Match Coil": 133.23,
-    'LP Outside corners 4" x 16\'': 160.89,
-    'LP Outside corners 6" x 16\'': 241.35,
-    "LP Touch-up Kit": 53.34,
-    "LP Caulking Color Match": 12.28,
-    'LP J-blocks 1" W/FLASHING': 50.00,
-    'LP Mini Split 1" W/FLASHING': 70.00,
-    # LP soffit
-    'LP Soffit 3/8" x 16" x 16\' Vented': 76.00,
-    'LP Soffit 3/8" x 24" x 16\' Vented': 109.33,
-    'LP Soffit 3/8" x 24" x 16\' Solid': 117.44,
+LP_COSTS = {
+    # LP Smart Siding (lap, shake, nickel gap, panels)
+    '38 Series Lap 3/8" x 8" x 16\'': 21.69,
+    '38 Series Lap 3/8" x 6" x 16\'': 17.19,
+    'Nickel Gap': 50.64,
+    'Shake': 16.62,
+    "38 Series 4' x 8' Panel": 72.13,
+    "38 Series 4' x 10' Panel": 96.56,
+    '38 Series Vertical Panel': 51.45,
+    # LP SmartSide Trim — all priced PER PIECE (16' board)
+    '190 Series Trim 19/32" x 3" x 16\'': 13.76,
+    '440 Series Trim 4/4" x 4" x 16\'': 19.74,
+    '440 Series Trim 4/4" x 6" x 16\'': 29.62,
+    '440 Series Trim 4/4" x 8" x 16\'': 39.50,
+    '440 Series Trim 4/4" x 10" x 16\'': 51.47,
+    '440 Series Trim 4/4" x 12" x 16\'': 61.74,
+    '540 Series Trim 5/4" x 4" x 16\'': 24.01,
+    '540 Series Trim 5/4" x 6" x 16\'': 36.01,
+    '540 Series Trim 5/4" x 8" x 16\'': 48.01,
+    '540 Series Trim 5/4" x 10" x 16\'': 62.87,
+    '540 Series Trim 5/4" x 12" x 16\'': 75.41,
+    # LP Siding Accessories
+    '540 Series OSC 5/4" x 4" x 16\'': 126.78,
+    '540 Series OSC 5/4" x 6" x 16\'': 190.18,
+    'Touch up kits': 42.67,
+    'OSI Quad Max Caulking': 9.82,
+    'J blocks': 40.00,
+    'Mini Splits': 56.00,
+    # LP SmartSide Soffit
+    '38 Series Soffit 12 x 16 Vented': 45.05,
+    '38 Series Soffit 12 x 16 Closed': 41.87,
+    '38 Series Soffit 16 x 16 Vented': 60.08,
+    '38 Series Soffit 16 x 16 Closed': 51.45,
+    '24 inch CTW soffit': 87.46,
+    '24 inch VSSFT': 93.95,
 }
 
-for _tier_dict in TIER_PRICES.values():
-    _tier_dict.update(LP_PRICES)
+_LP_MARGIN_DIVISOR = {
+    "one-opp": 0.80,        # 20% margin
+    "Builder-Dealer": 0.75, # 25% margin
+    "Contractor": 0.70,     # 30% margin
+    "whole-sale": 0.65,     # 35% margin
+}
+
+LP_PRICES_BY_TIER = {
+    tier: {item: round(cost / divisor, 2) for item, cost in LP_COSTS.items()}
+    for tier, divisor in _LP_MARGIN_DIVISOR.items()
+}
+
+# 3 coil items on the LP tab mirror the vinyl-side per-tier prices exactly
+# (Howard: "coil price should match the vinyl siding estimates for each
+# tier"). Names drop the "(1 per 5 Sq Siding)" suffix per Howard's request.
+# Pulled from the existing vinyl ".019 Coil / PVC / Performance G8" rows
+# in PER_TIER_PRICES above so any future vinyl coil price change
+# automatically propagates to LP without a second edit.
+LP_COIL_PRICES_BY_TIER = {
+    tier: {
+        '.019 Coil':              PER_TIER_PRICES['.019 Coil (1 per 5 Sq Siding)'][tier],
+        'PVC Trim Coil':          PER_TIER_PRICES['PVC Trim Coil (1 per 5 Sq Siding)'][tier],
+        'Performance G8 Trim Coil': PER_TIER_PRICES['Performance G8 Trim Coil (1 per 5 Sq Siding)'][tier],
+    }
+    for tier in _LP_MARGIN_DIVISOR
+}
+
+for _tier_name, _tier_dict in TIER_PRICES.items():
+    _tier_dict.update(LP_PRICES_BY_TIER[_tier_name])
+    _tier_dict.update(LP_COIL_PRICES_BY_TIER[_tier_name])
 
 
 # ---------------------------------------------------------------------------

@@ -60,15 +60,16 @@ export const COMMONLY_NEEDED_ITEMS = new Set([
   // ----- LP SmartSide "starter pack" — items quoted on virtually every
   // LP job. Flagging them ensures the LP tab doesn't ship empty when a
   // contractor only fills the headline lap product.
-  'LP Strand Lap Siding 3/8" x 8" x 16\'',
-  'LP 440 Trim 3/4" x 4" x 16\'',
-  'LP 540 Trim 3/4" x 4" x 16\'',
-  "LP Color Match Coil",
-  'LP Outside corners 4" x 16\'',
-  "LP Touch-up Kit",
-  "LP Caulking Color Match",
-  'LP J-blocks 1" W/FLASHING',
-  'LP Soffit 3/8" x 16" x 16\' Vented',
+  // Iter 67 (2026-06-22): renamed to BlueLinx names. Color Match Coil
+  // dropped in favor of the 3 vinyl-matching coil rows.
+  '38 Series Lap 3/8" x 8" x 16\'',
+  '440 Series Trim 4/4" x 4" x 16\'',
+  '540 Series Trim 5/4" x 4" x 16\'',
+  '540 Series OSC 5/4" x 4" x 16\'',
+  'Touch up kits',
+  'OSI Quad Max Caulking',
+  'J blocks',
+  '38 Series Soffit 16 x 16 Vented',
   // ----- Windows tab common items -----
   "Vero - Double Hung 0-101 UI",
   "Window - Pocket Install",
