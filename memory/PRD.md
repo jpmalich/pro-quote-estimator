@@ -482,3 +482,12 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Saved for Later (Howard's deferred ideas)
 - **Pre-send "common items not quoted" safety net (parked 2026-06-20).** When a contractor hits "Send Quote" and one or more of the highlighted/lightbulb lines (Pocket Install, .019 Coil, Caulking per color, etc.) still has qty=0, pop a one-tap confirm modal: *"You haven't quoted [Pocket Install / Coil / Caulking] yet — continue anyway?"* Turns the visual lightbulb hint into an actual blocker so window-job essentials don't get forgotten. Implementation hook: `useEstimate.sendQuote` (or wherever the email/PDF modal opens) — read `commonItems.unfilledCountFor(est, tab)` and intercept if > 0.
+
+## Recent Changes
+
+- **Iter 65 — End Cap added to Seamless Gutter (2026-06-22)**: Howard's ask: "I do need to add end caps to the gutter section in siding estimates each end cap costs $2.08 for all pricing tiers." Shipped:
+  - **Catalog**: new `End Cap` row added to `Seamless Gutter` section across all 3 siding tabs (vinyl / ascend / lp_smart). Priced at **$2.08 / Each** on all 4 tiers (whole-sale / Contractor / Builder-Dealer / one-opp) via `IDENTICAL_PRICES`. Inserted between `Mitre` and `Gutter Guard (USA Shurflo)` in the section's item list.
+  - **HOVER auto-population**: new spec in `HOVER_MAPPING_SPEC` extracts End Cap qty using the rule **2 end caps per gutter run** (industry standard — caps both ends of every continuous run). Run count estimated as `max(2, ceil(eaves_lf / 40))` since HOVER doesn't expose a gutter-run count directly. Sample: 100 LF eaves → 3 runs → 6 caps; 200 LF → 5 runs → 10 caps. Note string surfaces the formula breakdown to the contractor.
+  - **DB migration**: targeted idempotent backfill in `services.ensure_tiers_seeded` force-sets `mat=2.08` on any `End Cap` row currently at $0 (covers the first-boot hot-reload race that landed the row before `IDENTICAL_PRICES` had the price). Idempotent — finds nothing on subsequent boots once all 4 tiers are at $2.08.
+  - **Files**: `backend/catalog_seed.py` (SECTION_LAYOUT + ITEM_META + IDENTICAL_PRICES), `backend/routes/hover.py` (new End Cap extract spec), `backend/services.py` (idempotent mat backfill).
+  - **Verified**: pytest pricing-parity + hover-perimeter suites pass (18/18); DB shows all 4 tiers at $2.08; UI screenshot confirms End Cap row renders in the Seamless Gutter section of an existing estimate with `mat=$2.08`, `unit=Each`, qty empty (ready for HOVER import or manual entry).

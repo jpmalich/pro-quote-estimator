@@ -168,7 +168,7 @@ SECTION_LAYOUT = [
         "With or without siding Charter Oak", "Wrap porch beam",
     ]),
     ("Seamless Gutter", False, [
-        'Gutter 6"', 'Downspout 6"', "elbow", "Mitre", "Gutter Guard (USA Shurflo)",
+        'Gutter 6"', 'Downspout 6"', "elbow", "Mitre", "End Cap", "Gutter Guard (USA Shurflo)",
     ]),
     ("Misc. Labor Only", False, ["R&R gutter", "R&R downspout"]),
     ("Misc. Labor & Material", False, [
@@ -383,7 +383,7 @@ ITEM_META = {
     "Performance G8 Trim Coil (1 per 50' fascia)": ("ROLL", 0),
     "With or without siding Charter Oak": ("SQ FT", 0), "Wrap porch beam": ("LF", 0),
     'Gutter 6"': ("LF", 0), 'Downspout 6"': ("LF", 0),
-    "elbow": ("Each", 0), "Mitre": ("Each", 0), "Gutter Guard (USA Shurflo)": ("LF", 0),
+    "elbow": ("Each", 0), "Mitre": ("Each", 0), "End Cap": ("Each", 0), "Gutter Guard (USA Shurflo)": ("LF", 0),
     "R&R gutter": ("LF", 0), "R&R downspout": ("LF", 0),
     "Cap window": ("Each", 0), "Cap windows with wide crown": ("Each", 0),
     "Capping general": ("LF", 0), "Cap window headers only": ("Each", 0),
@@ -563,6 +563,7 @@ IDENTICAL_PRICES = {
     'Caulking (per color)': 8.23,
     'Cut out 4x4 section of wall and insulate': 100,
     'Downspout 6"': 2.8,
+    'End Cap': 2.08,
     'Gable vents (round,octagon)': 92.2875,
     'Gutter 6"': 3.25,
     'Gutter Guard (USA Shurflo)': 2.25,

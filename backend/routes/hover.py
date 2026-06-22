@@ -560,6 +560,23 @@ HOVER_MAPPING_SPEC = [
         ),
         "note": "2 elbows per downspout (top + kick-out)",
     },
+    # Iter 65 — End Caps. Industry standard: 2 caps per continuous gutter
+    # run (one on each end). HOVER doesn't expose a gutter-run count so
+    # we estimate runs from eaves LF: a typical rectangular home has
+    # ~2 runs (front + back), larger/wrapping homes get +1 run per ~40
+    # LF beyond that. Min 2 runs whenever any gutter is present, so the
+    # row never under-orders on a small one-elevation quote.
+    {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
+        "section": "Seamless Gutter",
+        "item": "End Cap",
+        "unit": "Each",
+        "extract": lambda m: (
+            max(2, math.ceil((m.get("eaves_lf") or 0) / 40)) * 2
+            if (m.get("eaves_lf") or 0) > 0 else 0
+        ),
+        "note": "2 end caps per gutter run (~1 run per 40 LF eaves, min 2 runs)",
+    },
     # Iter 57w — Mirror Gutter + Downspout into the ISS catalog. ISS uses
     # the "Seamless Gutter with Siding" section with plainer item names
     # ("Gutter" / "Downspout"), so they need their own spec entries. ISS

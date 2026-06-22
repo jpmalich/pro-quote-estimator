@@ -180,6 +180,19 @@ async def ensure_tiers_seeded():
         {"$set": {"sections.$[].items.$[it].mat": 0.0}},
         array_filters=[{"it.name": 'Fascia/rake or frieze up to 8" coverage'}],
     )
+    # Iter 65: 'End Cap' added to Seamless Gutter at $2.08 on all tiers.
+    # The first hot-reload after the catalog edit landed inserted the row
+    # at mat=$0 (price wasn't in IDENTICAL_PRICES yet at that snapshot).
+    # Force-set mat=$2.08 on any tier doc still carrying $0 for End Cap.
+    # Idempotent: matcher finds nothing once all 4 tiers are at $2.08.
+    await db.price_tiers.update_many(
+        {"sections.items": {"$elemMatch": {
+            "name": "End Cap",
+            "mat": {"$ne": 2.08},
+        }}},
+        {"$set": {"sections.$[].items.$[it].mat": 2.08}},
+        array_filters=[{"it.name": "End Cap"}],
+    )
     # Iter 36: window catalog restructured into per-product-type sections
     # (Vero Double Hung / 2 Lite Slider / 3 Lite Slider / Casement /
     # Picture) plus a new "Window Material List" section. The old umbrella
