@@ -66,10 +66,13 @@ export const COMMONLY_NEEDED_ITEMS = new Set([
   '440 Series Trim 4/4" x 4" x 16\'',
   '540 Series Trim 5/4" x 4" x 16\'',
   '540 Series OSC 5/4" x 4" x 16\'',
+  '.019 Coil',
   'Touch up kits',
   'OSI Quad Max Caulking',
   'J blocks',
+  'Mini Splits',
   '38 Series Soffit 16 x 16 Vented',
+  '38 Series Soffit 16 x 16 Closed',
   // ----- Windows tab common items -----
   "Vero - Double Hung 0-101 UI",
   "Window - Pocket Install",

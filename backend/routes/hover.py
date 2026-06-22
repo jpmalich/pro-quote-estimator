@@ -246,6 +246,113 @@ HOVER_MAPPING_SPEC = [
         ),
         "note": "11 PCS per Sq (LP 8\" lap exposure); sqft × 0.11 rounded",
     },
+    # Iter 68 (2026-06-22) — LP starter-pack auto-fill so HOVER imports
+    # don't leave the LP tab empty. 6" Lap is an alternative to 8"; both
+    # are populated and the contractor zeros out whichever they're NOT
+    # using. Lightbulb stays on for visual reminder.
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Smart Siding",
+        "item": '38 Series Lap 3/8" x 6" x 16\'',
+        "unit": "PCS",
+        "extract": lambda m: max(
+            1,
+            round(((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) * 0.15),
+        ),
+        "note": "15 PCS per Sq (LP 6\" lap, ~5\" exposure); alt to 8\" Lap — use one or the other",
+    },
+    # 440 Series Trim 4/4" x 4" — inside corners + level/sloped runs
+    # (Howard's formula: (eaves + rakes) ÷ 16).
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP SmartSide Trim",
+        "item": '440 Series Trim 4/4" x 4" x 16\'',
+        "unit": "PCS",
+        "extract": lambda m: max(
+            1,
+            math.ceil(((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 16),
+        ),
+        "note": "Inside corners + horizontal runs — (eaves + rakes) ÷ 16",
+    },
+    # 540 Series Trim 5/4" x 4" — window / entry door / patio / garage trim
+    # wrap. Per-opening trim LF mirrors the J-channel formula divisors
+    # Howard set in Iter 57ee: 14 ft per window, 21 ft per entry, 25 ft
+    # per patio (sliding glass), 32 ft per garage door. Sum ÷ 16 (board).
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP SmartSide Trim",
+        "item": '540 Series Trim 5/4" x 4" x 16\'',
+        "unit": "PCS",
+        "extract": lambda m: max(
+            1,
+            math.ceil((
+                (m.get("window_count") or 0) * 14
+                + (m.get("entry_door_count") or 0) * 21
+                + (m.get("patio_door_count") or 0) * 25
+                + (m.get("garage_door_count") or 0) * 32
+            ) / 16),
+        ),
+        "note": "Window/entry/patio/garage perimeter wrap ÷ 16",
+    },
+    # .019 Coil — default 1 ROLL for flashing transitions (siding ↔ brick/
+    # stone, kickout flashing, etc.). Contractor zeros it out on pure-
+    # siding jobs with no flashing transitions.
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": '.019 Coil',
+        "unit": "ROLL",
+        "extract": lambda m: 1,
+        "note": "Default 1 roll — flashing transitions (stone ↔ siding, kickouts)",
+    },
+    # Touch up kits — 1 per job per color. We don't know the color count
+    # from HOVER, so default 1 and let the contractor bump it if multi-
+    # color.
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": 'Touch up kits',
+        "unit": "PCS",
+        "extract": lambda m: 1,
+        "note": "1 per color — bump if multi-color job",
+    },
+    # OSI Quad Max Caulking — 2 tubes per job (matches the vinyl
+    # "Caulking (per color)" default Howard set in Iter 57m).
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": 'OSI Quad Max Caulking',
+        "unit": "Tube",
+        "extract": lambda m: 2,
+        "note": "Default 2 tubes per job",
+    },
+    # J blocks — small penetration cover plates (lights, outlets, hose
+    # bibs, dryer vents). Scaled by openings as a rough house-size proxy
+    # since HOVER doesn't list utility penetrations.
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": 'J blocks',
+        "unit": "Each",
+        "extract": lambda m: max(
+            4,
+            round((m.get("window_count") or 0) / 6 + (m.get("door_count") or 0) / 2),
+        ),
+        "note": "Min 4 — lights, outlets, hose bibs scaled by openings",
+    },
+    # Mini Splits — large penetration covers (AC linesets, dryer vents,
+    # range hoods). Most homes have 1-3.
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP Siding Accessories",
+        "item": 'Mini Splits',
+        "unit": "Each",
+        "extract": lambda m: max(
+            1,
+            round((m.get("entry_door_count") or 0) / 2),
+        ),
+        "note": "Min 1 — AC linesets, dryer vents, range hoods",
+    },
     # =====================================================================
     # OUTSIDE CORNERS — count is HOVER outside-corner LF ÷ piece length.
     # Vinyl/Ascend = 10' pieces, LP = 16' pieces.
@@ -504,15 +611,31 @@ HOVER_MAPPING_SPEC = [
         "extract": lambda m: 2,
         "note": "Default 2 tubes per job (per Howard)",
     },
+    # Iter 68 (2026-06-22): split soffit Vented vs Closed by eaves/rakes.
+    # Convention: VENTED soffit goes on EAVES (allows attic ventilation),
+    # CLOSED/SOLID soffit goes on RAKES (no venting needed at gables).
+    # Howard's request — splits the previous (eaves+rakes)/16 lump into
+    # the two right material rows so the contractor doesn't have to move
+    # qty between them by hand.
     {
         "tabs": ["lp_smart"],
         "section": "LP SmartSide Soffit",
         "item": "38 Series Soffit 16 x 16 Vented",
         "unit": "PCS",
         "extract": lambda m: max(
-            1, round(((m.get("eaves_lf") or 0) + (m.get("rakes_lf") or 0)) / 16)
+            1, math.ceil((m.get("eaves_lf") or 0) / 16)
         ),
-        "note": "LP soffit boards are 16' — (eaves + rakes LF) / 16",
+        "note": "Vented goes on eaves (attic vent path) — eaves LF ÷ 16",
+    },
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP SmartSide Soffit",
+        "item": "38 Series Soffit 16 x 16 Closed",
+        "unit": "PCS",
+        "extract": lambda m: max(
+            1, math.ceil((m.get("rakes_lf") or 0) / 16)
+        ) if (m.get("rakes_lf") or 0) > 0 else 0,
+        "note": "Closed goes on rakes (gable ends, no venting) — rakes LF ÷ 16",
     },
     # =====================================================================
     # GUTTER — all 3 tabs share the Seamless Gutter section.
