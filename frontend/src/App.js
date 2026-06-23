@@ -8,6 +8,8 @@ import { CompanyProvider } from "@/lib/company";
 import { LangProvider } from "@/lib/i18n";
 import Login from "@/pages/Login";
 import HomePicker from "@/pages/HomePicker";
+import IssPicker from "@/pages/IssPicker";
+import ContractorPicker from "@/pages/ContractorPicker";
 import Dashboard from "@/pages/Dashboard";
 import EstimateRouter from "@/pages/EstimateRouter";
 import Catalog from "@/pages/Catalog";
@@ -54,6 +56,8 @@ function App() {
                     }
                   >
                     <Route path="/" element={<HomePicker />} />
+                    <Route path="/picker/iss" element={<IssPicker />} />
+                    <Route path="/picker/contractor" element={<ContractorPicker />} />
                     <Route path="/dashboard/siding" element={<Dashboard kind="siding" />} />
                     <Route path="/dashboard/lp_smart" element={<Dashboard kind="lp_smart" />} />
                     <Route path="/dashboard/windows" element={<Dashboard kind="windows" />} />

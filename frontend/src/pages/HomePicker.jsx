@@ -1,18 +1,18 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Home as HomeIcon, RectangleHorizontal, Layers } from "lucide-react";
+import { Building2, HardHat } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /**
- * Workspace picker — the landing screen after login. Two big cards let the
- * contractor pick which workspace to enter:
- *   - Siding Quotes (kind=siding)  → /dashboard/siding
- *   - Window Quotes (kind=windows) → /dashboard/windows
+ * Iter 76 — Two-step workspace picker (Howard's sketch).
  *
- * Each workspace has its own estimate list, its own creation flow, and a
- * different tab visibility set inside the estimate editor.
+ * Step 1: top-level — pick ISS Quotes vs Contractor Quotes.
+ * Step 2: each group routes to its own sub-picker page that lists the
+ * actual workspaces inside that family.
  *
- * Each card has a data-testid so the testing agent can wire up flows.
+ *   /                  → this page (group picker)
+ *   /picker/iss        → IssPicker (siding / windows / new-con)
+ *   /picker/contractor → ContractorPicker (windows / vinyl+ascend / lp)
  */
 export default function HomePicker() {
   const t = useT();
@@ -25,105 +25,54 @@ export default function HomePicker() {
           {t("home.pickerTitle") || "Choose what you’re quoting"}
         </h1>
         <p className="mt-2 text-[#52525B] max-w-2xl text-sm sm:text-base">
-          {t("home.pickerSubtitle") ||
-            "Siding and windows live in separate workspaces. Each one keeps its own list of quotes."}
+          {t("home.pickerSubtitle")}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
         <button
           type="button"
-          onClick={() => nav("/dashboard/iss")}
-          className="card text-left p-6 sm:p-8 group hover:border-[#F97316] transition-colors"
-          data-testid="home-card-iss"
+          onClick={() => nav("/picker/iss")}
+          className="card text-left p-6 sm:p-10 group hover:border-[#F97316] transition-colors"
+          data-testid="home-group-iss"
         >
-          <div className="flex items-center gap-3 mb-4 text-[#F97316]">
-            <Layers className="w-8 h-8" />
+          <div className="flex items-center gap-3 mb-5 text-[#F97316]">
+            <Building2 className="w-9 h-9" />
             <span className="text-[10px] uppercase tracking-[0.2em] font-bold">
               {t("home.workspaceTag")}
             </span>
           </div>
-          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-2">
-            {t("home.issTitle")}
+          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-3">
+            {t("home.issGroupTitle")}
           </h2>
-          <p className="text-sm text-[#52525B] mb-6">
-            {t("home.issDesc")}
+          <p className="text-sm text-[#52525B] mb-6 leading-relaxed">
+            {t("home.issGroupDesc")}
           </p>
           <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
-            {t("home.issCta")}
+            {t("home.issGroupCta")}
           </div>
         </button>
 
         <button
           type="button"
-          onClick={() => nav("/dashboard/siding")}
-          className="card text-left p-6 sm:p-8 group hover:border-[#F97316] transition-colors"
-          data-testid="home-card-siding"
+          onClick={() => nav("/picker/contractor")}
+          className="card text-left p-6 sm:p-10 group hover:border-[#F97316] transition-colors"
+          data-testid="home-group-contractor"
         >
-          <div className="flex items-center gap-3 mb-4 text-[#F97316]">
-            <HomeIcon className="w-8 h-8" />
+          <div className="flex items-center gap-3 mb-5 text-[#F97316]">
+            <HardHat className="w-9 h-9" />
             <span className="text-[10px] uppercase tracking-[0.2em] font-bold">
               {t("home.workspaceTag")}
             </span>
           </div>
-          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-2">
-            {t("home.sidingTitle")}
+          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-3">
+            {t("home.contractorGroupTitle")}
           </h2>
-          <p className="text-sm text-[#52525B] mb-6">
-            {t("home.sidingDesc")}
+          <p className="text-sm text-[#52525B] mb-6 leading-relaxed">
+            {t("home.contractorGroupDesc")}
           </p>
           <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
-            {t("home.sidingCta")}
-          </div>
-        </button>
-
-        {/* Iter 73 — LP SmartSide split into its own workspace per
-            Howard's request. Same card pattern as the other workspaces;
-            estimates created here get kind="lp_smart" and only the LP
-            Smart tab is visible inside the editor. */}
-        <button
-          type="button"
-          onClick={() => nav("/dashboard/lp_smart")}
-          className="card text-left p-6 sm:p-8 group hover:border-[#F97316] transition-colors"
-          data-testid="home-card-lp_smart"
-        >
-          <div className="flex items-center gap-3 mb-4 text-[#F97316]">
-            <Layers className="w-8 h-8" />
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold">
-              {t("home.workspaceTag")}
-            </span>
-          </div>
-          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-2">
-            {t("home.lpTitle")}
-          </h2>
-          <p className="text-sm text-[#52525B] mb-6">
-            {t("home.lpDesc")}
-          </p>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
-            {t("home.lpCta")}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => nav("/dashboard/windows")}
-          className="card text-left p-6 sm:p-8 group hover:border-[#F97316] transition-colors"
-          data-testid="home-card-windows"
-        >
-          <div className="flex items-center gap-3 mb-4 text-[#F97316]">
-            <RectangleHorizontal className="w-8 h-8" />
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold">
-              {t("home.workspaceTag")}
-            </span>
-          </div>
-          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-2">
-            {t("home.windowsTitle")}
-          </h2>
-          <p className="text-sm text-[#52525B] mb-6">
-            {t("home.windowsDesc")}
-          </p>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
-            {t("home.windowsCta")}
+            {t("home.contractorGroupCta")}
           </div>
         </button>
       </div>

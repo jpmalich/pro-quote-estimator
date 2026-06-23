@@ -521,3 +521,14 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - **DB migration**: targeted idempotent backfill in `services.ensure_tiers_seeded` force-sets `mat=2.08` on any `End Cap` row currently at $0 (covers the first-boot hot-reload race that landed the row before `IDENTICAL_PRICES` had the price). Idempotent — finds nothing on subsequent boots once all 4 tiers are at $2.08.
   - **Files**: `backend/catalog_seed.py` (SECTION_LAYOUT + ITEM_META + IDENTICAL_PRICES), `backend/routes/hover.py` (new End Cap extract spec), `backend/services.py` (idempotent mat backfill).
   - **Verified**: pytest pricing-parity + hover-perimeter suites pass (18/18); DB shows all 4 tiers at $2.08; UI screenshot confirms End Cap row renders in the Seamless Gutter section of an existing estimate with `mat=$2.08`, `unit=Each`, qty empty (ready for HOVER import or manual entry).
+
+- **Iter 76 — Two-step Home Picker (ISS vs Contractor) (2026-02-23)**: Howard's sketch reorganized the landing screen into two quote families. Shipped:
+  - **Step 1 — top picker** (`/`): two large cards — **ISS Quotes** and **Contractor Quotes** (`HomePicker.jsx` rewritten, icons: Building2 / HardHat).
+  - **Step 2A — `/picker/iss`** (`IssPicker.jsx`, new): three sub-cards — *ISS Siding Quotes* → `/dashboard/iss`, *ISS Window Quotes* → `/dashboard/windows`, *ISS New Construction Siding Quotes* → disabled "Coming Soon" card (dashed border, pending catalog from Howard).
+  - **Step 2B — `/picker/contractor`** (`ContractorPicker.jsx`, new): three sub-cards — *Window Quotes* → `/dashboard/windows` (mirrors ISS Windows for now per Howard; labor will diverge later), *Vinyl + Ascend Siding Quotes* → `/dashboard/siding`, *LP SmartSide Quotes* → `/dashboard/lp_smart`.
+  - Each sub-picker has a `← Back` button and a section tag header matching the group name. All cards have `data-testid` hooks.
+  - **i18n**: full EN + ES translations added to `dictionaries.js` for the new keys (`home.issGroupTitle`, `home.contractorGroupTitle`, `home.iss.*`, `home.contractor.*`, `home.issWindowsTitle`, `home.issNewConTitle`, `home.back`).
+  - **Routes**: `App.js` adds `/picker/iss` and `/picker/contractor` inside the Protected/Layout shell.
+  - **Files**: `frontend/src/pages/HomePicker.jsx` (rewrite), `frontend/src/pages/IssPicker.jsx` (new), `frontend/src/pages/ContractorPicker.jsx` (new), `frontend/src/App.js` (routes), `frontend/src/lib/dictionaries.js` (EN/ES keys).
+  - **Verified**: Playwright smoke test logs into the live preview, clicks ISS group → confirms 3 cards render, back, clicks Contractor group → confirms 3 cards render. All 3 screens screenshot cleanly with no console errors.
+
