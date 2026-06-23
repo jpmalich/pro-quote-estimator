@@ -11,6 +11,7 @@ import React, { useRef, useState } from "react";
 import { Upload, FileText, Check, X, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
 
 const KEY_LABELS = {
   siding_sqft: "Siding",
@@ -370,6 +371,13 @@ export default function HoverImportButton({ est, update, save }) {
                     ))}
                 </div>
               </div>
+
+              {/* Iter 78 — Takeoff Reconciliation: raw → formula → ordered */}
+              <TakeoffReconCard
+                measurements={result.measurements || {}}
+                lines={result.lines || []}
+                wastePct={est?.waste_pct || 0}
+              />
 
               {/* Vero Windows block — one row per HOVER opening with the
                   AI-guessed product type editable in a dropdown. Apply

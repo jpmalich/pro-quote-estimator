@@ -16,6 +16,7 @@ import React, { useRef, useState } from "react";
 import { FileText, Loader2, X, Check, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
 
 const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
 const WINDOWS_TABS = new Set(["windows"]);
@@ -547,6 +548,13 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
                   })}
                 </div>
               </section>
+
+              {/* Iter 78 — Takeoff Reconciliation: AI raw → formula → ordered */}
+              <TakeoffReconCard
+                measurements={measurements || {}}
+                lines={result.lines || []}
+                wastePct={est?.waste_pct || 0}
+              />
 
               {/* Window schedule */}
               {schedWindows.length > 0 && (
