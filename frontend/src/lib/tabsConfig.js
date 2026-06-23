@@ -27,3 +27,12 @@ export const VISIBLE_TAB_IDS = VISIBLE_TAB_DEFS.map((t) => t.id);
 
 /** Tab ids that show in a windows-kind estimate (separate set from siding). */
 export const WINDOWS_KIND_TAB_IDS = ["windows", "mezzo"];
+
+/** Iter 73 — Tab ids that show in an lp_smart-kind estimate. Single
+ *  product line so the workspace stays focused on LP-only quoting. */
+export const LP_KIND_TAB_IDS = ["lp_smart"];
+
+/** Iter 73 — Tab ids that show in a siding-kind estimate AFTER LP got its
+ *  own workspace. Vinyl + Ascend only. (Old siding-kind estimates with LP
+ *  lines retain LP visibility via backward-compat in EstimateEditor.) */
+export const SIDING_KIND_TAB_IDS = ["vinyl", "ascend"];

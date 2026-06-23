@@ -33,6 +33,11 @@ async def list_estimates(
         q["kind"] = "windows"
     elif kind == "iss":
         q["kind"] = "iss"
+    elif kind == "lp_smart":
+        # Iter 73: LP got its own workspace. Match only explicit lp_smart
+        # kind — no fallback to legacy/no-kind estimates (those belong on
+        # the Siding workspace).
+        q["kind"] = "lp_smart"
     elif kind == "siding":
         # Include both explicit "siding" AND legacy estimates with no kind.
         q["$or"] = [{"kind": "siding"}, {"kind": {"$exists": False}}, {"kind": ""}]

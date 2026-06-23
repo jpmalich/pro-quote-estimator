@@ -23,6 +23,7 @@ export default function Dashboard({ kind = "siding" }) {
   // Branding flag we use to gate copy + create-estimate metadata.
   const isWindows = kind === "windows";
   const isIss = kind === "iss";
+  const isLp = kind === "lp_smart";
 
   const FILTERS = useMemo(
     () => [
@@ -142,7 +143,7 @@ export default function Dashboard({ kind = "siding" }) {
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 flex items-center gap-2">
-            <span>{isWindows ? "Windows" : "Siding"} · {t("dash.eyebrow")}</span>
+            <span>{isWindows ? "Windows" : isLp ? "LP SmartSiding" : "Siding"} · {t("dash.eyebrow")}</span>
             <button
               type="button"
               onClick={() => nav("/")}
@@ -153,7 +154,7 @@ export default function Dashboard({ kind = "siding" }) {
             </button>
           </div>
           <h1 className="font-heading text-4xl sm:text-5xl text-[#09090B]">
-            {isIss ? "ISS Quotes" : isWindows ? "ISS Window Quotes" : t("dash.title")}
+            {isIss ? "ISS Quotes" : isWindows ? "ISS Window Quotes" : isLp ? "LP SmartSiding Quote" : t("dash.title")}
           </h1>
         </div>
         <div className="flex gap-3">

@@ -55,6 +55,7 @@ function App() {
                   >
                     <Route path="/" element={<HomePicker />} />
                     <Route path="/dashboard/siding" element={<Dashboard kind="siding" />} />
+                    <Route path="/dashboard/lp_smart" element={<Dashboard kind="lp_smart" />} />
                     <Route path="/dashboard/windows" element={<Dashboard kind="windows" />} />
                     <Route path="/dashboard/iss" element={<Dashboard kind="iss" />} />
                     {/* Back-compat: old bookmarks pointing to /dashboard hit

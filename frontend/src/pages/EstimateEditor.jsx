@@ -22,7 +22,7 @@ import SectionAccordion from "@/components/estimate/SectionAccordion";
 import TotalsSummary from "@/components/estimate/TotalsSummary";
 import CatalogSyncBanner from "@/components/estimate/CatalogSyncBanner";
 import EstimatorTabs from "@/components/estimate/EstimatorTabs";
-import { VISIBLE_TAB_IDS, ALL_TAB_DEFS } from "@/lib/tabsConfig";
+import { VISIBLE_TAB_IDS, ALL_TAB_DEFS, WINDOWS_KIND_TAB_IDS, LP_KIND_TAB_IDS, SIDING_KIND_TAB_IDS } from "@/lib/tabsConfig";
 import QuoteModal from "@/components/QuoteModal";
 import TabPickerModal from "@/components/TabPickerModal";
 
@@ -51,29 +51,47 @@ export default function EstimateEditor() {
   const [tabFilter, setTabFilter] = useState(null); // null = include all tabs
   // Active product-line tab. Default depends on the estimate's `kind`:
   // window estimates start on the Windows tab and lock to just that one;
-  // siding estimates start on Vinyl with all siding tabs visible.
+  // LP-kind start on lp_smart; siding estimates start on Vinyl.
   const isWindowKind = est?.kind === "windows";
+  const isLpKind = est?.kind === "lp_smart";
   const [activeTab, setActiveTab] = useState("vinyl");
 
   // Iter 37: For windows-kind, snap to "windows" (Vero) on first load
   // only if the current activeTab is a siding-only tab — otherwise leave
   // the user's choice intact so toggling to Mezzo sticks. For siding-
   // kind, leave the default "vinyl" alone.
+  // Iter 73: same snap behavior for lp_smart-kind → snap to "lp_smart".
   useEffect(() => {
     if (isWindowKind && activeTab !== "windows" && activeTab !== "mezzo") {
       setActiveTab("windows");
+    } else if (isLpKind && activeTab !== "lp_smart") {
+      setActiveTab("lp_smart");
     }
-  }, [isWindowKind, activeTab]);
+  }, [isWindowKind, isLpKind, activeTab]);
 
-  // Visible tab set for THIS estimate. Windows kind → Vero + Mezzo
-  // (Iter 37). Siding kind → siding-only tabs.
-  const visibleTabIds = useMemo(
-    () =>
-      isWindowKind
-        ? ["windows", "mezzo"]
-        : VISIBLE_TAB_IDS.filter((id) => id !== "windows" && id !== "mezzo"),
-    [isWindowKind]
-  );
+  // Visible tab set for THIS estimate.
+  //   windows kind → Vero + Mezzo (Iter 37)
+  //   lp_smart kind → LP only (Iter 73)
+  //   siding kind  → Vinyl + Ascend (Iter 73 — LP got its own workspace).
+  //     Backward-compat: if a legacy siding estimate already carries LP
+  //     line qty > 0, surface the LP tab on THAT estimate only so the
+  //     contractor can still see/edit the rows.
+  const sidingLegacyHasLp = useMemo(() => {
+    if (isWindowKind || isLpKind) return false;
+    return (est?.lines || []).some(
+      (l) => l.tab === "lp_smart" && (Number(l.qty) || 0) > 0
+    );
+  }, [est?.lines, isWindowKind, isLpKind]);
+
+  const visibleTabIds = useMemo(() => {
+    if (isWindowKind) return WINDOWS_KIND_TAB_IDS;
+    if (isLpKind) return LP_KIND_TAB_IDS;
+    const base = SIDING_KIND_TAB_IDS.filter((id) => VISIBLE_TAB_IDS.includes(id));
+    if (sidingLegacyHasLp && VISIBLE_TAB_IDS.includes("lp_smart") && !base.includes("lp_smart")) {
+      return [...base, "lp_smart"];
+    }
+    return base;
+  }, [isWindowKind, isLpKind, sidingLegacyHasLp]);
   // Tab defs aligned to visibleTabIds (preserves label + order).
   const visibleTabDefs = useMemo(
     () => ALL_TAB_DEFS.filter((t) => visibleTabIds.includes(t.id)),

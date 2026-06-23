@@ -30,7 +30,7 @@ export default function HomePicker() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <button
           type="button"
           onClick={() => nav("/dashboard/iss")}
@@ -74,6 +74,33 @@ export default function HomePicker() {
           </p>
           <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
             {t("home.sidingCta")}
+          </div>
+        </button>
+
+        {/* Iter 73 — LP SmartSide split into its own workspace per
+            Howard's request. Same card pattern as the other workspaces;
+            estimates created here get kind="lp_smart" and only the LP
+            Smart tab is visible inside the editor. */}
+        <button
+          type="button"
+          onClick={() => nav("/dashboard/lp_smart")}
+          className="card text-left p-6 sm:p-8 group hover:border-[#F97316] transition-colors"
+          data-testid="home-card-lp_smart"
+        >
+          <div className="flex items-center gap-3 mb-4 text-[#F97316]">
+            <Layers className="w-8 h-8" />
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold">
+              {t("home.workspaceTag")}
+            </span>
+          </div>
+          <h2 className="font-heading text-2xl sm:text-3xl text-[#09090B] mb-2">
+            {t("home.lpTitle")}
+          </h2>
+          <p className="text-sm text-[#52525B] mb-6">
+            {t("home.lpDesc")}
+          </p>
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#F97316] group-hover:underline">
+            {t("home.lpCta")}
           </div>
         </button>
 
