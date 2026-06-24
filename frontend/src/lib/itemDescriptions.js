@@ -46,6 +46,23 @@ const ITEM_DESCRIPTIONS = {
     en: "RainDrop House Wrap: A drainable weather-resistive barrier whose surface is embossed with raised vertical channels (the \"3D\" texture) that hold the wrap slightly off the sheathing. This creates a built-in drainage gap so any water that gets behind the cladding has a continuous path to run down and out, rather than sitting against the wall. Like standard housewrap, it blocks air and bulk water infiltration while staying vapor-permeable so the wall can dry.",
     es: "RainDrop House Wrap: barrera de drenaje resistente a la intemperie cuya superficie está grabada con canales verticales en relieve (la textura \"3D\") que mantienen la envoltura ligeramente separada del tablero. Esto crea un hueco de drenaje integrado para que el agua que se cuele detrás del revestimiento tenga un camino continuo para bajar y salir, en lugar de quedarse contra la pared. Como las envolturas estándar, bloquea el aire y la infiltración masiva de agua manteniéndose permeable al vapor para que la pared pueda secarse.",
   },
+  // ----- LP SmartSide coverage notes (Iter 78d) -----
+  // Howard's per-square piece counts — these are quick mental
+  // refreshers for ordering. The catalog already converts SQ → PCS
+  // via the HOVER mapping; these popovers let the contractor sanity-
+  // check the count against industry-standard LP coverage.
+  '38 Series Lap 3/8" x 8" x 16\'': {
+    en: "LP 38 Series Lap, 8\" face × 16' boards. Industry standard coverage: 11 pieces per square at 7\" exposure (1\" overlap).",
+    es: "LP 38 Series Lap, 8\" cara × 16' tablas. Cobertura estándar: 11 piezas por cuadrado (square) con exposición de 7\" (1\" de traslape).",
+  },
+  '38 Series Lap 3/8" x 6" x 16\'': {
+    en: "LP 38 Series Lap, 6\" face × 16' boards. Industry standard coverage: 16 pieces per square at 5\" exposure (1\" overlap).",
+    es: "LP 38 Series Lap, 6\" cara × 16' tablas. Cobertura estándar: 16 piezas por cuadrado (square) con exposición de 5\" (1\" de traslape).",
+  },
+  "Shake": {
+    en: "LP Cedar Shake panels. Coverage depends on reveal: minimum reveal (tightest exposure) ≈ 44 pieces per square; maximum reveal (widest exposure) ≈ 31 pieces per square. Choose your reveal at install time based on the look you want.",
+    es: "Paneles LP Cedar Shake. La cobertura depende de la exposición: mínima exposición (más ajustada) ≈ 44 piezas por cuadrado; máxima exposición (más amplia) ≈ 31 piezas por cuadrado. Elige la exposición según el estilo deseado.",
+  },
 };
 
 export function getItemDescription(name, lang = "en") {
