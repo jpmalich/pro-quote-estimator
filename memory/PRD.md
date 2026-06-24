@@ -481,9 +481,18 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 
 ## Saved for Later (Howard's deferred ideas)
+- **Customer Quote PDF — collapsible formula breakdowns under each line (parked 2026-02-25).** Mirror the per-line `note` strings (J-channel, Finish Trim, Soffit J, Downspout, Elbow, End Cap, Hangars with Screws) onto the printed customer PDF as a small "▾ formula" expander under each line, collapsed by default. Gives contractors instant credibility on homeowner call-backs ("here's exactly how I sized your gutters") without cluttering the headline numbers. Implementation hook: WeasyPrint quote template — render the line's `note` field inside a `<details>` block per line.
 - **Pre-send "common items not quoted" safety net (parked 2026-06-20).** When a contractor hits "Send Quote" and one or more of the highlighted/lightbulb lines (Pocket Install, .019 Coil, Caulking per color, etc.) still has qty=0, pop a one-tap confirm modal: *"You haven't quoted [Pocket Install / Coil / Caulking] yet — continue anyway?"* Turns the visual lightbulb hint into an actual blocker so window-job essentials don't get forgotten. Implementation hook: `useEstimate.sendQuote` (or wherever the email/PDF modal opens) — read `commonItems.unfilledCountFor(est, tab)` and intercept if > 0.
 
 ## Recent Changes
+
+- **Iter 78i — Hangars with Screws auto-fill (2026-02-25)**: Howard's rule: "1 hanger per 2' + 1 per run", live across AI Measure / HOVER / Blueprint.
+  - **Formula** (`backend/routes/hover.py`): `ceil(eaves_lf / 2) + max(2, ceil(eaves_lf / 30))` — 2'-spaced count plus 1 extra hanger per gutter run. Run-count helper (`_gutter_run_count`) is shared with the End-Cap spec so the two rows stay in sync.
+  - **Coverage**: single spec entry in `HOVER_MAPPING_SPEC` emits the row on vinyl / ascend / lp_smart tabs. Because AI Measure (`POST /api/measure/map`) and Blueprint both route through the shared `_build_lines` mapper, all 3 sources inherit the formula automatically — no per-source duplication.
+  - **Examples**: 100 LF → 54 hangers (`50 + 4 runs`); 32 LF → 18 (`16 + 2 runs (min)`); 180 LF → 96 (`90 + 6 runs`).
+  - **Breakdown string** (Iter 78h pattern): `"100 LF ÷ 2 ft spacing = 50 + 4 runs (1 per run) = 54 hangers"` — auto-surfaces in HOVER preview's per-line `note` row AND Blueprint preview's "Formula breakdown" section (matches the `÷` filter).
+  - **Verified**: 18/18 takeoff + pricing-parity tests pass; mapper outputs the row on all 3 tabs with correct counts + formula notes.
+  - **Files**: `backend/routes/hover.py`, `memory/PRD.md`.
 
 - **Iter 78h — Formula breakdown strings on Downspout / Elbow lines (2026-02-25)**: Howard asked for per-job math on the 3 downspout-derived gutter rows (mirroring the J-channel pattern). Static `note` strings replaced with dynamic callables that surface the actual numbers:
   - **Downspout 6"** (vinyl/ascend/lp_smart + ISS Downspout): `"100 LF eaves ÷ 25 = 4.0 → ceil = 4 downspouts × 10 LF = 40 LF coil"`. Min-2 fallback labeled inline: `"32 LF eaves ÷ 25 = 1.3 → ceil = 2 downspouts (min 2) × 10 LF = 20 LF coil"`.

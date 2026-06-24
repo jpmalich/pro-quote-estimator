@@ -181,6 +181,34 @@ def _elbow_breakdown(m: dict) -> str:
             f"× 2 elbows (top turn + kick-out) = {n * 2} elbows")
 
 
+# Iter 78i — Hangers with screws. Howard's install rule: 1 hanger per 2 ft
+# of gutter + 1 per gutter run (run count mirrors the End-Cap estimate).
+def _gutter_run_count(m: dict) -> int:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return 0
+    return max(2, math.ceil(eaves / 30))
+
+
+def _hangers_count(m: dict) -> int:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return 0
+    spaced = math.ceil(eaves / 2)
+    runs = _gutter_run_count(m)
+    return spaced + runs
+
+
+def _hangers_breakdown(m: dict) -> str:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return "No eaves → 0 hangers"
+    spaced = math.ceil(eaves / 2)
+    runs = _gutter_run_count(m)
+    return (f"{eaves:.0f} LF ÷ 2 ft spacing = {spaced} + {runs} runs "
+            f"(1 per run) = {spaced + runs} hangers")
+
+
 def _j_channel_pcs(m: dict) -> int:
     """See `_j_channel_breakdown` for the full math + which source path
     was used. This wrapper just returns the integer piece count."""
@@ -794,6 +822,20 @@ HOVER_MAPPING_SPEC = [
             if (m.get("eaves_lf") or 0) > 0 else 0
         ),
         "note": "2 end caps per gutter run (~1 run per 30 LF eaves, min 2 runs)",
+    },
+    # Iter 78i — Hangars with Screws. Howard's install rule: 1 hanger every
+    # 2 ft of gutter PLUS 1 extra per gutter run (for the end termination).
+    # Run count reuses the End-Cap estimate (max(2, ceil(eaves/30))) so the
+    # two formulas stay in sync. Shared across vinyl/ascend/LP siding tabs;
+    # available on AI Measure + HOVER + Blueprint via the shared
+    # `_build_lines` mapper.
+    {
+        "tabs": ["vinyl", "ascend", "lp_smart"],
+        "section": "Seamless Gutter",
+        "item": "Hangars with Screws",
+        "unit": "Each",
+        "extract": lambda m: _hangers_count(m),
+        "note": lambda m: _hangers_breakdown(m),
     },
     # Iter 57w — Mirror Gutter + Downspout into the ISS catalog. ISS uses
     # the "Seamless Gutter with Siding" section with plainer item names
