@@ -88,6 +88,14 @@ class EstimateLine(BaseModel):
     qty: float = 0
     mat: float = 0
     lab: float = 0
+    # Iter 78 (Howard's "1C · 2C · 3A"): when an estimate imports a HOVER
+    # or Blueprint takeoff, cut-prone items (siding panels, soffit
+    # panels, J-channel, finish trim, corners, starter) have the
+    # contractor's waste % baked into `qty` directly. The original raw
+    # measurement is preserved here so future waste-% changes can
+    # recompute qty without re-running the import. Lines entered
+    # manually leave this field as None.
+    raw_qty: Optional[float] = None
     ami_part: Optional[str] = None  # Snapshotted at quote time so re-runs are reproducible
     # Which "tab" (product-line option) in the estimator this line belongs to.
     # "vinyl" (default — backward compat), "ascend", "lp_smart", or "windows".

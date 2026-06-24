@@ -23,6 +23,7 @@ import {
   clearWasteDefault,
   workspaceLabel,
 } from "@/lib/wasteDefaults";
+import { bakeWasteIntoLines } from "@/lib/wasteLogic";
 
 const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
 const WINDOWS_TABS = new Set(["windows"]);
@@ -293,13 +294,18 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
     const pairedMezzo  = srcKind === "windows" ? []       : allMezzo;
 
     // Merge source-side lines into the current estimate.
+    // Iter 78 — bake the contractor's Waste % into qty for cut-prone
+    // items before merging so the line shows the order qty directly.
+    const wastePct = Number(est?.waste_pct) || 0;
+    const wastedSource = bakeWasteIntoLines(sourceLines, wastePct);
+    const wastedPaired = bakeWasteIntoLines(pairedLines, wastePct);
     const existing = est.lines || [];
     const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
     const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
     const nextLines = [...existing];
     let added = 0;
     let updated = 0;
-    for (const ln of sourceLines) {
+    for (const ln of wastedSource) {
       const key = keyOf(ln);
       const idx = byKey.get(key);
       if (idx == null) {
@@ -309,11 +315,16 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
           name: ln.name,
           unit: ln.unit,
           qty: ln.qty,
+          raw_qty: ln.raw_qty ?? null,
           mat: 0, lab: 0,
         });
         added += 1;
       } else {
-        nextLines[idx] = { ...nextLines[idx], qty: ln.qty };
+        nextLines[idx] = {
+          ...nextLines[idx],
+          qty: ln.qty,
+          raw_qty: ln.raw_qty ?? null,
+        };
         updated += 1;
       }
     }
@@ -340,7 +351,7 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
         const pExisting = pair.lines || [];
         const pByKey = new Map(pExisting.map((l, i) => [keyOf(l), i]));
         const pNext = [...pExisting];
-        for (const ln of pairedLines) {
+        for (const ln of wastedPaired) {
           const idx = pByKey.get(keyOf(ln));
           if (idx == null) {
             pNext.push({
@@ -349,10 +360,15 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
               name: ln.name,
               unit: ln.unit,
               qty: ln.qty,
+              raw_qty: ln.raw_qty ?? null,
               mat: 0, lab: 0,
             });
           } else {
-            pNext[idx] = { ...pNext[idx], qty: ln.qty };
+            pNext[idx] = {
+              ...pNext[idx],
+              qty: ln.qty,
+              raw_qty: ln.raw_qty ?? null,
+            };
           }
         }
         const pNextVero  = [...(pair.vero_openings  || []), ...pairedVero];

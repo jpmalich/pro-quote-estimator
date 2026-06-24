@@ -13,6 +13,7 @@
 // Reads `measurements` + `lines` from the takeoff result and the
 // estimate's `waste_pct`. Pure presentation — no side effects.
 import React from "react";
+import { isCutProneItem } from "@/lib/wasteLogic";
 
 // Items to surface, in display order. Each entry maps:
 //   label  — what the contractor sees
@@ -139,14 +140,34 @@ export default function TakeoffReconCard({ measurements, lines, wastePct = 0 }) 
     const ln = byName(r.item, r.tab);
     if (!ln) return null;
     const qty = Number(ln.qty) || 0;
+    const rawQty = Number(ln.raw_qty);
     const unit = ln.unit || "";
-    const orderQty = r.waste ? roundUpHalf(qty * (1 + pct / 100)) : qty;
+    // Iter 78 — waste is baked into qty on apply (via bakeWasteIntoLines).
+    // Two scenarios:
+    //   1) PRE-apply (preview modal): line has raw qty in `qty` and no
+    //      `raw_qty` field. Simulate the waste for display so Howard sees
+    //      what the estimate WILL look like after Apply.
+    //   2) POST-apply (line already on the estimate): qty has waste baked
+    //      in; raw_qty carries the original measurement.
+    const hasRaw = isFinite(rawQty) && rawQty > 0;
+    let formulaQty;
+    let orderQty;
+    if (hasRaw) {
+      formulaQty = rawQty;
+      orderQty = qty;
+    } else if (isCutProneItem(ln)) {
+      formulaQty = qty;
+      orderQty = roundUpHalf(qty * (1 + pct / 100));
+    } else {
+      formulaQty = qty;
+      orderQty = qty;
+    }
     return {
       label: r.label,
       raw: r.raw(measurements),
-      formula: qty > 0 ? `${fmt(qty, 1)} ${unit}` : "—",
+      formula: formulaQty > 0 ? `${fmt(formulaQty, 1)} ${unit}` : "—",
       order: orderQty > 0 ? `${fmt(orderQty, 1)} ${unit}` : "—",
-      drift: r.waste && pct > 0 && orderQty > qty,
+      drift: orderQty > formulaQty,
     };
   }).filter(Boolean);
 

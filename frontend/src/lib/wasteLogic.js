@@ -1,0 +1,121 @@
+// Cut-waste logic — baked into line qty on import.
+//
+// Iter 78 (Howard's "1C · 2C · 3A"):
+//   • Waste % is applied directly to the qty of cut-prone items on HOVER /
+//     Blueprint import. The estimate then SHOWS the wasted total (e.g.
+//     Siding line displays 24 SQ instead of 18) so the contractor sees
+//     "what they need to order" in the editor, not just on the Material
+//     List PDF.
+//   • The separate $ Waste Factor card no longer adds dollars on top —
+//     waste is in the qty, so the dollar bump would double-count. The
+//     Waste % field remains as the master knob.
+//   • When the contractor changes Waste % later, every line with a
+//     stored `raw_qty` recomputes: qty = raw_qty × (1 + waste/100),
+//     rounded to the nearest 0.5 unit. Lines without `raw_qty` were
+//     entered manually and are left alone.
+//
+// Cut-prone items per Howard's 1C choice:
+//   - Siding panels (Vinyl Siding section, Ascend Composite Lap/B&B)
+//   - Soffit panels (Charter Oak Soffit)
+//   - J-Channel (all variants: vinyl, ascend, soffit-J)
+//   - Finish Trim (vinyl + ascend)
+//   - Outside corners + Inside corners
+//   - Starter strip
+
+const ASCEND_SIDING_NAMES = new Set([
+  'Ascend Composite Lap Siding 7"',
+  'Ascend Composite B&B 12" (add 30% Waste)',
+]);
+
+export function isCutProneItem(line) {
+  if (!line) return false;
+  const section = String(line.section || "").toLowerCase();
+  const name = String(line.name || "").toLowerCase();
+
+  // Siding panels — full section gets waste in Vinyl; only the two
+  // composite SKUs in Ascend.
+  if (section === "vinyl siding") return true;
+  if (
+    (line.section === "Ascend Cladding" ||
+      line.section === "Ascend Cladding/Accessories") &&
+    ASCEND_SIDING_NAMES.has(line.name)
+  ) {
+    return true;
+  }
+
+  // Soffit panels (Charter Oak)
+  if (
+    section === "vinyl soffit with siding" &&
+    name.includes("charter oak soffit")
+  ) {
+    return true;
+  }
+
+  // J-Channel (regular accessory J + Ascend J + Soffit J)
+  if (
+    name.includes("j-channel") ||
+    name.includes("j - channel") ||
+    name.includes("j channel")
+  ) {
+    return true;
+  }
+
+  // Finish Trim (both vinyl + ascend variants)
+  if (name.includes("finish trim")) return true;
+
+  // Outside / Inside corners — handle "Outside corners" + "Inside Corners"
+  // + Ascend variants like "Outside Corner Post".
+  if (name.includes("outside corner")) return true;
+  if (name.includes("inside corner")) return true;
+
+  // Starter strip
+  if (name === "starter" || name.startsWith("starter ")) return true;
+
+  return false;
+}
+
+// Round to nearest 0.5 unit, rounding up. Mirrors materialList.js so the
+// PDF Order column and the on-screen qty match exactly. Items like
+// J-channel pcs round to whole numbers naturally because (raw × waste)
+// of an integer is rarely fractional — but soffit/siding SQ can land at
+// 23.7 and we want to bump to 24.0 for ordering.
+function roundUpHalf(n) {
+  const x = Number(n);
+  if (!isFinite(x) || x <= 0) return 0;
+  return Math.ceil(x * 2) / 2;
+}
+
+// On import (HOVER / Blueprint): take freshly-computed catalog lines
+// and bake the waste % into qty for cut-prone items. Stores the
+// original raw value in `raw_qty` so future waste-% changes can
+// recompute without losing the source measurement.
+//
+// Items that don't qualify (gutter, downspouts, end caps, elbows,
+// labor, etc.) are returned unchanged.
+export function bakeWasteIntoLines(lines, wastePct) {
+  const pct = Math.max(0, Number(wastePct) || 0);
+  const factor = 1 + pct / 100;
+  return (lines || []).map((l) => {
+    if (!isCutProneItem(l)) return l;
+    const raw = Number(l.qty) || 0;
+    if (raw <= 0) return l;
+    return {
+      ...l,
+      raw_qty: raw,
+      qty: roundUpHalf(raw * factor),
+    };
+  });
+}
+
+// On waste-% change: walk existing lines, recompute qty from raw_qty
+// for any line that has it. Lines without raw_qty (manually entered or
+// non-cut-prone) keep whatever qty the contractor typed.
+export function recomputeWasteQtys(lines, wastePct) {
+  const pct = Math.max(0, Number(wastePct) || 0);
+  const factor = 1 + pct / 100;
+  return (lines || []).map((l) => {
+    const raw = Number(l?.raw_qty);
+    if (!raw || !isFinite(raw) || raw <= 0) return l;
+    return { ...l, qty: roundUpHalf(raw * factor) };
+  });
+}

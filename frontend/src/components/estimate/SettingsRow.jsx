@@ -1,10 +1,18 @@
 import React from "react";
 import { useT } from "@/lib/i18n";
+import { recomputeWasteQtys } from "@/lib/wasteLogic";
 
 export default function SettingsRow({ est, update }) {
   const t = useT();
   const mode = est.pricing_mode || "margin";
   const isMargin = mode === "margin";
+  // Iter 78 — Waste % change recomputes line.qty for any cut-prone line
+  // that carries a stored raw_qty (i.e. came from a HOVER/Blueprint
+  // import). Lines entered manually are untouched.
+  const updateWastePct = (newPct) => {
+    const lines = recomputeWasteQtys(est?.lines, newPct);
+    update({ waste_pct: newPct, lines });
+  };
   // Live preview of the multiplier so the contractor knows what %  actually does
   const pct = Math.min(Number(est.margin_pct) || 0, 99);
   const effectiveMultiplier = isMargin
@@ -26,13 +34,20 @@ export default function SettingsRow({ est, update }) {
               type="number"
               step="0.5"
               value={est.waste_pct || 0}
-              onChange={(e) => update({ waste_pct: Number(e.target.value) || 0 })}
+              onChange={(e) => updateWastePct(Number(e.target.value) || 0)}
               data-testid="waste-pct"
             />
             <span className="text-[#52525B]">{t("est.wasteSuffix")}</span>
           </div>
           <p className="mt-2 text-[10px] uppercase tracking-wider text-[#A1A1AA]">
             {t("est.wasteHint")}
+          </p>
+          {/* Iter 78 — Waste is now baked directly into line qty on HOVER /
+              Blueprint imports for siding, soffit, J-channel, finish trim,
+              corners + starter. Changing the % here recomputes those line
+              qtys (raw × 1+waste). Manual lines are untouched. */}
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-[#16A34A] font-bold">
+            Baked into line qty on import — change % to recompute
           </p>
           {/* Iter 45: soffit overhang in inches — drives the
               Pieces = (Overhang × Length) ÷ panel-area formula on the

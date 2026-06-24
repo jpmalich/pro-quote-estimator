@@ -73,7 +73,19 @@ export function buildMaterialListHtml({ estimate, company, branding, lang = "en"
   });
 
   const sectionRows = ([sectionName, items]) => {
-    const totalRaw = items.reduce((s, l) => s + (l.qty || 0), 0);
+    // Iter 78 — waste is now baked into line.qty on import for cut-prone
+    // items (siding, soffit, J, finish trim, corners, starter). For
+    // those, line.raw_qty carries the original measurement so we can
+    // display "Raw → Order" without re-applying waste here (which would
+    // double-count). Lines entered manually have no raw_qty and the two
+    // columns match.
+    const rawOf = (l) => {
+      const r = Number(l.raw_qty);
+      return isFinite(r) && r > 0 ? r : Number(l.qty) || 0;
+    };
+    const orderOf = (l) => Number(l.qty) || 0;
+    const totalRaw = items.reduce((s, l) => s + rawOf(l), 0);
+    const totalOrder = items.reduce((s, l) => s + orderOf(l), 0);
     return (
       `<tr class="section-row"><td colspan="5">
         <span class="section-name">${esc(tSection(sectionName, lang))}</span>
@@ -81,36 +93,19 @@ export function buildMaterialListHtml({ estimate, company, branding, lang = "en"
       </td></tr>` +
       items
         .map((l) => {
-          const rawQty = Number(l.qty) || 0;
-          // Iter 78 — waste applies to actual siding material AND soffit
-          // panels (both ship as PCS/SQ that incur cut-waste on the job).
-          // Trim/accessories/etc. ship to actual count.
-          const isAscendWaste =
-            (sectionName === "Ascend Cladding" ||
-              sectionName === "Ascend Cladding/Accessories") &&
-            (l.name === 'Ascend Composite Lap Siding 7"' ||
-              l.name === 'Ascend Composite B&B 12" (add 30% Waste)');
-          const isSoffitPanelWaste =
-            sectionName === "Vinyl Soffit with Siding" &&
-            /charter\s*oak\s+soffit/i.test(l.name || "");
-          const applyWaste =
-            sectionName === "Vinyl Siding" || isAscendWaste || isSoffitPanelWaste;
-          const wasteQty = applyWaste
-            ? roundUpHalf(rawQty * (1 + wastePct / 100))
-            : rawQty;
           return `<tr class="item-row">
             <td class="cell-ami">${l.ami_part ? esc(l.ami_part) : '<span class="dim">—</span>'}</td>
             <td class="cell-desc">${esc(tItem(l.name, lang))}</td>
             <td class="cell-unit">${esc(tUnit(l.unit, lang))}</td>
-            <td class="cell-num">${rawQty}</td>
-            <td class="cell-num cell-order">${wasteQty}</td>
+            <td class="cell-num">${rawOf(l)}</td>
+            <td class="cell-num cell-order">${orderOf(l)}</td>
           </tr>`;
         })
         .join("") +
       `<tr class="section-total">
         <td colspan="3"></td>
         <td class="cell-num">${totalRaw}</td>
-        <td class="cell-num cell-order">${roundUpHalf(totalRaw * (1 + wastePct / 100))}</td>
+        <td class="cell-num cell-order">${totalOrder}</td>
       </tr>`
     );
   };

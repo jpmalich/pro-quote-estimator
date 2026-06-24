@@ -93,13 +93,13 @@ export function calcTotals(est, { tab } = {}) {
     lines.reduce((s, l) => s + (l.qty || 0) * (l.lab || 0) + addersLabTotal(l), 0) +
     miscMat.reduce((s, l) => s + (l.lab || 0), 0) +
     miscLab.reduce((s, l) => s + (l.lab || 0), 0);
-  // Waste factor only inflates siding material — Vinyl Siding section + the
-  // 2 Ascend Composite siding products. Everything else is ordered to actual
-  // count. See isWasteLine() for the canonical predicate.
-  const wasteBase = lines
-    .filter(isWasteLine)
-    .reduce((s, l) => s + (l.qty || 0) * (l.mat || 0), 0);
-  const wasteAdd = wasteBase * ((est?.waste_pct || 0) / 100);
+  // Iter 78 — Waste is now baked into the line.qty itself on
+  // HOVER/Blueprint import for cut-prone items (siding, soffit, J,
+  // finish trim, corners, starter). The on-screen qty IS the order
+  // qty, so we no longer add a separate dollar waste bump here —
+  // that would double-count. `wasteAdd` stays at 0 to keep the
+  // returned shape stable for callers that read it.
+  const wasteAdd = 0;
   const wasted = subMat + wasteAdd;
   const tax = est?.tax_enabled ? wasted * ((est?.tax_rate || 0) / 100) : 0;
   const base = wasted + tax + subLab;

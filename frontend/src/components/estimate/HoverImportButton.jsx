@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
 import { getSavedWasteDefault } from "@/lib/wasteDefaults";
+import { bakeWasteIntoLines } from "@/lib/wasteLogic";
 
 const KEY_LABELS = {
   siding_sqft: "Siding",
@@ -160,13 +161,21 @@ export default function HoverImportButton({ est, update, save }) {
     const pairedMezzoOpenings = srcKind === "windows" ? [] : openings.map(veroToMezzo);
 
     // ─── Merge SOURCE-side lines into the current estimate ─────────────────
+    // Iter 78 — bake the contractor's Waste % into qty for cut-prone items
+    // before merging. Siding/soffit/J/finish-trim/corners/starter lines
+    // come out already scaled (e.g. 18 SQ → 24 SQ at 33% waste) and stash
+    // the original raw measurement in `raw_qty` so waste-% changes can
+    // recompute later.
+    const wastePct = Number(est?.waste_pct) || 0;
+    const wastedSource = bakeWasteIntoLines(sourceLines, wastePct);
+    const wastedPaired = bakeWasteIntoLines(pairedLines, wastePct);
     const existing = est.lines || [];
     const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
     const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
     const nextLines = [...existing];
     let added = 0;
     let updated = 0;
-    for (const ln of sourceLines) {
+    for (const ln of wastedSource) {
       const key = keyOf(ln);
       const idx = byKey.get(key);
       if (idx == null) {
@@ -176,11 +185,19 @@ export default function HoverImportButton({ est, update, save }) {
           name: ln.name,
           unit: ln.unit,
           qty: ln.qty,
+          raw_qty: ln.raw_qty ?? null,
           mat: 0, lab: 0,
         });
         added += 1;
       } else {
-        nextLines[idx] = { ...nextLines[idx], qty: ln.qty };
+        nextLines[idx] = {
+          ...nextLines[idx],
+          qty: ln.qty,
+          // Preserve raw_qty when present so future waste-% changes
+          // recompute correctly. null clears prior raw_qty for items
+          // that re-imported as non-cut-prone (rare).
+          raw_qty: ln.raw_qty ?? null,
+        };
         updated += 1;
       }
     }
@@ -216,7 +233,7 @@ export default function HoverImportButton({ est, update, save }) {
         const pExisting = pair.lines || [];
         const pByKey = new Map(pExisting.map((l, i) => [keyOf(l), i]));
         const pNext = [...pExisting];
-        for (const ln of pairedLines) {
+        for (const ln of wastedPaired) {
           const idx = pByKey.get(keyOf(ln));
           if (idx == null) {
             pNext.push({
@@ -225,10 +242,15 @@ export default function HoverImportButton({ est, update, save }) {
               name: ln.name,
               unit: ln.unit,
               qty: ln.qty,
+              raw_qty: ln.raw_qty ?? null,
               mat: 0, lab: 0,
             });
           } else {
-            pNext[idx] = { ...pNext[idx], qty: ln.qty };
+            pNext[idx] = {
+              ...pNext[idx],
+              qty: ln.qty,
+              raw_qty: ln.raw_qty ?? null,
+            };
           }
         }
         const pNextOpenings = [

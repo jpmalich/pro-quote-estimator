@@ -27,6 +27,7 @@ import { buildMaterialListHtml, materialListFilename } from "@/lib/materialList"
 import { useCompany } from "@/lib/company";
 import { useBranding } from "@/lib/branding";
 import { useLang } from "@/lib/i18n";
+import { recomputeWasteQtys, bakeWasteIntoLines } from "@/lib/wasteLogic";
 import QuoteModal from "@/components/QuoteModal";
 import ISSHoverImportButton from "@/components/estimate/ISSHoverImportButton";
 import AIMeasureButton from "@/components/estimate/AIMeasureButton";
@@ -145,7 +146,16 @@ export default function ISSEstimateEditor() {
   };
 
   const updateField = (field, value) => {
-    setEst((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setEst((prev) => {
+      if (!prev) return prev;
+      let next = { ...prev, [field]: value };
+      // Iter 78 — Waste % change recomputes line qtys for any line that
+      // came from a HOVER import (carries raw_qty). Mirrors SettingsRow.
+      if (field === "waste_pct") {
+        next = { ...next, lines: recomputeWasteQtys(prev.lines, value) };
+      }
+      return next;
+    });
     userEdits.current += 1;
   };
 
@@ -164,15 +174,30 @@ export default function ISSEstimateEditor() {
     }
     const current = est;
     if (!current) return;
+    // Iter 78 — bake current waste% into qty for cut-prone items
+    // before merging, mirroring HOVER/Blueprint behavior on siding.
+    const wastePct = Number(current?.waste_pct) || 0;
+    const wastedRows = bakeWasteIntoLines(
+      rows.map((r) => ({ ...r, tab: "iss" })),
+      wastePct
+    );
     const lines = [...(current.lines || [])];
-    for (const r of rows) {
+    for (const r of wastedRows) {
       const key = `${r.section}::${r.name}`;
       const price = Number(priceMap.get(key) || 0);
       const idx = lines.findIndex(
         (l) => (l.tab || "") === "iss" && l.section === r.section && l.name === r.name
       );
       if (idx >= 0) {
-        lines[idx] = { ...lines[idx], qty: Number(r.qty) || 0, unit: r.unit, mat: price, lab: 0, tab: "iss" };
+        lines[idx] = {
+          ...lines[idx],
+          qty: Number(r.qty) || 0,
+          raw_qty: r.raw_qty ?? null,
+          unit: r.unit,
+          mat: price,
+          lab: 0,
+          tab: "iss",
+        };
       } else {
         lines.push({
           tab: "iss",
@@ -180,6 +205,7 @@ export default function ISSEstimateEditor() {
           name: r.name,
           unit: r.unit,
           qty: Number(r.qty) || 0,
+          raw_qty: r.raw_qty ?? null,
           mat: price,
           lab: 0,
         });
