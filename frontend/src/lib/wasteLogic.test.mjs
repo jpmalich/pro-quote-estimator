@@ -102,6 +102,56 @@ eq(
   "End Cap != cut-prone"
 );
 
+// Iter 78a bug fix — LP sections must now be cut-prone too.
+eq(
+  isCutProneItem({ section: "LP Smart Siding", name: '38 Series Lap 3/8" x 8" x 16\'' }),
+  true,
+  "LP Smart Siding (38 Series Lap) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP SmartSide Trim", name: '440 Series Trim 4/4" x 4" x 16\'' }),
+  true,
+  "LP SmartSide Trim (440 Series) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP SmartSide Trim", name: '540 Series Trim 5/4" x 4" x 16\'' }),
+  true,
+  "LP SmartSide Trim (540 Series) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP SmartSide Soffit", name: "38 Series Soffit 16 x 16 Vented" }),
+  true,
+  "LP SmartSide Soffit (Vented) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP SmartSide Soffit", name: "38 Series Soffit 16 x 16 Closed" }),
+  true,
+  "LP SmartSide Soffit (Closed) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP Siding Accessories", name: "540 Series OSC 5/4\" x 4\" x 16'" }),
+  true,
+  "LP Outside Corner (540 OSC) = cut-prone"
+);
+eq(
+  isCutProneItem({ section: "LP Siding Accessories", name: ".019 Coil" }),
+  false,
+  "LP .019 Coil != cut-prone (ships in rolls)"
+);
+eq(
+  isCutProneItem({ section: "LP Siding Accessories", name: "Touch up kits" }),
+  false,
+  "LP Touch-up kits != cut-prone"
+);
+
+// LP 18-SQ at 20% waste should now hit ~233 PCS (the LETRICK ask).
+const lpBaked = bakeWasteIntoLines(
+  [{ section: "LP Smart Siding", name: '38 Series Lap 3/8" x 8" x 16\'', qty: 198, unit: "PCS", tab: "lp_smart" }],
+  20
+);
+eq(lpBaked[0].raw_qty, 198, "LP 38 Lap raw_qty preserved");
+eq(lpBaked[0].qty, 238, "LP 38 Lap qty = ceil(198 × 1.20 = 237.6) → 238");
+
 console.log("\nbakeWasteIntoLines @ 15%:");
 const baked = bakeWasteIntoLines(
   [

@@ -43,6 +43,24 @@ export function isCutProneItem(line) {
     return true;
   }
 
+  // LP SmartSide cut-prone sections (Iter 78a bug fix) — all panel,
+  // trim, and soffit boards ship as 16'-long PCS that incur cut waste.
+  // Without this branch the contractor's waste % was being silently
+  // ignored on LP estimates, producing under-counted order qtys (Howard
+  // reported 194 PCS for 18 SQ where 232+ was expected at 20%).
+  if (section === "lp smart siding") return true;
+  if (section === "lp smartside trim") return true;
+  if (section === "lp smartside soffit") return true;
+  // LP Outside Corner lives in "LP Siding Accessories" alongside
+  // small-count items (coil, touch-up kits, J blocks, mini splits).
+  // Only the OSC + Series-540 trim variants need waste.
+  if (
+    section === "lp siding accessories" &&
+    (name.includes("osc") || name.includes("outside corner"))
+  ) {
+    return true;
+  }
+
   // Soffit panels (Charter Oak)
   if (
     section === "vinyl soffit with siding" &&

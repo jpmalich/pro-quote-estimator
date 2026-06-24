@@ -1,0 +1,44 @@
+{
+  "summary": "Iter 78a LP SmartSide waste-baking regression — ALL GREEN. Verified the fix for Howard's bug where LP siding/soffit/trim/OSC lines were silently skipped by the cut-prone classifier. Frontend Node test (38 assertions incl. 9 new LP cases) passes; backend pytest regression (25 prior + 4 new LP round-trip) passes; UI shows waste-pct=20 with green 'BAKED INTO LINE QTY ON IMPORT — CHANGE % TO RECOMPUTE' hint visible; lp-soffit-type SELECT defaults to 'mix'; manual qty edit (raw_qty=null) is preserved across waste % changes (20→25 left qty=100 untouched). Live HOVER/Blueprint AI re-import deliberately NOT tested per main-agent instruction (AI budget unconfirmed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_lp_waste_roundtrip.py",
+    "/app/test_reports/pytest/pytest_iteration16.xml",
+    "/app/frontend/src/lib/wasteLogic.test.mjs"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wasteLogic.js isCutProneItem(): LP branch correctly disambiguates 'LP Siding Accessories' so only OSC lines get waste while .019 Coil / touch-up kits / J blocks / mini-splits stay non-cut-prone. Comment header is clear about the bug and intent.",
+    "models.py EstimateLine.raw_qty: Optional[float] is the right shape — None for manual lines, populated only when bakeWasteIntoLines stamps it on import. Round-trip verified via POST/PUT/GET on /api/estimates.",
+    "SettingsRow.updateWastePct → recomputeWasteQtys correctly leaves manual lines (raw_qty=null) untouched. Confirmed in UI: changing waste 20→25 with qty=100 manual edit did NOT recompute the line.",
+    "EXISTING LP ESTIMATES (created before fix landed) have lines with qty=raw and raw_qty=null, so they will NOT auto-recompute on waste-% change. Howard will need to re-import the blueprint via 'Read Blueprints' for the fix to retro-actively bake waste into those lines. Recommend surfacing this in the green hint or a one-time banner ('Re-import blueprint to apply 20% waste to existing LP lines').",
+    "Cosmetic: Summary card on LP estimate shows '+ WASTE (20%) $9,844.98' equal to MATERIAL $9,844.98 — visual implies double-add but the math (Base $10,534 = Mat $9,844 + Tax $689) shows waste is NOT being added as $. Consider clarifying the label (e.g., 'incl. 20% waste in qty')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_lp_waste_roundtrip.py (new — 4 LP round-trip pytests)"
+  ],
+  "success_rate": {"backend": "100% (4/4 new + 25/25 regression)", "frontend": "100% (all 5 UI acceptance checks)"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123!",
+  "seed_data_creation": "Created 1 LP estimate via API ('TEST_LP_RawQty') — deleted in fixture teardown. The pre-existing LP estimate EST-078678 was left as found (qty restored to 194, waste restored to 20).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Line qty inputs use testid pattern: qty-{section.title}-{line.name} (e.g., 'qty-LP Smart Siding-38 Series Lap 3/8\" x 8\" x 16''). This testid contains quotes/spaces so use querySelector with starts-with ([data-testid^=...]) instead of full-match. To edit React inputs reliably, use the native setter + dispatch input/change events (Playwright .fill() worked but JS injection is more reliable). LP section accordions start COLLAPSED; click the header text 'LP SMART SIDING' to expand. The 'Previous read available' badge on Job Information lets the AI blueprint be restored (no fresh AI cost). All 7 LP Smart Siding rows present: 38 Lap 8\" + 6\", Nickel Gap, Shake, 4x8 Panel, 4x10 Panel, Vertical Panel.",
+  "verified_acceptance_criteria": {
+    "T1_login_admin": "PASS",
+    "T2_lp_dashboard_navigate_and_open_estimate": "PASS — opened EST-078678",
+    "T3_waste_pct_field_value_20": "PASS",
+    "T3_green_hint_visible": "PASS — 'BAKED INTO LINE QTY ON IMPORT — CHANGE % TO RECOMPUTE'",
+    "T4_lp_soffit_type_renders_default_mix": "PASS — SELECT, value='mix'",
+    "T5_backend_raw_qty_roundtrip": "PASS — POST kind=lp_smart waste_pct=20 → PUT line w/ raw_qty=198 qty=238 → GET preserves both fields (test_lp_waste_roundtrip.py 4/4)",
+    "T6_wasteLogic_node_tests": "PASS — all 38 assertions including 9 new LP cases",
+    "T7_backend_regression_pytest": "PASS — 25/25 (test_hover_perimeter + test_pricing_parity + test_j_channel_formula)",
+    "T8_manual_qty_edit_preserved_on_waste_change": "PASS — set Lap qty=100 (no raw_qty), changed waste 20→25, qty stayed at 100",
+    "T9_live_hover_blueprint_reimport": "SKIPPED per main-agent instruction (AI budget unconfirmed)"
+  },
+  "rca_of_the_issue": "Root cause: isCutProneItem() in /app/frontend/src/lib/wasteLogic.js didn't recognize the 4 LP sections so bakeWasteIntoLines() returned LP lines unchanged on HOVER/Blueprint import — qty stored = raw blueprint value with no waste multiplier applied. Howard's 20% waste setting was silently ignored. Fix: extended the classifier with explicit branches for 'lp smart siding', 'lp smartside trim', 'lp smartside soffit', and 'lp siding accessories' (OSC-only via name match). Mitigation: existing LP estimates created BEFORE the fix have raw_qty=null and will not auto-recompute; users must click 'Read Blueprints → Restore' (or re-upload) to re-bake waste into qty. Strongly recommend the main agent add a one-time banner on legacy LP estimates prompting a re-import."
+}
