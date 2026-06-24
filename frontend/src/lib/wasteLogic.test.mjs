@@ -116,6 +116,14 @@ eq(
   "RainDrop House Wrap = cut-prone"
 );
 
+// Iter 78m — Fan Fold (3/8") insulation board. Full-coverage, cut around
+// openings + corners — same install reality as House Wrap.
+eq(
+  isCutProneItem({ section: "Siding Accessories", name: '3/8" Fan Fold' }),
+  true,
+  "3/8\" Fan Fold = cut-prone"
+);
+
 // Iter 78a bug fix — LP sections must now be cut-prone too.
 eq(
   isCutProneItem({ section: "LP Smart Siding", name: '38 Series Lap 3/8" x 8" x 16\'' }),

@@ -487,6 +487,9 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Recent Changes
 
+- **Iter 78m — Fan Fold added to cut-prone waste items (2026-02-25)**: Howard confirmed Fan Fold (3/8") behaves the same as House Wrap on a job site — full-coverage, cut around every opening + corner. Added `name === '3/8" fan fold' || name.includes("fan fold")` branch to `isCutProneItem`. New test assertion added; all 3 wrap-style items (House Wrap / RainDrop House Wrap / Fan Fold) now bake waste into qty consistently. Howard also confirmed RainDrop is just a House Wrap variant (already covered in Iter 78l).
+  - **Files**: `frontend/src/lib/wasteLogic.js`, `frontend/src/lib/wasteLogic.test.mjs`, `memory/PRD.md`.
+
 - **Iter 78l — Waste factor applies to House Wrap (2026-02-25)**: Howard's request: waste % should bake into House Wrap rolls the same way it bakes into siding panels (full-coverage product, cut waste at every opening + corner + seam).
   - **One-line fix** in `frontend/src/lib/wasteLogic.js` — `isCutProneItem` now also matches `name === "house wrap" || name === "raindrop house wrap"`. Single source of truth, so the change propagates across:
     - HOVER import / Blueprint import (waste baked into qty on apply)

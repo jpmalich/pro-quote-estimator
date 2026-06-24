@@ -95,6 +95,10 @@ export function isCutProneItem(line) {
   // way it applies to siding panels.
   if (name === "house wrap" || name === "raindrop house wrap") return true;
 
+  // Iter 78m — Fan Fold (3/8") insulation board. Same install reality
+  // as House Wrap: full-coverage, cut around openings + corners.
+  if (name === '3/8" fan fold' || name.includes("fan fold")) return true;
+
   return false;
 }
 
