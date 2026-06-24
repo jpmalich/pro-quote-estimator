@@ -149,6 +149,38 @@ def _finish_trim_note(m: dict) -> str:
             f"({src}) = {total:.0f} LF ÷ 12.5 = {pcs} pcs")
 
 
+# Iter 78h — per-job breakdown strings for the 3 downspout-derived gutter
+# rows so the Takeoff Recon Card can surface the math (1/25 LF rule, min 2,
+# 10 LF/downspout, 2 elbows/downspout). Mirrors the J-channel pattern.
+def _downspout_count(m: dict) -> int:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return 0
+    return max(2, math.ceil(eaves / 25))
+
+
+def _downspout_breakdown(m: dict) -> str:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return "No eaves → 0 downspouts"
+    raw = eaves / 25
+    n = _downspout_count(m)
+    min_hit = " (min 2)" if n == 2 and raw < 2 else ""
+    return (f"{eaves:.0f} LF eaves ÷ 25 = {raw:.1f} → ceil = "
+            f"{n} downspouts{min_hit} × 10 LF = {n * 10} LF coil")
+
+
+def _elbow_breakdown(m: dict) -> str:
+    eaves = float(m.get("eaves_lf") or 0)
+    if eaves <= 0:
+        return "No eaves → 0 elbows"
+    raw = eaves / 25
+    n = _downspout_count(m)
+    min_hit = " (min 2)" if n == 2 and raw < 2 else ""
+    return (f"{eaves:.0f} LF eaves ÷ 25 = {raw:.1f} → {n} downspouts{min_hit} "
+            f"× 2 elbows (top turn + kick-out) = {n * 2} elbows")
+
+
 def _j_channel_pcs(m: dict) -> int:
     """See `_j_channel_breakdown` for the full math + which source path
     was used. This wrapper just returns the integer piece count."""
@@ -730,7 +762,8 @@ HOVER_MAPPING_SPEC = [
             max(2, math.ceil((m.get("eaves_lf") or 0) / 25)) * 10
             if (m.get("eaves_lf") or 0) > 0 else 0
         ),
-        "note": "1 downspout per 25 LF eaves, min 2; each ≈ 10 LF of coil",
+        # Iter 78h — surface the per-job math so Howard can spot drift.
+        "note": lambda m: _downspout_breakdown(m),
     },
     {
         "tabs": ["vinyl", "ascend", "lp_smart"],
@@ -743,7 +776,7 @@ HOVER_MAPPING_SPEC = [
             max(2, math.ceil((m.get("eaves_lf") or 0) / 25)) * 2
             if (m.get("eaves_lf") or 0) > 0 else 0
         ),
-        "note": "2 elbows per downspout (top + kick-out)",
+        "note": lambda m: _elbow_breakdown(m),
     },
     # Iter 65 — End Caps. Industry standard: 2 caps per continuous gutter
     # run (one on each end). HOVER doesn't expose a gutter-run count so
@@ -785,7 +818,7 @@ HOVER_MAPPING_SPEC = [
             max(2, math.ceil((m.get("eaves_lf") or 0) / 25)) * 10
             if (m.get("eaves_lf") or 0) > 0 else 0
         ),
-        "note": "1 downspout per 25 LF eaves, min 2; each ≈ 10 LF of coil",
+        "note": lambda m: _downspout_breakdown(m),
     },
     # =====================================================================
     # CAPS — Misc. Labor & Material section is on all 3 tabs.

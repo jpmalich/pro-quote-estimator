@@ -485,6 +485,14 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Recent Changes
 
+- **Iter 78h — Formula breakdown strings on Downspout / Elbow lines (2026-02-25)**: Howard asked for per-job math on the 3 downspout-derived gutter rows (mirroring the J-channel pattern). Static `note` strings replaced with dynamic callables that surface the actual numbers:
+  - **Downspout 6"** (vinyl/ascend/lp_smart + ISS Downspout): `"100 LF eaves ÷ 25 = 4.0 → ceil = 4 downspouts × 10 LF = 40 LF coil"`. Min-2 fallback labeled inline: `"32 LF eaves ÷ 25 = 1.3 → ceil = 2 downspouts (min 2) × 10 LF = 20 LF coil"`.
+  - **Elbow**: `"100 LF eaves ÷ 25 = 4.0 → 4 downspouts × 2 elbows (top turn + kick-out) = 8 elbows"`.
+  - Both notes contain `÷`, so they pick up automatically in the Blueprint preview's existing "Formula breakdown" section (which filters dynamic notes by the divide glyph). HOVER preview also already renders `l.note` under each line.
+  - New helpers in `backend/routes/hover.py`: `_downspout_count(m)`, `_downspout_breakdown(m)`, `_elbow_breakdown(m)`. Shared `_downspout_count` keeps the elbow/downspout counts perfectly in sync.
+  - **Verified**: 18/18 takeoff + pricing-parity tests pass; helpers tested across 5 edge cases (typical 100 LF, min-2 fallback at 32 LF, zero eaves, large 180 LF, missing field).
+  - **Files**: `backend/routes/hover.py`, `memory/PRD.md`.
+
 - **Iter 78g — Coverage Breakdown visualization in Takeoff Recon Card (2026-02-25)**: Howard wanted a quick way to spot HOVER mis-reads before sending a quote. Shipped a compact stacked-bar visualization for the two LF-driven items most prone to drift:
   - **Finish Trim bar** — segments: `Eaves run` (blue) + `Window perimeter` (purple, with source tag "N dims" if HOVER returned per-window dims, else "N wins × 14 LF" fallback). Bottom label shows `total LF ÷ 12.5 = pcs` and formula `ceil((Eaves + Full Window Perim) ÷ 12.5)`.
   - **Soffit J-Channel bar** — segments: `Eaves run` (blue) + `Rake @ 2 passes` (orange, computed as `2 × rakes_lf`). Bottom label shows `total LF ÷ 12.5 = pcs` and formula `ceil((Eaves + 2 × Rakes) ÷ 12.5) — 2 passes per rake (wall side + fascia return)`.
