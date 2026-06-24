@@ -1,0 +1,38 @@
+{
+  "summary": "Iter 78c labor-lock policy change — LP labor is now editable while Vinyl + Ascend stay locked. All 6 acceptance criteria PASS. Backend pytest 29/29 (test_hover_perimeter + test_pricing_parity + test_j_channel_formula + test_lp_waste_roundtrip). UI verified across LP (lab editable, persists), Vinyl (lab read-only $0), Windows (lab editable). DOM-level audit of 61 LP labor inputs confirms readOnly=false, tabIndex=0 (default), no 'cursor-not-allowed'. DOM-level audit of vinyl labs confirms readOnly=true, tabIndex=-1, cursor-not-allowed, bg-[#FAFAFA] text-[#A1A1AA] styling intact. End-to-end persistence proven by setting lab=9.99 on '38 Series Lap 3/8\" x 8\" x 16'' line (qty=255), waiting for 2s debounced autosave, then verifying via /api/estimates/{id} GET that lab=9.99 persisted; total recomputed to $11,056.80 = 255 × ($33.37 + $9.99). Orange reset-badge override marker rendered as expected on the overridden labor cell.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_hover_perimeter.py",
+    "/app/backend/tests/test_pricing_parity.py",
+    "/app/backend/tests/test_j_channel_formula.py",
+    "/app/backend/tests/test_lp_waste_roundtrip.py",
+    "/app/test_reports/pytest/pytest_iteration18.xml"
+  ],
+  "action_items": [
+    "Optional cleanup: the LP estimate EST-723351 (id f27a3c6f-00c6-4401-94a0-33f22eb6212e) was left with qty=255 / lab=$9.99 on the 38 Series Lap 3/8\" x 8\" x 16' line as test residue. Howard can reset to lab=$0 via the orange ↺ badge when he opens it next.",
+    "Observation (not blocking): backend services.py:707-717 startup migration still includes 'lp_smart' in the lab=0 wipe filter. This is a one-shot startup migration so it won't actively clobber in-session edits — but it WILL nuke every contractor's saved LP labor on every backend restart. If Howard's plan is for LP labor edits to survive deploys/restarts, the 'lp_smart' entry must be removed from BOTH array_filters AND the $elemMatch tab list at services.py lines 709 + 714. (For ad-hoc testing this didn't surface because the backend wasn't restarted between save and GET, but next deploy will erase all per-line LP labor values.)"
+  ],
+  "critical_code_review_comments": [
+    "SectionAccordion.jsx:292 — branch now correctly reads [\"vinyl\",\"ascend\"].includes(l.tab) ? readOnly : editable. Verified live: 61 LP labor inputs render via the editable branch (line 304-326). Vinyl + Ascend tabs hit the locked branch (line 293-301) with bg-[#FAFAFA] text-[#A1A1AA] cursor-not-allowed, tabIndex=-1, readOnly=true.",
+    "STARTUP MIGRATION INCONSISTENCY (services.py:707-717): The Iter-69 lab=0 backfill still targets tab IN ('vinyl','ascend','lp_smart'). The frontend lock was relaxed for lp_smart but the backend migration was not. Behavior today: in-session edits persist (verified end-to-end), but on next backend restart `ensure_tiers_seeded()` will wipe every lp_smart line's lab back to 0. RECOMMEND: drop 'lp_smart' from both $elemMatch and array_filters at lines 709/714 to match the new frontend policy.",
+    "useEstimate.js autosave is debounced at 2000ms (line 494). Tests that don't blur the input + wait ≥3s see the [pagehide-flush] keepalive flush fail on a reload — fine for end users (they don't usually reload mid-debounce) but worth a note for the testing playbook.",
+    "Backend PUT /estimates/{id} (routes/estimates.py:432) does NOT apply any per-request lab-zeroing — verified by direct curl PUT with lab=12 round-tripping cleanly. Backend-side acceptance of non-zero LP lab is confirmed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (29/29 pytest)", "frontend": "100% (all acceptance criteria verified end-to-end)"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123!",
+  "seed_data_creation": "None new. Used existing LP estimate EST-723351 (id f27a3c6f-00c6-4401-94a0-33f22eb6212e). Left '38 Series Lap 3/8\" x 8\" x 16'' with qty=255 / lab=$9.99 (was qty=0 / lab=$0 originally before testing).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "LP labor editability + Vinyl/Ascend lock + Windows editable all verified. End-to-end persistence confirmed via /api/estimates GET round-trip. Autosave debounce is 2000ms — wait ≥5s after blur before reloading. Use page.evaluate with CSS.escape to handle data-testid values containing quotes (e.g. '38 Series Lap 3/8\"...'). To set value in a way that triggers React state, use the native setter pattern: Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el, v); el.dispatchEvent(new Event('input',{bubbles:true})). One latent risk for next iteration: backend services.py:707-717 still wipes lp_smart lab on startup — flag for Howard if LP labor needs to survive deploys.",
+  "verified_acceptance_criteria": {
+    "T1_login": "PASS — hhunt6677@yahoo.com authenticated",
+    "T2_lp_labor_editable_DOM_attrs": "PASS — 61 lp_smart labor inputs: readOnly=false, tabIndex=0 (default, not -1), class lacks 'cursor-not-allowed'",
+    "T3_lp_labor_type_and_persist": "PASS — typed 9.99 on '38 Series Lap 3/8\" x 8\" x 16'' (qty=255), waited 6s, fetched /api/estimates/{id} → lab field present with 9.99; total recomputed to $11,056.80 = 255 × ($33.37+$9.99); orange override ↺ badge rendered",
+    "T4_vinyl_ascend_regression_locked": "PASS — all 5 inspected Vinyl 'Conquest/Coventry' labor inputs: readOnly=true, tabIndex=-1, value=0, class contains 'cursor-not-allowed' + 'bg-[#FAFAFA]' + 'text-[#A1A1AA]'; programmatic value-set attempt was rejected (value stayed 0, readOnly stayed true)",
+    "T5_windows_regression_editable": "PASS — 3 inspected Window Installation labor inputs ('Window DH/Slider - Pocket Install', 'Window - Full Fin Replacement', 'Large Window adder'): readOnly=false, tabIndex=0, no cursor-not-allowed",
+    "T6_backend_pytest_29_pass": "PASS — 29 passed in 9.43s; junit xml at /app/test_reports/pytest/pytest_iteration18.xml"
+  },
+  "rca_of_the_issue": "Iter 78c is a one-line policy relaxation in SectionAccordion.jsx (removed 'lp_smart' from the tab whitelist that renders the read-only $0 lab cell). Frontend now routes LP labor through the same editable branch as Windows; Vinyl + Ascend remain locked. Backend ALREADY accepted any non-negative lab on lp_smart lines via PUT /estimates/{id} — no backend change was strictly required. CAVEAT: The Iter-69 startup migration in services.py:707-717 still includes 'lp_smart' in its tab filter. This will not affect contractors during a normal session, but the next backend restart will wipe every saved LP-line lab back to 0. Recommend dropping 'lp_smart' from both $elemMatch and array_filters there to fully align the backend with Howard's new policy."
+}

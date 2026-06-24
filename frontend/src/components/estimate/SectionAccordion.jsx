@@ -282,18 +282,21 @@ export default function SectionAccordion({
         </div>
         <div className="col-span-3 md:col-span-1 relative">
           <label className="md:hidden text-[10px] text-[#A1A1AA] block uppercase tracking-wider mb-1">{t("est.col.lab")}</label>
-          {/* Iter 69: lab is forced to $0 on siding tabs (Howard's rule —
-              "all labor entries to be $0 in the siding estimates; leave
-              windows as is"). Render as a read-only $0 placeholder so the
-              column still aligns with Windows-tab rows that DO have labor. */}
-          {["vinyl", "ascend", "lp_smart"].includes(l.tab) ? (
+          {/* Iter 69 + 78c — `lab` is forced to $0 on Vinyl and Ascend
+              tabs only (Howard's original rule: "all labor entries to
+              be $0 in the siding estimates; leave windows as is"). LP
+              SmartSide labor was un-locked in Iter 78c per Howard's
+              request — contractors using the LP workspace book labor
+              directly on the line. Windows tabs have always been
+              editable. */}
+          {["vinyl", "ascend"].includes(l.tab) ? (
             <input
               className="input num h-11 md:h-9 text-base md:text-sm w-full bg-[#FAFAFA] text-[#A1A1AA] cursor-not-allowed"
               type="number"
               value={0}
               readOnly
               tabIndex={-1}
-              title="Labor is always $0 on siding tabs"
+              title="Labor is always $0 on Vinyl + Ascend siding tabs"
               data-testid={`lab-${section.title}-${l.name}`}
             />
           ) : (
