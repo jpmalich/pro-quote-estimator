@@ -699,24 +699,14 @@ async def ensure_tiers_seeded():
             await db.estimates.update_one(
                 {"_id": est["_id"]}, {"$set": {"lines": lines}}
             )
-    # Iter 69 (2026-06-22) + Iter 78c (2026-02-23): zero lab on every
-    # estimate line on Vinyl + Ascend siding tabs. Howard's original
-    # rule: "all labor entries to be $0 in the siding estimates; leave
-    # windows as is." Iter 78c (LP labor un-locked): lp_smart REMOVED
-    # from this filter — LP contractors book labor on the line. Bounded
-    # by tab ∈ {vinyl, ascend} only. Idempotent via the
-    # `lab: {$ne: 0}` matcher — finds nothing after first run.
-    await db.estimates.update_many(
-        {"lines": {"$elemMatch": {
-            "tab": {"$in": ["vinyl", "ascend"]},
-            "lab": {"$ne": 0},
-        }}},
-        {"$set": {"lines.$[ln].lab": 0}},
-        array_filters=[{
-            "ln.tab": {"$in": ["vinyl", "ascend"]},
-            "ln.lab": {"$ne": 0},
-        }],
-    )
+    # Iter 78k (2026-02-25): Howard reversed the Iter 69 vinyl/ascend labor
+    # lockdown. Labor is now editable on ALL siding tabs (vinyl, ascend,
+    # lp_smart). The boot-time `$set lab: 0` was kept around briefly to
+    # match the frontend lockdown but is now removed — contractors can
+    # type labor on any siding line and it persists across restarts.
+    # Historical $0 values on the existing estimates stay $0 until the
+    # contractor edits them (no auto-restore of a "default labor" since
+    # the catalog never carried one for siding profiles).
     # Iter 70 (2026-06-22): "Cap windows with wide crown" moved from
     # IDENTICAL_PRICES ($65) → ZERO_PRICED. Force mat=$0 on every tier
     # doc and on any saved estimate line still carrying the old $65.

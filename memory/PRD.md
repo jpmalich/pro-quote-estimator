@@ -487,6 +487,12 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Recent Changes
 
+- **Iter 78k — Reverse Iter 69 vinyl/ascend labor lockdown (2026-02-25)**: Howard reversed his Iter 69 rule. Labor is now editable on ALL siding tabs (vinyl, ascend, lp_smart) just like windows. Two changes:
+  - **Backend** (`services.py`): removed the boot-time `update_many` that force-zeroed `lab` on every estimate line where `tab ∈ {vinyl, ascend}`. Contractors' labor edits now survive backend restarts. Historical $0 values stay until the contractor types a new value (no auto-restore since the catalog never carried a default labor for siding profiles).
+  - **Frontend** (`SectionAccordion.jsx`): removed the tab-conditional read-only branch. Labor `<input>` now renders editable on every tab with the same override-styling + reset-to-default chip the LP/Windows lab fields already use.
+  - **Files**: `backend/services.py`, `frontend/src/components/estimate/SectionAccordion.jsx`, `memory/PRD.md`.
+  - Smoke-tested: backend restarted clean (no lab-zeroing migration ran); preview loads estimate editor with no console errors; no `readOnly` or `cursor-not-allowed` styling left in the lab column code path.
+
 - **Iter 78j — Gutter Assumptions chips on the Coverage Breakdown card (2026-02-25)**: Howard wanted one shared spot to spot-check the assumptions that drive 3 gutter line counts. Added a new "Gutter assumptions" subsection below the Coverage Breakdown stacked bars in `TakeoffReconCard.jsx`, showing 4 inline chips:
   - **Gutter runs** (highlighted blue chip) — `eaves_lf ÷ 30, min 2` — drives End Caps × 2 + Hangars +1/run
   - **End Caps** — `runs × 2`
