@@ -138,6 +138,40 @@ export function recomputeWasteQtys(lines, wastePct) {
   });
 }
 
+// Iter 78b — "Recompute waste on existing lines" helper.
+//
+// Legacy LP estimates (created before the Iter 78a classifier fix
+// shipped) have cut-prone lines stored with `qty = raw` and
+// `raw_qty = null` — so a waste-% change can't recompute them. This
+// helper walks every cut-prone line in the estimate and:
+//   1. If `raw_qty` is missing, treats the current `qty` AS the raw
+//      measurement and stamps it into `raw_qty`.
+//   2. Recomputes `qty = roundUpHalf(raw_qty × (1 + waste/100))`.
+//
+// Non-cut-prone lines (gutter, downspouts, manual entries that
+// don't match the classifier) are left untouched.
+//
+// Important: a line that was manually edited (user typed a custom qty
+// AFTER the original raw import) is indistinguishable from a legacy
+// line — both have raw_qty=null. The button MUST be gated behind a
+// confirm dialog so contractors don't accidentally bump manual lines.
+export function recomputeAllWaste(lines, wastePct) {
+  const pct = Math.max(0, Number(wastePct) || 0);
+  const factor = 1 + pct / 100;
+  return (lines || []).map((l) => {
+    if (!isCutProneItem(l)) return l;
+    const stored = Number(l.raw_qty);
+    const hasRaw = isFinite(stored) && stored > 0;
+    const rawQty = hasRaw ? stored : (Number(l.qty) || 0);
+    if (rawQty <= 0) return l;
+    return {
+      ...l,
+      raw_qty: rawQty,
+      qty: roundUpHalf(rawQty * factor),
+    };
+  });
+}
+
 // LP SmartSide soffit steering (Iter 78).
 //
 // The HOVER spec splits LP soffit into two rows by surface:

@@ -9,6 +9,7 @@ import {
   isCutProneItem,
   bakeWasteIntoLines,
   recomputeWasteQtys,
+  recomputeAllWaste,
   steerLpSoffit,
 } from "./wasteLogic.js";
 
@@ -151,6 +152,25 @@ const lpBaked = bakeWasteIntoLines(
 );
 eq(lpBaked[0].raw_qty, 198, "LP 38 Lap raw_qty preserved");
 eq(lpBaked[0].qty, 238, "LP 38 Lap qty = ceil(198 × 1.20 = 237.6) → 238");
+
+// Iter 78b — recomputeAllWaste retro-actively stamps raw_qty for legacy
+// lines that were stored before the cut-prone fix landed.
+console.log("\nrecomputeAllWaste (legacy LP estimate at 20% waste):");
+const legacyLines = [
+  // Legacy line: qty=194 raw, raw_qty=null (created before Iter 78a)
+  { section: "LP Smart Siding", name: '38 Series Lap 3/8" x 8" x 16\'', qty: 194, unit: "PCS", tab: "lp_smart" },
+  // Non-cut-prone (should NOT be touched)
+  { section: "Seamless Gutter", name: 'Gutter 6"', qty: 108, unit: "LF", tab: "lp_smart" },
+  // Already-stamped line (recomputes from raw_qty just like a waste-% change)
+  { section: "LP SmartSide Soffit", name: "38 Series Soffit 16 x 16 Vented", qty: 10, raw_qty: 8, unit: "PCS", tab: "lp_smart" },
+];
+const recomputedAll = recomputeAllWaste(legacyLines, 20);
+eq(recomputedAll[0].raw_qty, 194, "Legacy LP Lap: raw_qty stamped from current qty");
+eq(recomputedAll[0].qty, 233, "Legacy LP Lap: qty = ceil(194 × 1.20 = 232.8) → 233");
+eq(recomputedAll[1].raw_qty, undefined, "Gutter (not cut-prone) untouched");
+eq(recomputedAll[1].qty, 108, "Gutter qty stays 108");
+eq(recomputedAll[2].raw_qty, 8, "Already-stamped raw_qty preserved");
+eq(recomputedAll[2].qty, 10, "Already-stamped qty recomputed = ceil(8 × 1.20 = 9.6) → 10");
 
 console.log("\nbakeWasteIntoLines @ 15%:");
 const baked = bakeWasteIntoLines(
