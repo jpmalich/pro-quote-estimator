@@ -14,6 +14,10 @@ import api from "@/lib/api";
 import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
 import { getSavedWasteDefault } from "@/lib/wasteDefaults";
 import { bakeWasteIntoLines, steerLpSoffit } from "@/lib/wasteLogic";
+// Iter 78t — same elevation drawing component as AI Measure, fed from
+// Phase 2 vision data (`per_elevation_siding_from_drawing`).
+import ElevationDrawing from "@/components/estimate/ElevationDrawing";
+import { buildElevationsFromHoverVision } from "@/lib/elevationBuilder";
 
 const KEY_LABELS = {
   siding_sqft: "Siding",
@@ -272,7 +276,37 @@ export default function HoverImportButton({ est, update, save }) {
       ...sourceMezzoOpenings,
     ];
 
-    update({ lines: nextLines, vero_openings: nextOpenings, mezzo_openings: nextMezzoOpenings, hover_measurements: result?.measurements || null });
+    // Iter 78t — merge any contractor nudges into the elevation drawings
+    // and stash on hover_measurements._ai_elevations so the customer PDF
+    // can render them. Same shape as the AI Measure path.
+    let hoverMeasurementsWithDrawings = result?.measurements || null;
+    try {
+      const elevs = buildElevationsFromHoverVision(result?.measurements || {});
+      if (elevs.length) {
+        const edits = result?.measurements?._ai_elevation_edits || {};
+        const merged = elevs.map((e) => {
+          const ee = edits[e.label] || {};
+          const opEdits = ee.openings || {};
+          return {
+            ...e,
+            roof_style: ee.roof_style || e.roof_style,
+            openings: e.openings.map((op) =>
+              opEdits[op.id]
+                ? { ...op, x_pct: opEdits[op.id].x_pct, y_pct: opEdits[op.id].y_pct }
+                : op
+            ),
+          };
+        });
+        hoverMeasurementsWithDrawings = {
+          ...(result?.measurements || {}),
+          _ai_elevations: merged,
+        };
+      }
+    } catch {
+      /* non-fatal */
+    }
+
+    update({ lines: nextLines, vero_openings: nextOpenings, mezzo_openings: nextMezzoOpenings, hover_measurements: hoverMeasurementsWithDrawings });
     setApplying(true);
     try {
       if (save) {
@@ -281,7 +315,7 @@ export default function HoverImportButton({ est, update, save }) {
           lines: nextLines,
           vero_openings: nextOpenings,
           mezzo_openings: nextMezzoOpenings,
-          hover_measurements: result?.measurements || null,
+          hover_measurements: hoverMeasurementsWithDrawings,
         });
       }
 
@@ -587,6 +621,78 @@ export default function HoverImportButton({ est, update, save }) {
                 </div>
               )}
               {/* Measurements block */}
+              {(() => {
+                const elevs = buildElevationsFromHoverVision(result.measurements || {});
+                if (!elevs.length) return null;
+                const edits = result.measurements?._ai_elevation_edits || {};
+                const merged = elevs.map((e) => {
+                  const editsForElev = edits[e.label] || {};
+                  const opEdits = editsForElev.openings || {};
+                  return {
+                    ...e,
+                    roof_style: editsForElev.roof_style || e.roof_style,
+                    openings: e.openings.map((op) =>
+                      opEdits[op.id]
+                        ? { ...op, x_pct: opEdits[op.id].x_pct, y_pct: opEdits[op.id].y_pct }
+                        : op
+                    ),
+                  };
+                });
+                const handleNudge = (lbl) => (opId, xPct, yPct) => {
+                  setResult((r) => {
+                    if (!r) return r;
+                    const cur = r.measurements?._ai_elevation_edits || {};
+                    const ee = cur[lbl] || { openings: {}, roof_style: null };
+                    return {
+                      ...r,
+                      measurements: {
+                        ...r.measurements,
+                        _ai_elevation_edits: {
+                          ...cur,
+                          [lbl]: { ...ee, openings: { ...(ee.openings || {}), [opId]: { x_pct: xPct, y_pct: yPct } } },
+                        },
+                      },
+                    };
+                  });
+                };
+                const handleRoof = (lbl) => (shape) => {
+                  setResult((r) => {
+                    if (!r) return r;
+                    const cur = r.measurements?._ai_elevation_edits || {};
+                    const ee = cur[lbl] || { openings: {}, roof_style: null };
+                    return {
+                      ...r,
+                      measurements: {
+                        ...r.measurements,
+                        _ai_elevation_edits: { ...cur, [lbl]: { ...ee, roof_style: shape } },
+                      },
+                    };
+                  });
+                };
+                return (
+                  <div className="p-5 border-b border-[#E4E4E7] bg-white" data-testid="hover-elevation-drawings">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-[#A1A1AA] mb-1">
+                      Elevation Drawings
+                    </div>
+                    <p className="text-[11px] text-[#52525B] mb-3">
+                      Reconstructed from the Phase 2 vision pass on the HOVER PDF drawings. Drag any opening to reposition or click the Roof toggle to fix the shape.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {merged.map((e) => (
+                        <ElevationDrawing
+                          key={e.label}
+                          elevation={e}
+                          editable
+                          compact
+                          onOpeningMove={handleNudge(e.label)}
+                          onRoofToggle={handleRoof(e.label)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              {/* Extracted Measurements block */}
               <div className="p-5 border-b border-[#E4E4E7] bg-[#FAFAFA]">
                 <div className="text-[10px] uppercase tracking-wider font-bold text-[#A1A1AA] mb-3">
                   Extracted Measurements

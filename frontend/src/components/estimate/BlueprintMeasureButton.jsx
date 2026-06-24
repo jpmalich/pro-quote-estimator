@@ -24,6 +24,14 @@ import {
   workspaceLabel,
 } from "@/lib/wasteDefaults";
 import { bakeWasteIntoLines, steerLpSoffit } from "@/lib/wasteLogic";
+// Iter 78t — shared elevation drawing renderer. Blueprint may produce
+// AI-Measure-shaped data (walls + openings) OR HOVER-vision-shaped data
+// (per_elevation_siding_from_drawing) depending on the source PDF.
+import ElevationDrawing from "@/components/estimate/ElevationDrawing";
+import {
+  buildElevationsFromAIMeasure,
+  buildElevationsFromHoverVision,
+} from "@/lib/elevationBuilder";
 
 const SIDING_TABS = new Set(["vinyl", "ascend", "lp_smart"]);
 const WINDOWS_TABS = new Set(["windows"]);
@@ -331,15 +339,52 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
     const nextVero  = [...(est.vero_openings  || []), ...sourceVero];
     const nextMezzo = [...(est.mezzo_openings || []), ...sourceMezzo];
 
+    // Iter 78t — merge any contractor nudges and persist the drawings on
+    // hover_measurements._ai_elevations so the customer PDF can render
+    // them. Same shape as the AI Measure path.
+    let nextHoverMeasurements = est.hover_measurements;
+    try {
+      const fromAI = buildElevationsFromAIMeasure({
+        walls: result?.raw_ai?.walls,
+        openings: result?.raw_ai?.openings,
+        avg_wall_height_ft: result?.measurements?._ai_avg_wall_height_ft,
+      });
+      const fromVision = buildElevationsFromHoverVision(result?.measurements || {});
+      const elevs = fromAI.length ? fromAI : fromVision;
+      if (elevs.length) {
+        const edits = result?.measurements?._ai_elevation_edits || {};
+        const merged = elevs.map((e) => {
+          const ee = edits[e.label] || {};
+          const opEdits = ee.openings || {};
+          return {
+            ...e,
+            roof_style: ee.roof_style || e.roof_style,
+            openings: e.openings.map((op) =>
+              opEdits[op.id]
+                ? { ...op, x_pct: opEdits[op.id].x_pct, y_pct: opEdits[op.id].y_pct }
+                : op
+            ),
+          };
+        });
+        nextHoverMeasurements = {
+          ...(est.hover_measurements || result?.measurements || {}),
+          _ai_elevations: merged,
+        };
+      }
+    } catch {
+      /* non-fatal */
+    }
+
     setApplying(true);
     try {
-      update({ lines: nextLines, vero_openings: nextVero, mezzo_openings: nextMezzo });
+      update({ lines: nextLines, vero_openings: nextVero, mezzo_openings: nextMezzo, hover_measurements: nextHoverMeasurements });
       if (save) {
         await save({
           ...est,
           lines: nextLines,
           vero_openings: nextVero,
           mezzo_openings: nextMezzo,
+          hover_measurements: nextHoverMeasurements,
         });
       }
 
@@ -646,6 +691,80 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
                   </div>
                 </section>
               )}
+
+              {/* Iter 78t — Elevation drawings (shared with AI Measure +
+                  HOVER). Blueprint vision pass produces AI-Measure-shaped
+                  raw_ai.walls + openings OR HOVER-vision-shaped per-elev
+                  data; try AI-shaped first, fall back to vision-shaped. */}
+              {(() => {
+                const fromAI = buildElevationsFromAIMeasure({
+                  walls: result.raw_ai?.walls,
+                  openings: result.raw_ai?.openings,
+                  avg_wall_height_ft: result.measurements?._ai_avg_wall_height_ft,
+                });
+                const fromVision = buildElevationsFromHoverVision(result.measurements || {});
+                const elevs = fromAI.length ? fromAI : fromVision;
+                if (!elevs.length) return null;
+                const edits = result.measurements?._ai_elevation_edits || {};
+                const merged = elevs.map((e) => {
+                  const ee = edits[e.label] || {};
+                  const opEdits = ee.openings || {};
+                  return {
+                    ...e,
+                    roof_style: ee.roof_style || e.roof_style,
+                    openings: e.openings.map((op) =>
+                      opEdits[op.id]
+                        ? { ...op, x_pct: opEdits[op.id].x_pct, y_pct: opEdits[op.id].y_pct }
+                        : op
+                    ),
+                  };
+                });
+                const setEdit = (lbl, fn) => {
+                  setResult((r) => {
+                    if (!r) return r;
+                    const cur = r.measurements?._ai_elevation_edits || {};
+                    return {
+                      ...r,
+                      measurements: {
+                        ...r.measurements,
+                        _ai_elevation_edits: fn(cur, lbl),
+                      },
+                    };
+                  });
+                };
+                const handleNudge = (lbl) => (opId, xPct, yPct) =>
+                  setEdit(lbl, (cur) => {
+                    const ee = cur[lbl] || { openings: {}, roof_style: null };
+                    return { ...cur, [lbl]: { ...ee, openings: { ...(ee.openings || {}), [opId]: { x_pct: xPct, y_pct: yPct } } } };
+                  });
+                const handleRoof = (lbl) => (shape) =>
+                  setEdit(lbl, (cur) => {
+                    const ee = cur[lbl] || { openings: {}, roof_style: null };
+                    return { ...cur, [lbl]: { ...ee, roof_style: shape } };
+                  });
+                return (
+                  <section data-testid="blueprint-elevation-drawings">
+                    <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold mb-1.5">
+                      Elevation Drawings
+                    </div>
+                    <p className="text-[11px] text-[#52525B] mb-2">
+                      Reconstructed from the Blueprint vision pass. Drag any opening to reposition or click Roof to fix the shape.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {merged.map((e) => (
+                        <ElevationDrawing
+                          key={e.label}
+                          elevation={e}
+                          editable
+                          compact
+                          onOpeningMove={handleNudge(e.label)}
+                          onRoofToggle={handleRoof(e.label)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
 
               {/* Summary numbers */}
               <section>

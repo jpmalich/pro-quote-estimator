@@ -487,6 +487,13 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Recent Changes
 
+- **Iter 78t — Elevation drawings across all 3 sources (AI Photo + HOVER + Blueprint) (2026-02-25)**: Howard's "shared codepath" ask. Wired the same `ElevationDrawing.jsx` + `elevationToSvg()` renderer into the HOVER import preview and Blueprint preview modals — full drawing coverage across all 3 measurement sources, single codepath, identical UX.
+  - **HOVER preview** (`HoverImportButton.jsx`): drawings render right above the Extracted Measurements panel using `buildElevationsFromHoverVision(result.measurements)` (feeds off Phase 2 vision's `per_elevation_siding_from_drawing`). Same nudge + roof-toggle interactions. On Apply, merged drawings stash on `hover_measurements._ai_elevations`.
+  - **Blueprint preview** (`BlueprintMeasureButton.jsx`): drawings render right before the Takeoff summary. Tries AI-Measure-shaped data first (`buildElevationsFromAIMeasure` on `raw_ai.walls/openings`) and falls back to vision-shaped (`buildElevationsFromHoverVision`) — whichever the source produced. On Apply, persists to `hover_measurements._ai_elevations` so the customer PDF picks it up unchanged.
+  - **No new components**: this is a pure wiring iteration. The renderer, builder, edit-merge logic, and PDF helper from Iter 78s are reused 1:1.
+  - **Verified live**: mocked `/measure/map` response with 3 elevations (Front gable + 2 windows · Left flat + 1 window · Back gable + 0 windows) → modal renders all 3 drawings, all 3 roof toggles, all 3 opening rectangles with correct labels/colors. Zero console errors.
+  - **Files**: `frontend/src/components/estimate/HoverImportButton.jsx`, `frontend/src/components/estimate/BlueprintMeasureButton.jsx`, `memory/PRD.md`.
+
 - **Iter 78s — HOVER-style elevation drawings from AI Measure (2026-02-25)**: Howard wanted contractors using AI Photo to get HOVER-grade per-elevation takeoff sheets without paying for HOVER. Shipped the full kit:
   - **New `ElevationDrawing.jsx`** — pure SVG React component that renders one elevation: wall rectangle sized to (facade_width_ft × facade_height_ft), roof shape above (gable triangle / hip trapezoid / flat slab / none), proportionally-positioned opening rectangles (color-coded by type: window blue, door orange, patio purple, garage grey), labeled dim callouts, 10-ft scale bar.
   - **Interactive features**: drag any opening to reposition it (pointer events, touch + mouse), click roof toggle button to cycle gable → hip → flat → none. Edits stash on `measurements._ai_elevation_edits` and propagate to the persisted estimate on Apply.
