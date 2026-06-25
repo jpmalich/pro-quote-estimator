@@ -31,6 +31,15 @@ const OPENING_COLORS = {
 
 const ROOF_CYCLE = ["gable", "hip", "flat", "none"];
 
+// Iter 78u — Mirror of elevation3D.js dormer count logic so 2D + 3D
+// agree on how many boxes to draw for a given dormer_face_sqft total.
+function inferDormerCount(faceSqft) {
+  if (faceSqft <= 0) return 0;
+  if (faceSqft <= 36) return 1;
+  if (faceSqft <= 90) return 2;
+  return Math.min(4, Math.ceil(faceSqft / 60));
+}
+
 function inferRoofShape(elev) {
   // If text-extracted rakes_lf > 0, this face most likely has a gable;
   // otherwise default to hip. Contractor can toggle.
@@ -166,6 +175,61 @@ export default function ElevationDrawing({
             strokeWidth={1}
           />
         )}
+        {/* Iter 78u — Dormers, drawn on top of the roof shape when
+            Claude returned dormer_face_sqft on this wall. Boxes are
+            evenly spaced across the wall width. */}
+        {(() => {
+          const dormerSqft = Number(elevation?.dormer_face_sqft || 0);
+          const count = inferDormerCount(dormerSqft);
+          if (count <= 0 || ftPerPx <= 0) return null;
+          const perDormer = dormerSqft / count;
+          let dormerWFt = Math.max(4, Math.min(12, Math.sqrt(perDormer * 1.2)));
+          let dormerHFt = perDormer / dormerWFt;
+          dormerHFt = Math.max(3, Math.min(8, dormerHFt));
+          dormerWFt = Math.max(3, Math.min(width_ft * 0.4, perDormer / dormerHFt));
+          const dW = dormerWFt / ftPerPx;
+          const dH = dormerHFt / ftPerPx;
+          const peakH = dW * 0.45;
+          return Array.from({ length: count }, (_, i) => {
+            const xPct = (i + 1) / (count + 1);
+            const cx = wallX + xPct * wallW;
+            const baseY = wallY; // top of wall = eave line
+            const x = cx - dW / 2;
+            const y = baseY - dH;
+            return (
+              <g key={`dormer-${i}`} data-testid={`dormer-${(elevation?.label || "").toLowerCase()}-${i}`}>
+                {/* Dormer roof triangle */}
+                <path
+                  d={`M ${x - 2},${y} L ${cx},${y - peakH} L ${x + dW + 2},${y} Z`}
+                  fill="#52525B"
+                  stroke="#09090B"
+                  strokeWidth={0.8}
+                />
+                {/* Dormer face */}
+                <rect
+                  x={x}
+                  y={y}
+                  width={dW}
+                  height={dH}
+                  fill="#FAFAFA"
+                  stroke="#09090B"
+                  strokeWidth={1}
+                />
+                {/* Dormer window */}
+                <rect
+                  x={x + dW * 0.2}
+                  y={y + dH * 0.2}
+                  width={dW * 0.6}
+                  height={dH * 0.6}
+                  fill={OPENING_COLORS.window}
+                  fillOpacity={0.25}
+                  stroke={OPENING_COLORS.window}
+                  strokeWidth={1}
+                />
+              </g>
+            );
+          });
+        })()}
         {/* Wall */}
         <rect
           x={wallX}

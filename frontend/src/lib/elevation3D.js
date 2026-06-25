@@ -278,6 +278,126 @@ function addSidingStripes(parent, widthFt, heightFt, exposureInches = 7) {
   }
 }
 
+// Iter 78u — Dormer estimator. Claude gives us total face ft² per wall
+// but no count. Use industry-typical sizing to split into N dormer
+// boxes (16-72 ft² is the typical residential range).
+//   ≤ 36 ft² → 1 dormer
+//   ≤ 90 ft² → 2 dormers
+//   >  90 ft² → ceil(area / 60), capped at 4
+function inferDormerCount(faceSqft) {
+  if (faceSqft <= 0) return 0;
+  if (faceSqft <= 36) return 1;
+  if (faceSqft <= 90) return 2;
+  return Math.min(4, Math.ceil(faceSqft / 60));
+}
+
+// Build a single dormer (small gabled box with a centered window) at the
+// given footprint width × face height. Returns a THREE.Group positioned
+// at its base center (placement is done by the caller).
+function buildDormer(widthFt, faceHeightFt) {
+  const group = new THREE.Group();
+  const depth = Math.max(2, widthFt * 0.6); // dormers are roughly square in plan
+  const peakH = widthFt * 0.45;
+  // Side walls (visible as a colored band behind the front face)
+  const sideMat = new THREE.MeshBasicMaterial({ color: COL.wall });
+  const sides = new THREE.Mesh(
+    new THREE.BoxGeometry(widthFt, faceHeightFt, depth * 0.4),
+    sideMat
+  );
+  sides.position.y = faceHeightFt / 2;
+  group.add(sides);
+  // Front face (siding)
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(widthFt, faceHeightFt),
+    new THREE.MeshBasicMaterial({ color: COL.wall })
+  );
+  face.position.y = faceHeightFt / 2;
+  face.position.z = depth * 0.2 + 0.001;
+  group.add(face);
+  // Front face outline
+  group.add(
+    makeLine(
+      [
+        new THREE.Vector3(-widthFt / 2, 0, depth * 0.2 + 0.002),
+        new THREE.Vector3(-widthFt / 2, faceHeightFt, depth * 0.2 + 0.002),
+        new THREE.Vector3(widthFt / 2, faceHeightFt, depth * 0.2 + 0.002),
+        new THREE.Vector3(widthFt / 2, 0, depth * 0.2 + 0.002),
+      ],
+      COL.wallEdge
+    )
+  );
+  // Gable peak above the face
+  const gableShape = new THREE.Shape();
+  gableShape.moveTo(-widthFt / 2, 0);
+  gableShape.lineTo(0, peakH);
+  gableShape.lineTo(widthFt / 2, 0);
+  gableShape.lineTo(-widthFt / 2, 0);
+  const gableGeom = new THREE.ShapeGeometry(gableShape);
+  const gable = new THREE.Mesh(
+    gableGeom,
+    new THREE.MeshBasicMaterial({ color: COL.wall })
+  );
+  gable.position.y = faceHeightFt;
+  gable.position.z = depth * 0.2 + 0.002;
+  group.add(gable);
+  // Gable roof slopes (visible color band)
+  const roofShape2d = new THREE.Shape();
+  roofShape2d.moveTo(-widthFt / 2 - 0.3, 0);
+  roofShape2d.lineTo(0, peakH + 0.2);
+  roofShape2d.lineTo(widthFt / 2 + 0.3, 0);
+  roofShape2d.lineTo(widthFt / 2, 0);
+  roofShape2d.lineTo(0, peakH);
+  roofShape2d.lineTo(-widthFt / 2, 0);
+  roofShape2d.lineTo(-widthFt / 2 - 0.3, 0);
+  const dormerRoofGeom = new THREE.ShapeGeometry(roofShape2d);
+  const dormerRoof = new THREE.Mesh(
+    dormerRoofGeom,
+    new THREE.MeshBasicMaterial({ color: COL.roof })
+  );
+  dormerRoof.position.y = faceHeightFt;
+  dormerRoof.position.z = depth * 0.2 + 0.003;
+  group.add(dormerRoof);
+  group.add(
+    makeLine(
+      [
+        new THREE.Vector3(-widthFt / 2 - 0.3, faceHeightFt, depth * 0.2 + 0.004),
+        new THREE.Vector3(0, faceHeightFt + peakH + 0.2, depth * 0.2 + 0.004),
+        new THREE.Vector3(widthFt / 2 + 0.3, faceHeightFt, depth * 0.2 + 0.004),
+      ],
+      COL.roofEdge
+    )
+  );
+  // A modest double-hung window centered on the dormer face
+  const winW = Math.max(1.5, widthFt * 0.55);
+  const winH = Math.max(2, faceHeightFt * 0.6);
+  const win = buildWindow(winW, winH, "Double Hung");
+  win.position.set(0, faceHeightFt / 2, depth * 0.2 + 0.02);
+  group.add(win);
+  return group;
+}
+
+// Place dormer groups along the roof at evenly distributed x positions.
+// Dormers sit on the eave line (eaveHeightFt) and protrude forward (+Z)
+// so they read clearly from the orthographic front view.
+function addDormersToScene(scene, widthFt, eaveHeightFt, dormerFaceSqft) {
+  const count = inferDormerCount(dormerFaceSqft);
+  if (count <= 0) return;
+  const perDormerSqft = dormerFaceSqft / count;
+  // Pick a plausible face dimension: ~5 ft wide × derive height from area.
+  // Caps keep things visually sane (4-12 ft wide, 4-8 ft tall).
+  let dormerWidth = Math.max(4, Math.min(12, Math.sqrt(perDormerSqft * 1.2)));
+  let dormerHeight = perDormerSqft / dormerWidth;
+  dormerHeight = Math.max(3, Math.min(8, dormerHeight));
+  // Recompute width so area matches Claude's total once dormerHeight was clamped.
+  dormerWidth = Math.max(3, Math.min(widthFt * 0.4, perDormerSqft / dormerHeight));
+  const xPcts = Array.from({ length: count }, (_, i) => (i + 1) / (count + 1));
+  for (const xPct of xPcts) {
+    const dormer = buildDormer(dormerWidth, dormerHeight);
+    dormer.position.set(xPct * widthFt, eaveHeightFt + 0.5, 0.05);
+    scene.add(dormer);
+  }
+}
+
 // Build the entire elevation scene. Returns the THREE.Scene + a suggested
 // camera viewBox (so callers can frame the orthographic camera correctly).
 export function buildElevationScene(elev) {
@@ -311,6 +431,15 @@ export function buildElevationScene(elev) {
   const shape = elev?.roof_style || (Number(elev?.rake_lf_on_face) > 0 ? "gable" : "hip");
   scene.add(buildRoof(widthFt, heightFt, gableHeightFt, shape, elev?.rake_lf_on_face));
 
+  // Iter 78u — Dormers. When Claude returns dormer_face_sqft > 0 on this
+  // wall we split the ft² into N visible dormer boxes mounted on the
+  // roof slope. Drawn AFTER the roof so they sit on top of the
+  // slope geometry.
+  const dormerSqft = Number(elev?.dormer_face_sqft) || 0;
+  if (dormerSqft > 0) {
+    addDormersToScene(scene, widthFt, heightFt, dormerSqft);
+  }
+
   // Openings
   for (const op of elev?.openings || []) {
     const opW = Number(op.width_ft) || 3;
@@ -336,14 +465,15 @@ export function buildElevationScene(elev) {
     )
   );
 
-  // Margins for the camera
+  // Margins for the camera (extra headroom when dormers protrude above the roof)
+  const headroom = Math.max(widthFt * 0.35, 8);
   return {
     scene,
     bounds: {
       minX: -2,
       maxX: widthFt + 2,
       minY: -1,
-      maxY: heightFt + Math.max(widthFt * 0.3, 5),
+      maxY: heightFt + headroom,
     },
   };
 }

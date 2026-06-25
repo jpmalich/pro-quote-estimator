@@ -95,7 +95,11 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // the roofline strip to surface small dormers that get lost when
   // Claude downsizes full-house shots. Default OFF — keeps the fast
   // path fast for the 90% of jobs without dormers.
-  const [deepDormerScan, setDeepDormerScan] = useState(false);
+  // Iter 78u — Default ON. Missing dormers is the #1 source of
+  // under-quoting on 1.5-story Capes / dormer-rich homes. The deep
+  // scan only adds ~5-10s and catches what the main pass misses
+  // because phone photos get downsized to ~1568px before tokenization.
+  const [deepDormerScan, setDeepDormerScan] = useState(true);
   // Iter 57h — popover state for the inline "📐 Calibrate window sizing"
   // mini-panel that hangs next to the Run AI Measure button.
   const [calibOpen, setCalibOpen] = useState(false);

@@ -85,6 +85,9 @@ export function buildElevationsFromAIMeasure(measurements) {
       facade_width_ft: Number(w.width_ft) || 0,
       facade_height_ft: facadeH,
       gable_triangle_height_ft: Number(w.gable_triangle_height_ft) || 0,
+      // Iter 78u — dormer face area on this elevation. Renderers split
+      // the ft² into one or more roof-mounted dormer boxes.
+      dormer_face_sqft: Number(w.dormer_face_sqft) || 0,
       openings: ownOpenings,
       rake_lf_on_face: Number(w.gable_triangle_height_ft) > 0 ? Number(w.width_ft) : 0,
       // Roof style auto-inference: gable if Claude flagged a gable_triangle, else null (component decides)
