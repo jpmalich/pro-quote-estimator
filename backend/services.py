@@ -730,6 +730,25 @@ async def ensure_tiers_seeded():
             "ln.mat": {"$ne": 0},
         }],
     )
+    # Iter 78x (2026-02-13): LP catalog cleanup matched to Alside's
+    # current LP supplier sheet:
+    #   - Drop 4 LP SKUs LP discontinued (3 soffits + 6" Lap).
+    #   - Add new "Trim Coil Aluminum 24\" x 50'" (auto-rebuilt by
+    #     build_tier_sections() from SECTION_LAYOUT — no $push needed here).
+    # Idempotent. Saved estimate line items KEEP their snapshot price per
+    # Howard's "saved estimate prices stay" rule; only the catalog drops them
+    # so they can't be added to new estimates.
+    LP_DROP_NAMES_78X = [
+        '38 Series Lap 3/8" x 6" x 16\'',
+        '38 Series Soffit 12 x 16 Vented',
+        '38 Series Soffit 12 x 16 Closed',
+        '38 Series Soffit 16 x 16 Closed',
+    ]
+    await db.price_tiers.update_many(
+        {"sections.items.name": {"$in": LP_DROP_NAMES_78X}},
+        {"$pull": {"sections.$[].items": {"name": {"$in": LP_DROP_NAMES_78X}}}},
+    )
+
     # Tier-doc migration: rename, unit-flip, drop the dropped names.
     for old_name, new_name in LP_RENAME_MAP.items():
         await db.price_tiers.update_many(
@@ -761,11 +780,13 @@ async def ensure_tiers_seeded():
     # touch any non-LP supplier override. Idempotent.
     LP_ITEM_NAMES = set(LP_RENAME_MAP.values()) | LP_TRIM_NEW_NAMES | {
         LP_LAP_NEW_NAME,
-        '38 Series Lap 3/8" x 6" x 16\'',
-        '38 Series Soffit 12 x 16 Vented',
-        '38 Series Soffit 12 x 16 Closed',
-        '38 Series Soffit 16 x 16 Closed',
+        # Iter 78x — 4 SKUs dropped from LP supplier sheet are now pulled
+        # from tier docs by the LP_DROP_NAMES_78X block above; keeping
+        # them out of the LP_ITEM_NAMES sync set prevents a confused
+        # "want=0 → skip" loop on rows that no longer exist in the catalog.
         '.019 Coil', 'PVC Trim Coil', 'Performance G8 Trim Coil',
+        # New in Iter 78x — LP-branded trim coil.
+        'Trim Coil Aluminum 24" x 50\'',
     }
     async for tier in db.price_tiers.find({}, {"_id": 0, "id": 1, "name": 1, "sections": 1}):
         prices = TIER_PRICES.get(tier["name"]) or {}

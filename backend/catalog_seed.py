@@ -83,8 +83,9 @@ SECTION_LAYOUT = [
         # "38 Series", added 6" Lap, Lap unit flipped SQ → PCS (Howard:
         # "I want only pcs pricing"; previous SQ-based qty migrated via
         # × 11 conversion in services.py).
+        # Iter 78x (2026-02-13): dropped 38 Series Lap 3/8" × 6" × 16'
+        # (LP discontinued the 6" lap; supplier sheet only has 8" now).
         '38 Series Lap 3/8" x 8" x 16\'',
-        '38 Series Lap 3/8" x 6" x 16\'',
         'Nickel Gap',
         'Shake',
         "38 Series 4' x 8' Panel",
@@ -120,6 +121,9 @@ SECTION_LAYOUT = [
         'OSI Quad Max Caulking',
         'J blocks',
         'Mini Splits',
+        # Iter 78x (2026-02-13): LP-branded trim coil added per supplier
+        # sheet. List cost $156.25 → 4-tier prices via standard LP margins.
+        'Trim Coil Aluminum 24" x 50\'',
         '.019 Coil',
         'PVC Trim Coil',
         'Performance G8 Trim Coil',
@@ -128,13 +132,11 @@ SECTION_LAYOUT = [
         'Flash tape 3 3/4" x 90\'',
     ]),
     ("LP SmartSide Soffit", False, [
-        # Iter 67: renamed to supplier-spec names. Added 3 new soffit sizes
-        # (12 x 16 Vented + Closed, 16 x 16 Closed); old 24" Vented/Solid
-        # replaced by CTW / VSSFT supplier-spec names.
-        '38 Series Soffit 12 x 16 Vented',
-        '38 Series Soffit 12 x 16 Closed',
+        # Iter 67: renamed to supplier-spec names.
+        # Iter 78x (2026-02-13): dropped 3 soffit SKUs LP no longer ships
+        # (12 x 16 Vented, 12 x 16 Closed, 16 x 16 Closed) — supplier sheet
+        # only has 16x16 Vented, 24x16 Vented (CTW), and 24x16 Solid (VSSFT).
         '38 Series Soffit 16 x 16 Vented',
-        '38 Series Soffit 16 x 16 Closed',
         '24 inch CTW soffit',
         '24 inch VSSFT',
     ]),
@@ -434,7 +436,6 @@ ITEM_META = {
     # (per 11-PCS-per-Sq conversion handled in HOVER mapper + estimate
     # migration). Soffit / panels / outside corners stay PCS.
     '38 Series Lap 3/8" x 8" x 16\'': ("PCS", 0),
-    '38 Series Lap 3/8" x 6" x 16\'': ("PCS", 0),
     'Shake': ("PCS", 0),
     'Nickel Gap': ("PCS", 0),
     "38 Series 4' x 8' Panel": ("PCS", 0),
@@ -457,12 +458,11 @@ ITEM_META = {
     'OSI Quad Max Caulking': ("Tube", 0),
     'J blocks': ("Each", 0),
     'Mini Splits': ("Each", 0),
-    '38 Series Soffit 12 x 16 Vented': ("PCS", 0),
-    '38 Series Soffit 12 x 16 Closed': ("PCS", 0),
     '38 Series Soffit 16 x 16 Vented': ("PCS", 0),
-    '38 Series Soffit 16 x 16 Closed': ("PCS", 0),
     '24 inch CTW soffit': ("PCS", 0),
     '24 inch VSSFT': ("PCS", 0),
+    # Iter 78x (2026-02-13): LP-branded trim coil added per supplier sheet.
+    'Trim Coil Aluminum 24" x 50\'': ("ROLL", 0),
     # 3 coil items added to LP — match the vinyl-side ROLL unit. Per-tier
     # mat prices mirror the corresponding vinyl ".019 Coil (1 per 5 Sq
     # Siding)" rows so the same coil price appears regardless of which
@@ -740,8 +740,9 @@ TIER_PRICES = {
 # ---------------------------------------------------------------------------
 LP_COSTS = {
     # LP Smart Siding (lap, shake, nickel gap, panels)
+    # Iter 78x (2026-02-13): dropped 38 Series Lap 3/8" × 6" × 16' — LP
+    # discontinued, supplier sheet only has 8".
     '38 Series Lap 3/8" x 8" x 16\'': 21.69,
-    '38 Series Lap 3/8" x 6" x 16\'': 17.19,
     'Nickel Gap': 50.64,
     'Shake': 16.62,
     "38 Series 4' x 8' Panel": 72.13,
@@ -766,11 +767,11 @@ LP_COSTS = {
     'OSI Quad Max Caulking': 9.82,
     'J blocks': 40.00,
     'Mini Splits': 56.00,
+    # Iter 78x (2026-02-13): LP-branded trim coil from supplier sheet.
+    'Trim Coil Aluminum 24" x 50\'': 156.25,
     # LP SmartSide Soffit
-    '38 Series Soffit 12 x 16 Vented': 45.05,
-    '38 Series Soffit 12 x 16 Closed': 41.87,
+    # Iter 78x (2026-02-13): dropped 3 soffit SKUs LP discontinued.
     '38 Series Soffit 16 x 16 Vented': 60.08,
-    '38 Series Soffit 16 x 16 Closed': 51.45,
     '24 inch CTW soffit': 87.46,
     '24 inch VSSFT': 93.95,
 }
@@ -780,6 +781,17 @@ _LP_MARGIN_DIVISOR = {
     "Builder-Dealer": 0.75, # 25% margin
     "Contractor": 0.70,     # 30% margin
     "whole-sale": 0.65,     # 35% margin
+}
+
+# Iter 78x — Margin percentage per tier, exposed so the Pricing Admin UI
+# can render "$33.37 — 35% margin" next to each LP price. Mirrors
+# _LP_MARGIN_DIVISOR (margin_pct = 1 - divisor) but kept as its own dict
+# so consumers don't have to re-derive.
+LP_MARGIN_PCT = {
+    "one-opp": 20,
+    "Builder-Dealer": 25,
+    "Contractor": 30,
+    "whole-sale": 35,
 }
 
 LP_PRICES_BY_TIER = {

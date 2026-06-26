@@ -714,3 +714,11 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
     - Sample adder: Extruded Beige (Contractor / DH @ UI 32-73) = $19.31
   - **Impact**: Both flows that read Mezzo pricing pull from the same `db.mezzo_prices` collection keyed by company's `price_tier_id`, so this single update covers Contractor Window Quotes AND ISS Window Quotes simultaneously — no separate path needed.
   - **Files**: `backend/mezzo_seed_prices.json` (regenerated), `backend/migrate_mezzo_prices.py` (new — safe to re-run any time Howard ships new price sheets).
+
+- **Iter 78x — P1: LP catalog aligned to current supplier sheet (2026-02-13)**: Howard delivered the new Pro-Quotes Master Excel and the LP supplier raw price sheet. P1 of the master-pricing rollout shipped:
+  - **Dropped 4 LP SKUs** LP discontinued (per supplier sheet): `38 Series Lap 3/8" × 6" × 16'`, `38 Series Soffit 12 × 16 Vented`, `38 Series Soffit 12 × 16 Closed`, `38 Series Soffit 16 × 16 Closed`. Removed from `SECTION_LAYOUT`, `ITEM_META`, `LP_COSTS` + idempotent `$pull` migration in `services.py` that wipes them from existing `db.price_tiers` docs. Saved estimate lines keep their snapshot prices per Howard's rule.
+  - **Added `Trim Coil Aluminum 24" × 50'`** to LP Siding Accessories at $156.25 cost. Auto-priced into all 4 tiers via the existing gross-margin formula (`sell = cost ÷ (1 − margin)`): whole-sale $240.38 (35% margin) · Contractor $223.21 (30%) · Builder-Dealer $208.33 (25%) · one-opp $195.31 (20%). `build_tier_sections()` rebuild on boot picks it up automatically.
+  - **Exposed `LP_MARGIN_PCT`** dict (35/30/25/20) in `catalog_seed.py` so the upcoming Pricing Admin UI can render "$33.37 — 35% margin" next to each LP price.
+  - **Regression test suite**: 7 pytests in `backend/tests/test_lp_catalog.py` lock in the 4 deletions, the new SKU's cost basis, and the margin formula per tier. All passing.
+  - **Verified live**: `GET /api/admin/tiers` confirms all 4 tier docs have the 4 SKUs gone + Trim Coil Aluminum present at the correct margin-computed prices.
+  - **Status of master-pricing rollout**: P1 done (LP catalog changes). P2-P5 (Mezzo list-price refactor, Importer engine, Admin UI, polish) await Howard's go-ahead.
