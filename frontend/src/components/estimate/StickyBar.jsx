@@ -34,7 +34,7 @@ export default function StickyBar({ est, tabTotals, activeTab, tabs = TAB_DEFS }
         <div className="flex-1 min-w-[180px]">
           <div className="text-[10px] uppercase tracking-[0.2em] text-white/50">{t("est.barLabel")}</div>
           <div className="font-heading text-base sm:text-lg truncate">
-            {est.customer_name || t("est.untitled")} · {est.estimate_number}
+            {est.customer_name || `${t("est.untitled")} · ${est.estimate_number || ""}`}
           </div>
         </div>
         <div className="flex items-stretch gap-2 sm:gap-3 flex-wrap">

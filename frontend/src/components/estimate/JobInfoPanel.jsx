@@ -9,8 +9,38 @@ import BlueprintMeasureButton from "@/components/estimate/BlueprintMeasureButton
 import PairToLpButton from "@/components/estimate/PairToLpButton";
 // Iter 78u — Compare Drawings modal trigger
 import { useState } from "react";
-import { Layers } from "lucide-react";
+import { Upload, FileText, Sparkles, Layers, ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
 import ElevationCompareModal, { countSources } from "@/components/estimate/ElevationCompareModal";
+
+// Iter 78z+++ — Cleaner job-info header. Three equal-width "tool tiles"
+// for the measurement importers (HOVER · Blueprints · AI Photo), each
+// with a short label so contractors don't have to read button text to
+// tell them apart. PairToLp + Compare Drawings tuck into a "More tools"
+// row below the tiles since they're contextual / rare. Form fields
+// collapse to a 1-line summary once customer + address are filled so
+// the page stops scrolling past data the contractor doesn't need to
+// re-touch.
+function ToolTile({ icon: Icon, label, sub, children, testid, accent = "#7C3AED" }) {
+  return (
+    <div
+      className="border border-[#E4E4E7] bg-white p-3 flex flex-col gap-2 min-w-0"
+      data-testid={testid}
+    >
+      <div className="flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5" style={{ color: accent }} />
+        <div className="text-[10px] uppercase tracking-wider font-bold text-[#52525B] truncate">
+          {label}
+        </div>
+        {sub && (
+          <span className="text-[9px] text-[#A1A1AA] uppercase tracking-wider truncate ml-auto">
+            {sub}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5 items-start">{children}</div>
+    </div>
+  );
+}
 
 export default function JobInfoPanel({ est, update, save, setInstallMethod, setHomePre1978 }) {
   const t = useT();
@@ -18,6 +48,21 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
   // Iter 78u — Compare Drawings modal state
   const [showCompare, setShowCompare] = useState(false);
   const numDrawingSources = countSources(est);
+  // Iter 78z+++ — collapse the form section once the contractor has
+  // filled the basics. They can re-expand any time via the "Edit"
+  // affordance in the summary row.
+  const basicsFilled = !!(est?.customer_name && est?.address);
+  const [collapsed, setCollapsed] = useState(false);
+  // Auto-collapse when basics become filled on first render (but only
+  // once — if the user expands manually we respect their choice).
+  const [autoTouched, setAutoTouched] = useState(false);
+  if (!autoTouched && basicsFilled && !collapsed) {
+    // schedule once to avoid setState during render
+    setTimeout(() => {
+      setCollapsed(true);
+      setAutoTouched(true);
+    }, 0);
+  }
   // Brand-filtered vinyl siding color groups. Computed inline on every
   // render — cheap (an array filter over <30 items) and avoids the
   // hooks/preserve-manual-memoization lint complaint about useMemo +
@@ -34,26 +79,56 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
   const isLp = est?.kind === "lp_smart";
   return (
     <section className="card p-5 sm:p-6 mb-6" data-testid="job-info">
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="section-tag">{t("est.jobInfo")}</div>
-        <div className="flex flex-wrap gap-2">
-          <HoverImportButton est={est} update={update} save={save} />
-          <BlueprintMeasureButton est={est} update={update} save={save} />
-          <PairToLpButton est={est} />
-          {/* Iter 78u — Compare Drawings button; only renders when the
-              estimate has elevation drawings from 2+ measurement sources. */}
-          {numDrawingSources >= 2 && (
-            <button
-              type="button"
-              onClick={() => setShowCompare(true)}
-              className="px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAF5FF] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-              title="Side-by-side compare drawings across your measurement sources"
-              data-testid="compare-drawings-btn"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Compare Drawings ({numDrawingSources})
-            </button>
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="section-tag">{t("est.jobInfo")}</div>
+          {collapsed && basicsFilled && (
+            <div className="text-xs text-[#52525B] flex items-center gap-2 flex-wrap" data-testid="job-info-summary">
+              <span className="font-bold text-[#09090B]">{est.customer_name}</span>
+              <span className="text-[#A1A1AA]">·</span>
+              <span>{est.address}</span>
+              {est.estimate_number && (
+                <>
+                  <span className="text-[#A1A1AA]">·</span>
+                  <span className="font-mono-num text-[#71717A]">{est.estimate_number}</span>
+                </>
+              )}
+            </div>
           )}
+        </div>
+        {basicsFilled && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className="text-[10px] uppercase tracking-wider font-bold text-[#7C3AED] hover:text-[#5B21B6] flex items-center gap-1"
+            data-testid="job-info-toggle"
+          >
+            {collapsed ? (
+              <>
+                <ChevronDown className="w-3 h-3" /> Edit
+              </>
+            ) : (
+              <>
+                <ChevronUp className="w-3 h-3" /> Collapse
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Iter 78z+++ — Measurement tools tile row. Three equal-width
+          tiles so HOVER / Blueprints / AI Photo Measure look like the
+          parallel choices they actually are. Each tile is a launcher
+          + its contextual sub-actions (Restore HOVER, Tag Profiles,
+          waste-default caption, resume banner). */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3" data-testid="measurement-tools-row">
+        <ToolTile icon={Upload} label="HOVER PDF" accent="#09090B" testid="tool-tile-hover">
+          <HoverImportButton est={est} update={update} save={save} />
+        </ToolTile>
+        <ToolTile icon={FileText} label="Blueprints" accent="#7C3AED" testid="tool-tile-blueprint">
+          <BlueprintMeasureButton est={est} update={update} save={save} />
+        </ToolTile>
+        <ToolTile icon={Sparkles} label="AI Photo Measure" accent="#7C3AED" testid="tool-tile-ai">
           <AIMeasureButton
             kind={est.kind || "siding"}
             address={est?.address}
@@ -91,9 +166,36 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
               if (save) await save({ ...est, ...patch });
             }}
           />
-        </div>
+        </ToolTile>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      {/* Iter 78z+++ — Workspace-level / contextual tools. Pair to LP
+          is a workspace switcher, not a job-info action — it lives
+          here in a low-emphasis row so it's reachable but doesn't
+          compete with the importers. Compare Drawings only renders
+          when 2+ measurement sources exist. */}
+      {((est?.kind || "siding") === "siding" || numDrawingSources >= 2) && (
+        <div className="flex flex-wrap gap-2 mb-4 justify-end" data-testid="job-info-more-tools">
+          {numDrawingSources >= 2 && (
+            <button
+              type="button"
+              onClick={() => setShowCompare(true)}
+              className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold text-[#71717A] hover:text-[#7C3AED] flex items-center gap-1"
+              title="Side-by-side compare drawings across your measurement sources"
+              data-testid="compare-drawings-btn"
+            >
+              <Layers className="w-3 h-3" />
+              Compare ({numDrawingSources})
+            </button>
+          )}
+          <PairToLpButton est={est} />
+        </div>
+      )}
+
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${collapsed ? "hidden" : ""}`}
+        data-testid="job-info-form"
+      >
         <div>
           <label className="label">{t("est.customer")}</label>
           <input

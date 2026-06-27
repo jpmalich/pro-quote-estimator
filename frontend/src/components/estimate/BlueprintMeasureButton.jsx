@@ -684,46 +684,40 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
 
       {/* Iter 57x — Restore banner. Surfaces when a blueprint run for
           this estimate completed on the backend but the frontend never
-          received the run_id (typical Cloudflare 502 on slow upload). */}
+          received the run_id (typical Cloudflare 502 on slow upload).
+          Iter 78z+++ — compact 1-line form so it fits inside the
+          Blueprints tile without dominating the page. */}
       {resumeRun && !busy && !result && (
         <div
-          className="mt-2 px-3 py-2 bg-[#FEF3C7] border border-[#F59E0B] flex items-center justify-between gap-3 text-xs"
+          className="mt-1 text-[10px] text-[#92400E] flex items-center gap-1.5 leading-snug flex-wrap"
           data-testid="blueprint-resume-banner"
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle className="w-3.5 h-3.5 text-[#92400E] flex-shrink-0" />
-            <div className="min-w-0">
-              <div className="font-bold uppercase tracking-wider text-[10px] text-[#92400E]">
-                Previous read available
-              </div>
-              <div className="text-[#92400E] truncate">
-                {resumeRun.status === "done"
-                  ? `Completed ${Math.round((resumeRun.age_seconds || 0) / 60)} min ago · ${resumeRun.page_count || "?"} page(s) · click to restore preview`
-                  : resumeRun.status === "running"
-                  ? `Still processing in background · click to resume polling`
-                  : "Errored — see toast"}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={restoreResume}
-              className="px-2.5 py-1 bg-[#F59E0B] text-white text-[10px] font-bold uppercase tracking-wider hover:bg-[#D97706]"
-              data-testid="blueprint-resume-btn"
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              onClick={() => { setResumeDismissed(true); setResumeRun(null); }}
-              className="px-2.5 py-1 bg-transparent text-[#92400E] text-[10px] font-bold uppercase tracking-wider hover:bg-[#FDE68A]"
-              data-testid="blueprint-resume-dismiss"
-              aria-label="Dismiss restore banner"
-            >
-              Dismiss
-            </button>
-          </div>
+          <AlertTriangle className="w-3 h-3 text-[#92400E] flex-shrink-0" />
+          <span className="font-bold uppercase tracking-wider">
+            {resumeRun.status === "done"
+              ? `Previous read · ${resumeRun.page_count || "?"} pg · ${Math.round((resumeRun.age_seconds || 0) / 60)} min`
+              : resumeRun.status === "running"
+              ? "Processing in background"
+              : "Previous read errored"}
+          </span>
+          <button
+            type="button"
+            onClick={restoreResume}
+            className="text-[#7C3AED] font-bold uppercase tracking-wider hover:underline"
+            data-testid="blueprint-resume-btn"
+          >
+            Restore
+          </button>
+          <span className="text-[#D4D4D8]">·</span>
+          <button
+            type="button"
+            onClick={() => { setResumeDismissed(true); setResumeRun(null); }}
+            className="text-[#A1A1AA] font-bold uppercase tracking-wider hover:text-[#71717A]"
+            data-testid="blueprint-resume-dismiss"
+            aria-label="Dismiss restore banner"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
