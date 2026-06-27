@@ -120,6 +120,10 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // contractor pick up where they left off after a page reload or
   // screen lock — no re-uploading photos, no re-running Claude.
   const [lastRun, setLastRun] = useState(null);  // { run_id, status, stage, age_seconds, photo_paths, result }
+  // Iter 78z (Cross-Check) — track the active run's ID so the
+  // PerElevationBreakdownCard can fire the cross-check endpoint.
+  // Populated by both the fresh-run path and the resume path.
+  const [currentRunId, setCurrentRunId] = useState(null);
   const [refineOpen, setRefineOpen] = useState(false);
   // Iter 51: Optional "quote gables as shake" override. Adds a shake-
   // siding line for the total gable ft² and deducts that area from the
@@ -436,6 +440,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     if (!lastRun || !lastRun.run_id) return;
     setBusy(true);
     setBusyStage(lastRun.stage || "running");
+    setCurrentRunId(lastRun.run_id);
     // Restore the photo grid from the saved photo_paths so the UI
     // matches the run the worker is processing.
     if (lastRun.photo_paths) {
@@ -477,6 +482,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       const paths = String(lastRun.photo_paths).split(",").map((s) => s.trim()).filter(Boolean);
       if (paths.length) setPhotoUrls(paths);
     }
+    setCurrentRunId(lastRun.run_id);
     _applyAIResult(lastRun.result);
     setLastRun(null);
     toast.success("Last AI run restored — preview loaded");
@@ -780,6 +786,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       if (!runId) {
         throw new Error("Backend didn't return a run_id");
       }
+      setCurrentRunId(runId);
       setBusyStage(launch?.data?.stage || "starting");
       // Poll until done. Max ~5 min (100 polls × 3 s); each poll is a
       // tiny GET so a misbehaving Claude doesn't hang the UI either.
@@ -1521,14 +1528,16 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       {preview.measurements._ai_notes}
                     </div>
                   )}
-                  {/* Iter 78z (P1.3) — Per-Elevation Breakdown + "+ Add Accent" */}
+                  {/* Iter 78z (P1.3 + Cross-Check) — Per-Elevation Breakdown,
+                      "+ Add Accent", and "🔁 Re-check with AI" button */}
                   <PerElevationBreakdownCard
                     measurements={preview.measurements || {}}
+                    runId={currentRunId}
                     onUpdate={({ measurements: newMeas, lines: newLines }) => {
                       setPreview((p) => p && ({
                         ...p,
                         measurements: newMeas,
-                        lines: newLines,
+                        ...(newLines ? { lines: newLines } : {}),
                       }));
                     }}
                   />

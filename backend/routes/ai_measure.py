@@ -1701,3 +1701,318 @@ async def map_measurements_to_lines(
     except Exception:
         warnings = []
     return {"measurements": measurements, "lines": lines, "vero_openings": [], "warnings": warnings}
+
+
+
+# =====================================================================
+# Iter 78z (Cross-Check) — Reference photo cross-check.
+#
+# After the primary AI Measure pass, the contractor can fire this
+# secondary Claude pass to VERIFY the per-elevation profile callouts
+# against the same uploaded photos. The 2nd pass uses a focused prompt
+# that biases Claude toward catching:
+#   - Small accents the primary pass missed (porch B&B, column shake)
+#   - Profile mis-classification (lap vs dutch lap, shake vs B&B)
+#   - Stone / brick watertable mis-reads
+#
+# Returns:
+#   conflicts:         [{elev, role, primary, verified, confidence, note}]
+#   suggested_accents: [{elev, location, profile, approx_sqft, confidence}]
+#   overall_confidence: high/medium/low
+#   agreement_pct:     0-100 (% of roles where primary == verified)
+# =====================================================================
+CROSS_CHECK_PROMPT = """\
+You are a SECOND-PASS verification agent for a siding takeoff. You already
+analyzed these photos in a first pass; now do a careful re-check ONLY
+of the per-elevation siding profile callouts.
+
+Look for these specific failure modes the first pass commonly misses:
+1. SMALL ACCENT PANELS — porch face B&B, column wrap shake, small dormer
+   scallop, gable-vent surround. These get lost when Claude downsizes
+   full-house photos.
+2. PROFILE MIS-CLASSIFICATION — lap vs dutch lap (notched bottom edge),
+   shake vs board & batten (vertical battens vs staggered courses),
+   nickel gap vs plain vertical.
+3. MASONRY MIS-READ — stone / brick watertable or wainscot the first
+   pass might have missed (would reduce siding ft²).
+
+Canonical profile families (use these exact strings):
+  lap | dutch_lap | shake | board_batten | vertical | nickel_gap |
+  stone | brick | stucco | unknown
+
+You MUST return JSON only. Schema:
+{
+  "overall_confidence": "high" | "medium" | "low",
+  "per_elevation": [
+    {
+      "label": "front" | "back" | "left" | "right" | etc,
+      "body_profile":  "<one of the canonical families>",
+      "gable_profile": "<canonical family or empty>",
+      "dormer_profile": "<canonical family or empty>",
+      "accents": [
+        {
+          "location":       "<short, e.g. 'porch face' / 'column wrap' / 'dormer scallop'>",
+          "profile":        "<canonical family>",
+          "approx_sqft":    number,
+          "confidence":     "high" | "medium" | "low",
+          "callout":        "<what visually told you, 1 short phrase>"
+        }
+      ],
+      "notes": "<1 sentence on anything unusual, or empty>"
+    }
+  ]
+}
+
+Be CONSERVATIVE on accents — only flag accents you can clearly see in
+the photos. Don't invent details. If the photo is too small/blurry,
+mark confidence: "low" and note the limitation.
+"""
+
+
+def _normalize_family(s) -> str:
+    """Best-effort normalization of a profile string to a canonical
+    family. Tolerates the primary breakdown's labels + raw Claude
+    output. Returns empty string when unparseable."""
+    if not s:
+        return ""
+    s = str(s).strip().lower().replace("-", "_").replace(" ", "_")
+    if s in {"lap", "dutch_lap", "shake", "board_batten", "vertical",
+             "nickel_gap", "stone", "brick", "stucco", "unknown"}:
+        return s
+    # Forgive a few common Claude outputs
+    if s in {"clapboard", "horizontal_lap"}:
+        return "lap"
+    if s in {"dutchlap"}:
+        return "dutch_lap"
+    if s in {"shaker", "shingle", "shingles", "fish_scale", "scallop"}:
+        return "shake"
+    if s in {"bnb", "b&b", "batten"}:
+        return "board_batten"
+    return ""
+
+
+def _compute_recheck_diff(primary_per_elev: list, verified: dict) -> dict:
+    """Compare the primary per_elevation_breakdown vs the verifier's
+    output and produce conflicts + suggested_accents. The verifier
+    returns its result keyed by `label` (lowercase). Roles compared:
+    body / gable / dormer. Accent comparison is by (location, profile)
+    fuzzy match — anything in the verifier not seen in primary is a
+    suggestion."""
+    conflicts = []
+    suggested_accents = []
+    total_role_comparisons = 0
+    matches = 0
+
+    primary_by_label = {
+        (e.get("label") or "").strip().lower(): e for e in (primary_per_elev or [])
+    }
+    verified_per_elev = verified.get("per_elevation") or []
+
+    for v_elev in verified_per_elev:
+        v_label = (v_elev.get("label") or "").strip().lower()
+        p_elev = primary_by_label.get(v_label) or {}
+
+        # Compare each role
+        for role, p_key, v_key in [
+            ("body",   "wall_body_profile", "body_profile"),
+            ("gable",  "gable_profile",     "gable_profile"),
+            ("dormer", "dormer_profile",    "dormer_profile"),
+        ]:
+            p_fam = _normalize_family(p_elev.get(p_key))
+            v_fam = _normalize_family(v_elev.get(v_key))
+            # Only compare when verifier produced an opinion AND the
+            # primary had a value to compare against.
+            if not v_fam:
+                continue
+            if role == "body" and not p_fam:
+                # Primary had no body profile but verifier does — surface
+                # as a conflict so the contractor can review.
+                conflicts.append({
+                    "elev": v_label,
+                    "role": role,
+                    "primary": "",
+                    "verified": v_fam,
+                    "confidence": v_elev.get("overall_confidence") or "medium",
+                    "note": f"Verifier identified {v_fam} body siding; primary had no callout",
+                })
+                continue
+            if not p_fam:
+                continue
+            total_role_comparisons += 1
+            if p_fam == v_fam:
+                matches += 1
+            else:
+                conflicts.append({
+                    "elev": v_label,
+                    "role": role,
+                    "primary": p_fam,
+                    "verified": v_fam,
+                    "confidence": v_elev.get("overall_confidence") or "medium",
+                    "note": f"Primary said {p_fam}, verifier says {v_fam}",
+                })
+
+        # Suggested accents: anything in verifier not already in primary's
+        # accents list. Match by (profile, location) approximate.
+        p_accents = p_elev.get("accents") or []
+        p_keys = {
+            (
+                _normalize_family(a.get("profile")),
+                (a.get("location") or "").strip().lower(),
+            )
+            for a in p_accents
+        }
+        for v_acc in (v_elev.get("accents") or []):
+            v_fam = _normalize_family(v_acc.get("profile"))
+            if not v_fam:
+                continue
+            v_loc = (v_acc.get("location") or "").strip().lower()
+            if (v_fam, v_loc) in p_keys:
+                continue  # already on the primary breakdown
+            try:
+                sqft = float(v_acc.get("approx_sqft") or 0)
+            except (TypeError, ValueError):
+                sqft = 0
+            if sqft <= 0:
+                continue
+            suggested_accents.append({
+                "elev": v_label,
+                "location": v_acc.get("location") or "accent",
+                "profile": v_fam,
+                "approx_sqft": round(sqft, 1),
+                "confidence": v_acc.get("confidence") or "medium",
+                "callout": v_acc.get("callout") or "",
+            })
+
+    agreement_pct = round((matches / total_role_comparisons * 100), 1) if total_role_comparisons > 0 else 100.0
+    return {
+        "overall_confidence": verified.get("overall_confidence") or "medium",
+        "agreement_pct": agreement_pct,
+        "conflicts": conflicts,
+        "suggested_accents": suggested_accents,
+        "verified_per_elevation": verified_per_elev,
+    }
+
+
+@router.post("/ai-cross-check/{run_id}")
+async def ai_cross_check(
+    run_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Iter 78z — Reference photo cross-check.
+
+    Fires a SECOND Claude vision pass against the same photos the
+    primary AI Measure run used, focused exclusively on verifying the
+    per-elevation profile callouts. Returns a diff (conflicts +
+    suggested accents) the frontend can render inline on the takeoff
+    preview. Patches the run document with the recheck result so
+    subsequent loads can show it without re-running Claude.
+    """
+    doc = await db.ai_measure_runs.find_one({"run_id": run_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if doc.get("user_id") not in (user.get("id"), "anon"):
+        raise HTTPException(status_code=403, detail="Not your run")
+    if doc.get("status") != "done":
+        raise HTTPException(
+            status_code=409,
+            detail="Primary run is not complete yet — wait for it to finish first",
+        )
+
+    # Reload the original photo bytes from disk via the cached paths.
+    photo_paths_str = doc.get("photo_paths") or ""
+    paths = [p.strip() for p in photo_paths_str.split(",") if p.strip()]
+    if not paths:
+        raise HTTPException(
+            status_code=400,
+            detail="No cached photos on this run — re-upload to use cross-check",
+        )
+    from config import UPLOAD_DIR  # local import to dodge cycle
+    image_payloads: list[bytes] = []
+    for name in paths:
+        target = UPLOAD_DIR / name
+        if not target.exists():
+            continue
+        raw = target.read_bytes()
+        # Reuse the same compressor the primary pass uses.
+        image_payloads.append(_compress_for_claude(raw))
+    if not image_payloads:
+        raise HTTPException(
+            status_code=400,
+            detail="None of the cached photos are still on disk — re-upload to use cross-check",
+        )
+
+    # Pull the primary breakdown from the saved run.
+    result = doc.get("result") or {}
+    primary_measurements = result.get("measurements") or {}
+    primary_per_elev = primary_measurements.get("_per_elevation_breakdown") or []
+
+    # Build the summary that prefaces the verification prompt so Claude
+    # knows what the primary pass already concluded.
+    if primary_per_elev:
+        summary_lines = ["First-pass conclusions (verify or correct each row):"]
+        for e in primary_per_elev:
+            label = e.get("label") or "unknown"
+            body = e.get("wall_body_profile") or ""
+            gable = e.get("gable_profile") or ""
+            dormer = e.get("dormer_profile") or ""
+            accents = e.get("accents") or []
+            acc_str = (
+                " | ".join(f"{a.get('profile')}@{a.get('location')}" for a in accents)
+                if accents else "none"
+            )
+            summary_lines.append(
+                f"  - {label}: body={body or 'unknown'}, "
+                f"gable={gable or 'none'}, dormer={dormer or 'none'}, "
+                f"accents=[{acc_str}]"
+            )
+        summary = "\n".join(summary_lines)
+    else:
+        summary = "First pass produced no per-elevation breakdown. Build one from scratch."
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+
+    session_id = f"ai-cross-check-{user.get('id', 'anon')}-{uuid.uuid4().hex[:8]}"
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=CROSS_CHECK_PROMPT,
+    ).with_model("anthropic", MODEL_NAME)
+
+    image_contents = [
+        ImageContent(image_base64=base64.b64encode(b).decode("ascii"))
+        for b in image_payloads
+    ]
+    user_text = (
+        summary
+        + "\n\nNow re-examine the photos and return your verification JSON."
+    )
+    try:
+        reply_text = await chat.send_message(
+            UserMessage(text=user_text, file_contents=image_contents),
+        )
+        verified = _json_from_reply(reply_text or "")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[ai-cross-check] Claude call failed for run_id=%s", run_id)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Cross-check pass failed: {e}",
+        ) from e
+
+    # Diff vs primary breakdown
+    recheck = _compute_recheck_diff(primary_per_elev, verified)
+
+    # Persist on the run so subsequent loads can resurface without re-paying.
+    primary_measurements["_ai_profile_recheck"] = recheck
+    await db.ai_measure_runs.update_one(
+        {"run_id": run_id},
+        {"$set": {
+            "result.measurements._ai_profile_recheck": recheck,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+    )
+
+    return {"run_id": run_id, "recheck": recheck}

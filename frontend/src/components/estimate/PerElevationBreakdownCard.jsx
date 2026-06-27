@@ -9,7 +9,7 @@
 // `_per_profile_sqft`, then re-runs the backend catalog mapper via
 // POST /api/measure/map so the line items reflect the override.
 import React, { useMemo, useState } from "react";
-import { Plus, X, AlertTriangle } from "lucide-react";
+import { Plus, X, AlertTriangle, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
@@ -321,11 +321,13 @@ function AddAccentModal({ elevationLabel, onClose, onSubmit }) {
   );
 }
 
-export default function PerElevationBreakdownCard({ measurements, onUpdate }) {
+export default function PerElevationBreakdownCard({ measurements, onUpdate, runId }) {
   const [accentElev, setAccentElev] = useState(null);
   // Iter 78z (Swap Profile) — currently-open swap target.
   // Shape: { elevIdx, role: "body"|"gable"|"dormer"|"accent", accentIdx? }
   const [swapTarget, setSwapTarget] = useState(null);
+  // Iter 78z (Cross-Check) — busy flag while the 2nd Claude pass runs.
+  const [crossChecking, setCrossChecking] = useState(false);
 
   const perElevation = measurements?._per_elevation_breakdown || [];
   const perProfile = useMemo(
@@ -413,6 +415,101 @@ export default function PerElevationBreakdownCard({ measurements, onUpdate }) {
     toast.success(`Swapped to ${PROFILE_LABELS[newProfile] || newProfile}`);
   };
 
+  // Iter 78z (Cross-Check) — fire a 2nd Claude pass to verify profile
+  // callouts. Result is persisted on the run AND patched onto local
+  // measurements so the recheck panel renders without a re-fetch.
+  const handleCrossCheck = async () => {
+    if (!runId) {
+      toast.error("Cross-check needs a saved AI run — re-upload your photos and try again");
+      return;
+    }
+    setCrossChecking(true);
+    try {
+      const res = await api.post(`/measure/ai-cross-check/${runId}`);
+      const recheck = res?.data?.recheck;
+      if (!recheck) throw new Error("Cross-check returned no result");
+      onUpdate({
+        measurements: { ...measurements, _ai_profile_recheck: recheck },
+      });
+      const nC = recheck.conflicts?.length || 0;
+      const nS = recheck.suggested_accents?.length || 0;
+      if (nC === 0 && nS === 0) {
+        toast.success("Re-check agrees with the primary pass ✓");
+      } else {
+        toast.message(`Re-check: ${nC} conflict${nC === 1 ? "" : "s"} · ${nS} suggested accent${nS === 1 ? "" : "s"}`);
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || "Cross-check failed");
+    } finally {
+      setCrossChecking(false);
+    }
+  };
+
+  // Accept a suggested accent from the recheck panel — same plumbing
+  // as handleAddAccent but targeted to the elevation by label.
+  const acceptSuggestedAccent = async (sugg) => {
+    const idx = perElevation.findIndex(
+      (e) => (e.label || "").toLowerCase() === (sugg.elev || "").toLowerCase(),
+    );
+    if (idx < 0) {
+      toast.error(`Elevation "${sugg.elev}" not found in the breakdown`);
+      return;
+    }
+    const sqft = Number(sugg.approx_sqft) || 0;
+    if (sqft <= 0) {
+      toast.error("Suggested accent has zero ft² — skip");
+      return;
+    }
+    const newPerElev = perElevation.map((e, i) => {
+      if (i !== idx) return e;
+      const accents = [...(e.accents || []), {
+        location: sugg.location || "suggested",
+        profile: sugg.profile,
+        callout: sugg.callout || "AI re-check suggestion",
+        sqft,
+      }];
+      return { ...e, accents };
+    });
+    const newPerProfile = recomputePerProfile(newPerElev);
+    // Drop the accepted suggestion from the recheck list.
+    const recheck = measurements._ai_profile_recheck || {};
+    const newSuggestions = (recheck.suggested_accents || []).filter(
+      (s) => !(s.elev === sugg.elev && s.location === sugg.location && s.profile === sugg.profile),
+    );
+    const newMeasurements = {
+      ...measurements,
+      _per_elevation_breakdown: newPerElev,
+      _per_profile_sqft: newPerProfile,
+      _ai_profile_recheck: { ...recheck, suggested_accents: newSuggestions },
+    };
+    try {
+      const res = await api.post("/measure/map", { measurements: newMeasurements });
+      const data = res?.data || {};
+      if (!data?.lines) throw new Error("Backend did not return updated lines");
+      onUpdate({ measurements: data.measurements || newMeasurements, lines: data.lines });
+      toast.success(`Added ${PROFILE_LABELS[sugg.profile] || sugg.profile} ${sqft} ft² to ${sugg.elev}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || "Failed to add suggested accent");
+    }
+  };
+
+  const dismissSuggestion = (sugg) => {
+    const recheck = measurements._ai_profile_recheck || {};
+    const newSuggestions = (recheck.suggested_accents || []).filter(
+      (s) => !(s.elev === sugg.elev && s.location === sugg.location && s.profile === sugg.profile),
+    );
+    onUpdate({
+      measurements: {
+        ...measurements,
+        _ai_profile_recheck: { ...recheck, suggested_accents: newSuggestions },
+      },
+    });
+  };
+
+  // Iter 78z (Cross-Check) — recheck result lives on measurements after
+  // the 2nd Claude pass completes. Drives the conflict + suggestion panel.
+  const recheck = measurements?._ai_profile_recheck || null;
+
   return (
     <section
       className="p-5 border-b border-[#E4E4E7] bg-white"
@@ -422,13 +519,28 @@ export default function PerElevationBreakdownCard({ measurements, onUpdate }) {
         <div className="text-[10px] uppercase tracking-wider font-bold text-[#A1A1AA]">
           Per-Elevation Breakdown
         </div>
-        <div className="text-[10px] text-[#71717A]">
-          {perElevation.length} elevation{perElevation.length === 1 ? "" : "s"} ·
-          {" "}
-          <span className="font-mono-num font-bold text-[#09090B]">
-            {Math.round(sumSidingProfiles).toLocaleString()}
-          </span>{" "}
-          ft² siding split
+        <div className="flex items-center gap-3">
+          {runId && (
+            <button
+              type="button"
+              onClick={handleCrossCheck}
+              disabled={crossChecking}
+              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-[#7C3AED] hover:text-[#5B21B6] disabled:opacity-50"
+              title="Run a second Claude pass to verify the profile callouts"
+              data-testid="cross-check-btn"
+            >
+              <RefreshCw size={12} className={crossChecking ? "animate-spin" : ""} />
+              {crossChecking ? "Re-checking…" : "Re-check with AI"}
+            </button>
+          )}
+          <div className="text-[10px] text-[#71717A]">
+            {perElevation.length} elevation{perElevation.length === 1 ? "" : "s"} ·
+            {" "}
+            <span className="font-mono-num font-bold text-[#09090B]">
+              {Math.round(sumSidingProfiles).toLocaleString()}
+            </span>{" "}
+            ft² siding split
+          </div>
         </div>
       </div>
       <p className="text-[11px] text-[#52525B] leading-snug mb-3">
@@ -438,7 +550,102 @@ export default function PerElevationBreakdownCard({ measurements, onUpdate }) {
         (e.g. Lap → Shake), or use{" "}
         <span className="font-bold">+ Add Accent</span> to inject anything
         the AI missed (porch B&B, column shake, dormer scallop, etc.).
+        {runId && (
+          <>
+            {" "}Hit{" "}
+            <span className="font-bold">Re-check with AI</span>{" "}
+            to run a second pass that catches missed accents.
+          </>
+        )}
       </p>
+      {/* Iter 78z (Cross-Check) — Recheck results panel */}
+      {recheck && (recheck.conflicts?.length > 0 || recheck.suggested_accents?.length > 0) && (
+        <div
+          className="border border-[#7C3AED] bg-[#F5F3FF] p-3 mb-3"
+          data-testid="cross-check-panel"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={14} className="text-[#7C3AED]" />
+            <span className="text-[10px] uppercase tracking-wider font-bold text-[#5B21B6]">
+              AI Re-check — {recheck.agreement_pct}% agreement ({recheck.overall_confidence} confidence)
+            </span>
+          </div>
+          {recheck.conflicts?.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] uppercase tracking-wider text-[#52525B] font-bold mb-1">
+                Conflicts ({recheck.conflicts.length})
+              </div>
+              <ul className="space-y-1">
+                {recheck.conflicts.map((c, i) => (
+                  <li key={i} className="text-[11px] text-[#3F3F46]" data-testid={`recheck-conflict-${i}`}>
+                    <span className="font-bold uppercase">{c.elev}</span>{" "}
+                    <span className="text-[#71717A]">{c.role}:</span>{" "}
+                    primary said{" "}
+                    <span className="font-bold text-[#EF4444]">{PROFILE_LABELS[c.primary] || c.primary || "—"}</span>
+                    {" "}→ verifier says{" "}
+                    <span className="font-bold text-[#16A34A]">{PROFILE_LABELS[c.verified] || c.verified}</span>
+                    {c.confidence && c.confidence !== "high" && (
+                      <span className="text-[10px] text-[#A1A1AA]"> ({c.confidence})</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-[#71717A] mt-1 italic">
+                Click the affected chip below to swap to the verified profile, or leave as-is if the primary read looks right to you.
+              </p>
+            </div>
+          )}
+          {recheck.suggested_accents?.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[#52525B] font-bold mb-1">
+                Suggested accents ({recheck.suggested_accents.length})
+              </div>
+              <div className="space-y-1.5">
+                {recheck.suggested_accents.map((s, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2 bg-white border border-[#E4E4E7] px-2 py-1.5"
+                    data-testid={`recheck-suggestion-${i}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] text-[#09090B]">
+                        <span className="font-bold uppercase">{s.elev}</span>{" "}
+                        <span className="text-[#71717A]">·</span>{" "}
+                        <span className="font-bold">{PROFILE_LABELS[s.profile] || s.profile}</span>{" "}
+                        <span className="text-[#A1A1AA] font-mono-num">{s.approx_sqft} ft²</span>{" "}
+                        <span className="text-[#71717A]">at {s.location}</span>
+                        {s.confidence && s.confidence !== "high" && (
+                          <span className="text-[10px] text-[#A1A1AA]"> ({s.confidence})</span>
+                        )}
+                      </div>
+                      {s.callout && (
+                        <div className="text-[10px] text-[#71717A] italic mt-0.5">{s.callout}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => acceptSuggestedAccent(s)}
+                      className="bg-[#F97316] text-white text-[10px] uppercase tracking-wider font-bold px-2 py-1 hover:bg-[#EA580C]"
+                      data-testid={`recheck-accept-${i}`}
+                    >
+                      + Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissSuggestion(s)}
+                      className="text-[#71717A] hover:text-[#09090B] p-1"
+                      title="Dismiss this suggestion"
+                      data-testid={`recheck-dismiss-${i}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {showDrift && (
         <div
           className="flex items-start gap-2 border border-[#F59E0B] bg-[#FEF3C7] px-3 py-2 mb-3"
