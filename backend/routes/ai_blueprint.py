@@ -118,7 +118,18 @@ EXTRACTION SCHEMA — return EXACTLY this shape:
      "height_ft": number,                 // EAVE height (not roof peak)
      "gable_triangle_height_ft": number,  // 0 unless this wall is a gable end
      "dormer_face_sqft": number,          // 0 unless dormer shown on this elevation
-     "siding_pct_this_wall": 100          // INTEGER percent; default 100 unless plan notes brick/stone
+     "siding_pct_this_wall": 100,         // INTEGER percent; default 100 unless plan notes brick/stone
+     // Iter 78z — Profile callouts read from the elevation drawing itself.
+     // Construction prints almost always print the siding type in plain
+     // text on or near the surface (e.g. "LAP 4\"", "DUTCH LAP", "SHAKER",
+     // "B&B", "STONE WATERTABLE"). Capture them verbatim — the catalog
+     // mapper splits the line by callout so mixed-material houses
+     // (Campbell-style) produce SEPARATE SHAKE / B&B / LAP quote lines
+     // instead of collapsing into a single inflated lap number.
+     "wall_body_profile_callout": "<verbatim text from the elevation showing the wall body siding (e.g. 'LAP 4\"', 'DUTCH LAP 5\"', 'VINYL'); leave empty if not labelled>",
+     "gable_profile_callout":     "<verbatim text for the gable triangle's siding (e.g. 'SHAKER', 'SHAKE', 'B&B', 'BOARD AND BATTEN'); empty if gable matches the wall body or wall isn't a gable end>",
+     "dormer_profile_callout":    "<verbatim text for any dormer face siding (e.g. 'SHAKER', 'B&B'); empty if no dormer or dormer matches body>",
+     "stone_callout":             "<'STONE WATERTABLE' or similar if the elevation shows a masonry watertable / wainscot below the siding line; empty if all siding>"
     }
   ],
   "windows": [

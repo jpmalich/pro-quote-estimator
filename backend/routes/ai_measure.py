@@ -139,6 +139,15 @@ Schema:
      "gable_triangle_height_ft": number,  // 0 if this wall ends in an eave; >0 ONLY if this wall is a gable-end (you can see the triangular peak above the eave). Triangle area is auto-computed as 0.5 × width × this value.
      "dormer_face_sqft": number,          // 0 unless a true dormer (small box poking out of the roof) is on this elevation. Estimate the visible vertical face area in ft² — typically 20-60 ft² each.
      "siding_pct_this_wall": number,      // INTEGER 0-100 (percent), NOT a fraction. Use 85 to mean 85% siding — NEVER 0.85. Siding only, not brick / garage door / etc.
+     // Iter 78z — Profile callouts per elevation. Capture the raw text or
+     // visible siding pattern so the catalog mapper can split LAP / SHAKE /
+     // B&B / DUTCH LAP into SEPARATE quote lines. Without these, mixed
+     // material houses (lap on body + shake on gable + B&B on dormer)
+     // collapse into a single inflated lap number. Howard's Campbell
+     // house had all 3 profiles and we missed shake + B&B entirely.
+     "wall_body_profile_callout": "<raw text from photo IF visible (e.g. 'LAP 4\"', 'DUTCH LAP', 'VINYL'); OR the pattern you can see ('horizontal lap', 'dutch lap', 'board and batten', 'shake', 'nickel gap', 'vertical'); OR empty if you can't tell>",
+     "gable_profile_callout": "<same shape; only fill when gable_triangle_height_ft > 0. Common: 'shake', 'board and batten', 'vertical'. Leave empty if the gable matches the wall body>",
+     "dormer_profile_callout": "<same shape; only fill when dormer_face_sqft > 0. Common: 'shake', 'board and batten'. Leave empty if dormer matches the wall body>",
      "confidence": number,                // 0-100, how confident are you in THIS wall's measurements. <50 = barely visible / inferred. 50-79 = visible but obstructed or angled. 80-100 = clear straight-on shot with reference.
      "confidence_reasoning": "<1 short sentence — what reduces or supports confidence on THIS wall>"
     }
@@ -360,6 +369,37 @@ CRITICAL accuracy rules (read every time):
    the wall actually clad in siding. Compute the global
    siding_coverage_pct as a weighted average. If a house is 100% siding,
    that's fine — but DON'T assume it.
+
+5b. SIDING PROFILE PER ELEVATION (Iter 78z — REQUIRED):
+   Even on a single house, different SURFACES often use different
+   siding profiles. Almost always seen:
+     • Body of the wall = horizontal LAP or DUTCH LAP (most common)
+     • Gable triangles  = SHAKE / SHAKER / scallop accent
+     • Dormer faces     = SHAKE or BOARD & BATTEN accent
+   Capture three separate callouts per wall:
+     - `wall_body_profile_callout`  → the main wall body's profile
+     - `gable_profile_callout`      → only when gable_triangle_height_ft > 0
+     - `dormer_profile_callout`     → only when dormer_face_sqft > 0
+   What to look for:
+     (a) Text labels visible IN the photo. Architects on construction
+         drawings write things like "LAP 4\"", "DUTCH LAP 5\"", "SHAKER",
+         "SHAKE", "B&B", "BOARD AND BATTEN", "VERTICAL", "NICKEL GAP",
+         "VINYL". Use the literal text when visible.
+     (b) The visible pattern in the photo. Even without text labels,
+         the look of the surface tells you the profile:
+           - Tight horizontal lines, ~4-5\" apart = LAP
+           - Same but with a "step" notch in each lap = DUTCH LAP
+           - Irregular textured slats stacked vertically with visible
+             gaps = SHAKE / SHAKER (cedar-shake look)
+           - Wide vertical boards with thin batten strips on top =
+             BOARD & BATTEN (a.k.a. B&B / vertical siding)
+           - Smooth wide vertical boards with tight V-grooves between
+             them = NICKEL GAP
+   Output the most specific callout you can. If the wall body and the
+   gable look identical, set `gable_profile_callout = ""` and the
+   downstream code will inherit from the body. Leaving these empty is
+   fine — but a WRONG profile is worse than an empty one (the catalog
+   mapper will split the line by profile and produce wrong SKUs).
 
 6. CONSERVATIVE BIAS: When in doubt, under-estimate. Contractors over-buy
    to cover waste; you don't need to add buffer. If your math gives a
