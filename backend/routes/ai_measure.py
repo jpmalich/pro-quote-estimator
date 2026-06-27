@@ -146,8 +146,8 @@ Schema:
      // collapse into a single inflated lap number. Howard's Campbell
      // house had all 3 profiles and we missed shake + B&B entirely.
      "wall_body_profile_callout": "<raw text from photo IF visible (e.g. 'LAP 4\"', 'DUTCH LAP', 'VINYL'); OR the pattern you can see ('horizontal lap', 'dutch lap', 'board and batten', 'shake', 'nickel gap', 'vertical'); OR empty if you can't tell>",
-     "gable_profile_callout": "<same shape; only fill when gable_triangle_height_ft > 0. Common: 'shake', 'board and batten', 'vertical'. Leave empty if the gable matches the wall body>",
-     "dormer_profile_callout": "<same shape; only fill when dormer_face_sqft > 0. Common: 'shake', 'board and batten'. Leave empty if dormer matches the wall body>",
+     "gable_profile_callout": "<MANDATORY when gable_triangle_height_ft > 0. CRITICAL: gables OFTEN carry a DIFFERENT profile than the wall body — most commonly SHAKE (cedar shake / scallop / fishscale) or BOARD AND BATTEN (vertical battens) for visual accent. Even when the gable LOOKS like it might match the body, look CAREFULLY for: scalloped bottom edges, vertical seams between panels, staggered courses, decorative cuts. If you see ANY visual difference from the body, call it out — 'shake', 'board and batten', 'vertical', 'fishscale', etc. ONLY leave empty if you can clearly see the EXACT same horizontal lap pattern continuing into the triangle without interruption.>",
+     "dormer_profile_callout": "<MANDATORY when dormer_face_sqft > 0. Same logic as gable_profile_callout — dormers commonly carry SHAKE / BOARD AND BATTEN as an accent. Look for vertical battens, scalloped edges, or staggered cedar courses. Only leave empty when the dormer clearly continues the body's exact horizontal lap.>",
      // Iter 78z+ — ACCENT PANELS. A single wall can carry SMALL accent
      // areas with a different profile from the body — easy to miss
      // because they don't fit the "body / gable / dormer" buckets.

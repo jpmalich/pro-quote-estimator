@@ -510,6 +510,25 @@ export default function PerElevationBreakdownCard({ measurements, onUpdate, runI
   // the 2nd Claude pass completes. Drives the conflict + suggestion panel.
   const recheck = measurements?._ai_profile_recheck || null;
 
+  // Iter 78z (Discoverability) — when AI returned only ONE siding family
+  // but elevations DO have gables / dormers, this is the classic "AI
+  // missed the shake on the gables" failure mode (the Campbell job).
+  // Surface a high-visibility banner that points the contractor at the
+  // exact next action (swap the gable chip OR add an accent OR re-check).
+  const sidingFamilyCount = Object.entries(perProfile).filter(
+    ([fam, sq]) => SIDING_FAMILIES.has(fam) && (Number(sq) || 0) > 0,
+  ).length;
+  const totalGableSqft = (perElevation || []).reduce(
+    (acc, e) => acc + (Number(e.gable_sqft) || 0), 0,
+  );
+  const totalDormerSqft = (perElevation || []).reduce(
+    (acc, e) => acc + (Number(e.dormer_sqft) || 0), 0,
+  );
+  const showSingleProfileNudge = (
+    sidingFamilyCount === 1
+    && (totalGableSqft > 0 || totalDormerSqft > 0)
+  );
+
   return (
     <section
       className="p-5 border-b border-[#E4E4E7] bg-white"
@@ -663,6 +682,46 @@ export default function PerElevationBreakdownCard({ measurements, onUpdate, runI
               {Math.round(sidingSqft).toLocaleString()}
             </span>{" "}
             ft² — a {driftPct.toFixed(0)}% gap. Add accents or re-run AI on this elevation.
+          </div>
+        </div>
+      )}
+      {/* Iter 78z — "AI saw only one profile but you have gables/dormers"
+          nudge. Fires on the Campbell-style case where Claude missed the
+          shake gables and lumped everything into lap. */}
+      {showSingleProfileNudge && (
+        <div
+          className="flex items-start gap-2 border-2 border-[#F97316] bg-[#FFF7ED] px-3 py-2 mb-3"
+          data-testid="single-profile-nudge"
+        >
+          <AlertTriangle size={16} className="text-[#9A3412] flex-shrink-0 mt-0.5" />
+          <div className="text-[11px] text-[#7C2D12] leading-snug">
+            <span className="font-bold">
+              AI detected only one siding profile — but this house has{" "}
+              {totalGableSqft > 0 && totalDormerSqft > 0
+                ? "gables and dormers"
+                : totalGableSqft > 0 ? "gables" : "dormers"}.
+            </span>{" "}
+            Many homes carry Shake, Scallop, or B&B as a gable/dormer accent.
+            If yours does,{" "}
+            <span className="font-bold">click the gable/dormer chip below</span>{" "}
+            to swap its profile, or use{" "}
+            <span className="font-bold">+ Add Accent</span> to inject a section
+            the AI missed.
+            {runId && (
+              <>
+                {" "}You can also hit{" "}
+                <button
+                  type="button"
+                  onClick={handleCrossCheck}
+                  disabled={crossChecking}
+                  className="underline font-bold text-[#7C3AED] hover:text-[#5B21B6] disabled:opacity-50"
+                  data-testid="single-profile-recheck-link"
+                >
+                  Re-check with AI
+                </button>{" "}
+                for a focused second pass.
+              </>
+            )}
           </div>
         </div>
       )}
