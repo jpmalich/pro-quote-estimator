@@ -524,6 +524,18 @@ async def ai_blueprint(
 
     image_payloads: list[bytes] = []
 
+    # Iter 78z+ (Blueprint annotator) — also persist each rendered page
+    # to UPLOAD_DIR so the frontend ProfileAnnotator can display them
+    # back to the contractor. Same pattern as AI Measure's photo_paths.
+    from config import UPLOAD_DIR  # local import to dodge cycle
+    page_paths: list[str] = []
+
+    def _persist_page_png(png_bytes: bytes) -> str:
+        name = f"bp_{uuid.uuid4().hex}.png"
+        target = UPLOAD_DIR / name
+        target.write_bytes(png_bytes)
+        return name
+
     # PDF path — render to PNGs
     if file is not None:
         ctype = (file.content_type or "").lower()
@@ -539,7 +551,15 @@ async def ai_blueprint(
             )
         if len(raw) > MAX_BYTES_PER_FILE * 4:
             raise HTTPException(status_code=413, detail="PDF exceeds 64 MB limit")
-        image_payloads.extend(_render_pdf_to_pngs(raw, max_pages))
+        page_pngs = _render_pdf_to_pngs(raw, max_pages)
+        for png in page_pngs:
+            try:
+                page_paths.append(_persist_page_png(png))
+            except Exception:
+                # If disk write fails we still want Claude to see the
+                # page — we just lose the annotator preview for it.
+                page_paths.append("")
+        image_payloads.extend(page_pngs)
 
     # Image-scan path
     if files:
@@ -556,7 +576,15 @@ async def ai_blueprint(
             if len(raw) > MAX_BYTES_PER_FILE:
                 raise HTTPException(status_code=413, detail="Plan sheet exceeds 16 MB limit")
             # Same Anthropic 10 MB base64 cap — compress before queuing.
-            image_payloads.append(_compress_for_claude(raw))
+            compressed = _compress_for_claude(raw)
+            image_payloads.append(compressed)
+            # Persist a copy for the annotator UI. We save the COMPRESSED
+            # version since that's what Claude sees — keeps box coords
+            # aligned with what was analyzed.
+            try:
+                page_paths.append(_persist_page_png(compressed))
+            except Exception:
+                page_paths.append("")
 
     if not image_payloads:
         raise HTTPException(
@@ -587,6 +615,11 @@ async def ai_blueprint(
         "status": "running",
         "stage": "starting",
         "page_count": len(image_payloads),
+        # Iter 78z+ — persisted page filenames (one per rendered/uploaded
+        # blueprint page) so the ProfileAnnotator UI can display them
+        # for box-tagging. Order matches `image_payloads` (and therefore
+        # photos[*].index in Claude's output).
+        "page_paths": ",".join(p for p in page_paths if p),
         "address": address,
         "created_at": now,
         "updated_at": now,
@@ -608,6 +641,10 @@ async def ai_blueprint(
         "status": "running",
         "stage": "starting",
         "pages_queued": len(image_payloads),
+        # Iter 78z+ — return the persisted page filenames so the
+        # frontend can hand them to the ProfileAnnotator immediately
+        # (no need to wait for the worker to finish).
+        "page_paths": ",".join(p for p in page_paths if p),
     }
 
 
@@ -675,6 +712,9 @@ async def ai_blueprint_latest_for_estimate(
             "status": doc.get("status"),
             "stage": doc.get("stage"),
             "page_count": doc.get("page_count"),
+            # Iter 78z+ — persisted page filenames so the frontend can
+            # render them in the ProfileAnnotator on a resume.
+            "page_paths": doc.get("page_paths") or "",
             "result": doc.get("result"),
             "error": doc.get("error"),
             "elapsed_ms": elapsed_ms,

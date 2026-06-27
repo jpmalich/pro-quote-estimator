@@ -1,0 +1,41 @@
+{
+  "summary": "Iter 78z+ Phase 2 backend testing: all 5 new blueprint-annotator-wiring unit tests pass, full 121-test Iter 78z regression suite passes, and 3 new HTTP integration tests confirm page_paths plumbing end-to-end (POST launch returns comma-separated page filenames, each filename is reachable at /api/uploads/{name}, and GET /ai-blueprint/latest-for-estimate returns the same page_paths). Total: 133/133 backend tests green. Real Claude blueprint flow (annotated shake → _per_profile_sqft) was deliberately skipped per the request (cost) — the unit test test_blueprint_annotation_overlay_via_aggregator already pins that math.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/measure/ai-blueprint (file persistence)",
+        "issue": "Persisted blueprint pages are saved as `bp_<uuid>.png` but their actual bytes are JPEG (because `_render_pdf_to_pngs` pipes through `_compress_for_claude` which JPEG-encodes for the Anthropic size cap). /api/uploads/<name>.png will then serve JPEG bytes under a PNG MIME (derived from extension). Browsers tolerate it but the helper name (`_persist_page_png`) and the .png extension are misleading. Either rename to `_persist_page_image` + `bp_<uuid>.jpg`, or sniff the magic bytes and pick the extension."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_blueprint_annotator_wiring.py",
+    "/app/backend/tests/test_blueprint_page_paths_http.py",
+    "/app/test_reports/pytest/iter24_results.xml"
+  ],
+  "action_items": [
+    "Minor (non-blocking): rename `_persist_page_png` → `_persist_page_image` and use `.jpg` extension to match the actual JPEG payload produced by `_compress_for_claude` (routes/ai_blueprint.py line ~534)."
+  ],
+  "critical_code_review_comments": [
+    "routes/ai_blueprint.py — `_persist_page_png` saves with `.png` but content is JPEG after `_compress_for_claude`. Misleading naming.",
+    "routes/ai_blueprint.py — `page_paths` is stored on the run doc as a comma-joined string instead of an array. Works, but a real array would survive filenames containing commas (none today, but uuid4 hex avoids it). Consider storing list and joining only at the API boundary.",
+    "_aggregate_to_hover_shape still wraps `apply_annotations_to_breakdown` in a broad `except Exception` (carried over from Iter 78z). Could silently swallow annotation overlay bugs; recommend logger.exception."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_blueprint_page_paths_http.py (new — 3 HTTP integration tests)",
+    "(installed) reportlab via pip — required by the new HTTP test to synthesize a tiny PDF"
+  ],
+  "success_rate": {"backend": "100% (133/133)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "Admin hhunt6677@yahoo.com / Admin123! — login verified via POST /api/auth/login (200).",
+  "seed_data_creation": "If the admin has zero estimates, the new HTTP test auto-creates a throwaway estimate named TEST_iter78z_blueprint. In this run an existing estimate was reused, so no new data was seeded.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Blueprint page-paths plumbing is fully verified end-to-end against the public REACT_APP_BACKEND_URL. Launch response → /api/uploads/{name} → latest-for-estimate all return matching filenames. The persisted bytes are JPEG (despite .png filename). The Claude-driven annotation overlay path (PUT /api/estimates/{id}/profile-annotations → launch → poll status → verify result.measurements._per_profile_sqft) was NOT exercised end-to-end to save budget; the aggregator unit test (test_blueprint_annotation_overlay_via_aggregator) already pins the math. Frontend (BlueprintMeasureButton.jsx + ProfileAnnotator.jsx) was not exercised — testing was backend-only per request. New deps: reportlab installed in the runtime venv for HTTP test PDF synthesis.",
+  "rca of the issue": "No blocking bugs. One minor naming/extension mismatch documented above (file saved as .png but content is JPEG); does not affect functionality because /api/uploads serves the raw bytes and browsers sniff content. Recommend follow-up rename only."
+}

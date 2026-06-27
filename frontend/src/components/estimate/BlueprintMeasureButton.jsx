@@ -18,6 +18,8 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
 import PerElevationBreakdownCard from "@/components/estimate/PerElevationBreakdownCard";
+// Iter 78z+ — Profile annotator (Tag Shake / B&B / etc. on blueprint pages).
+import ProfileAnnotator from "@/components/estimate/ProfileAnnotator";
 import {
   getSavedWasteDefault,
   saveWasteDefault,
@@ -109,6 +111,16 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
   // result instead of re-uploading.
   const [resumeRun, setResumeRun] = useState(null);
   const [resumeDismissed, setResumeDismissed] = useState(false);
+  // Iter 78z+ — Persisted page filenames from the most recent blueprint
+  // run (PDF pages rendered server-side OR uploaded image sheets).
+  // Lets the contractor open the ProfileAnnotator on top of the
+  // actual elevation drawings. Updated by both the launch response
+  // (page_paths returns immediately, before Claude finishes) AND by
+  // the latest-for-estimate resume call.
+  const [pagePaths, setPagePaths] = useState([]);
+  const [profileAnnotatorOpen, setProfileAnnotatorOpen] = useState(false);
+  const [savedProfileAnnotations, setSavedProfileAnnotations] = useState({});
+  const [currentRunId, setCurrentRunId] = useState(null);
 
   // Check for a recoverable run on mount + after the busy flag drops
   // (so a 502 immediately surfaces a recovery offer).
@@ -129,13 +141,37 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
         // status when the user clicks "Restore".
         const ageOk = (run.age_seconds ?? 99999) < 1800;
         const restorable = ["done", "error", "running"].includes(run.status);
-        if (ageOk && restorable) setResumeRun(run);
+        if (ageOk && restorable) {
+          setResumeRun(run);
+          // Iter 78z+ — pick up persisted page paths from the previous
+          // run so Tag Profiles works without re-uploading the PDF.
+          const pp = (run.page_paths || "").split(",").filter(Boolean);
+          if (pp.length) setPagePaths(pp);
+          if (run.run_id) setCurrentRunId(run.run_id);
+        }
       } catch {
         /* offline / not authed → silently no banner */
       }
     })();
     return () => { cancelled = true; };
   }, [est?.id, busy, result, resumeDismissed]);
+
+  // Iter 78z+ — Load saved profile annotations for this estimate so
+  // the "Tag Profiles" button shows a live count + the modal can
+  // restore the contractor's existing boxes when re-opened.
+  React.useEffect(() => {
+    if (!est?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/estimates/${est.id}/profile-annotations`);
+        if (!cancelled) setSavedProfileAnnotations(data?.annotations || {});
+      } catch {
+        /* no annotations yet — silent */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [est?.id]);
 
   const restoreResume = async () => {
     if (!resumeRun) return;
@@ -211,6 +247,12 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
       });
       const runId = launch?.data?.run_id;
       if (!runId) throw new Error("Backend didn't return a run_id");
+      setCurrentRunId(runId);
+      // Iter 78z+ — capture rendered page paths immediately so the
+      // Tag Profiles button works during the Claude wait, not just
+      // after the result lands.
+      const pp = (launch?.data?.page_paths || "").split(",").filter(Boolean);
+      if (pp.length) setPagePaths(pp);
       setBusyStage(launch?.data?.stage || "starting");
       let pollResult = null;
       for (let i = 0; i < 100; i++) {
@@ -508,6 +550,34 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
             : "Reading plans…")
           : "Read Blueprints"}
       </button>
+
+      {/* Iter 78z+ — Tag Profiles button. Appears whenever we have
+          rendered blueprint pages in pagePaths (set during upload OR
+          restored from a previous run). Lets the contractor draw
+          ground-truth Shake / B&B boxes BEFORE Claude analyzes — those
+          boxes always land on the materials list, no matter what AI
+          says. */}
+      {pagePaths.length > 0 && est?.id && (
+        <button
+          type="button"
+          onClick={() => setProfileAnnotatorOpen(true)}
+          disabled={busy}
+          className="ml-2 px-3 py-2 bg-white text-[#F97316] border border-[#F97316] hover:bg-[#FFF7ED] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+          data-testid="blueprint-tag-profiles-btn"
+          title="Draw boxes to tag Shake / B&B / etc. — guarantees those materials hit the quote"
+        >
+          Tag Profiles
+          {(() => {
+            const total = Object.entries(savedProfileAnnotations).reduce(
+              (a, [k, v]) => a + (k.startsWith("_") ? 0 : (Array.isArray(v) ? v.length : 0)),
+              0,
+            );
+            return total > 0 ? (
+              <span className="bg-[#F97316] text-white px-1 py-0 text-[9px]">{total}</span>
+            ) : null;
+          })()}
+        </button>
+      )}
 
       {/* Iter 78 — Default waste % caption. Shown when a saved default
           exists for this workspace; provides quick "change" + "clear"
@@ -957,6 +1027,24 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
             </div>
           </div>
         </div>
+      )}
+
+      {/* Iter 78z+ — Profile Annotator modal for blueprint pages. */}
+      {profileAnnotatorOpen && est?.id && (
+        <ProfileAnnotator
+          estimateId={est.id}
+          photos={pagePaths.map((name, i) => ({
+            url: `/api/uploads/${name}`,
+            label: `Page ${i + 1}`,
+          }))}
+          initialAnnotations={savedProfileAnnotations}
+          defaultElevationByIdx={pagePaths.map(() => "other")}
+          onClose={() => setProfileAnnotatorOpen(false)}
+          onSaved={(saved) => {
+            setSavedProfileAnnotations(saved);
+            toast.message("Annotations saved · Re-read blueprints to apply them to the takeoff");
+          }}
+        />
       )}
     </div>
   );
