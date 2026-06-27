@@ -195,6 +195,25 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - **Regression coverage**: `/app/backend/tests/test_hover_perimeter.py` — 7 pytest cases (mapping shape, 3-window perimeter, empty inputs, missing dims, large batch round-number, both-tab emission, zero-qty suppression). All passing.
   - **Files touched**: `/app/backend/routes/hover.py` (one new HOVER_MAPPING_SPEC entry); test file new.
 
+- **Iter 78z+ (Profile Annotator)** (Feb 2026): the contractor's escape hatch for AI vision misses. Closes the Campbell-style failure where Claude returns lap for every gable. Contractor draws bounding boxes on uploaded photos, tags each with a canonical profile (Shake / B&B / Lap / etc.) — boxes are AUTHORITATIVE accent material that always lands on the catalog mapper's output, no matter what Claude says.
+  - **Backend**:
+    - `profile_callouts.apply_annotations_to_breakdown(breakdown, annotations)` — merges user-drawn boxes into the per-elevation breakdown as accent entries, re-aggregates `_per_profile_sqft`. Handles case-insensitive label matching, synthetic elevation rows for new labels, non-siding skip (stone/brick/stucco), zero/unknown skip.
+    - `_aggregate_to_hover_shape(raw, annotations=None)` signature extended on BOTH `ai_measure.py` AND `ai_blueprint.py`. Workers load `db.estimates.profile_annotations` when `estimate_id` is provided and pass it through.
+    - **Endpoints**: `GET /api/estimates/{id}/profile-annotations` + `PUT /api/estimates/{id}/profile-annotations`. Stored as free-form dict on the estimate (keyed by photo_idx; reserved `_scale_refs` key for per-photo px-to-ft calibration).
+  - **Frontend**:
+    - New `ProfileAnnotator.jsx` modal (full-screen, 6xl wide):
+      - Image strip on the left (photos with annotation count badges)
+      - Canvas-based click-and-drag box drawing on the active image
+      - Profile palette (9 canonical families, color-coded) for the active drawing color
+      - **Scale reference**: click "+ Set scale", drag a known-length line (door, window), type the real-world ft → all boxes auto-compute their ft²
+      - Per-box editor: profile / elevation / ft² / note → all editable inline
+      - Save → calls PUT and closes
+    - **"Tag Profiles" button** added to AI Measure modal action bar (between Start Over and Run AI Measure). Shows live annotation count badge.
+    - Annotations are loaded automatically when the AI Measure modal opens on an existing estimate.
+  - **Verified via testing agent (iter_23 report): 125/125 tests pass**. 9 new unit tests in `/app/backend/tests/test_annotation_overlay.py` pin the overlay math + 9 new HTTP tests in `/app/backend/tests/test_profile_annotations_http.py` cover endpoint CRUD, auth (401/403/404), payload validation (400), and worker integration via direct `_aggregate_to_hover_shape` call. Frontend smoke-tested: ProfileAnnotator bundle compiles, login page loads clean.
+  - **Status**: Phase 1 ships AI Photo Measure only. Blueprint UI wiring is queued (backend overlay already supports it — just needs server-side page rendering for PDFs).
+  - **Notes for future iters**: (a) Add a Pydantic schema for the box dicts before exposing to non-admin users. (b) Broaden the `except Exception` around the breakdown helper to log instead of swallow.
+
 - **Iter 78z (Reference photo cross-check)** (Feb 2026): closes the "AI vision misses small details" gap by running a SECOND focused Claude pass that re-examines the same uploaded photos to verify the primary breakdown's profile callouts. Catches things like Campbell's porch B&B that the primary pass overlooked.
   - **Backend**: new endpoint `POST /api/measure/ai-cross-check/{run_id}` in `/app/backend/routes/ai_measure.py`. Loads the cached photo bytes from `db.ai_measure_runs[run_id].photo_paths` (no re-upload), builds a focused verification prompt that summarizes the primary breakdown and asks Claude to look specifically for **small accent panels**, **profile mis-classification** (lap vs dutch lap, shake vs B&B), and **masonry mis-reads**. Returns a structured diff via `_compute_recheck_diff()`: `conflicts: [{elev, role, primary, verified, confidence, note}]` + `suggested_accents: [{elev, location, profile, approx_sqft, confidence, callout}]` + `agreement_pct` + `overall_confidence`. Diff result is persisted on the run document (`result.measurements._ai_profile_recheck`) so subsequent loads can re-render without re-running Claude. Endpoint enforces: run exists, run belongs to current user (403 otherwise), primary run is `status: "done"` (409 otherwise), at least one cached photo on disk (400 otherwise).
   - **`_normalize_family()` helper**: maps verifier output to the canonical profile families (lap/dutch_lap/shake/board_batten/vertical/nickel_gap/stone/brick/stucco/unknown), tolerating Claude synonyms like "Clapboard", "Shaker", "Shingles", "BNB", "Batten".
