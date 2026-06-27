@@ -2512,6 +2512,27 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       Refine on Photo
                     </button>
                     )}
+                    {/* Iter 78z+++ — Tag Profiles also accessible from
+                        the preview footer so contractors can correct
+                        a missed Shake / B&B / dormer AFTER seeing the
+                        AI's first pass. Mirrors the pre-run button. */}
+                    {photoUrls.length > 0 && estimateId && (
+                      <button
+                        type="button"
+                        onClick={() => setProfileAnnotatorOpen(true)}
+                        disabled={busy}
+                        className="px-3 py-2 bg-white text-[#F97316] border border-[#F97316] hover:bg-[#FFF7ED] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50 mr-1"
+                        data-testid="ai-measure-tag-profiles-btn-preview"
+                        title="Draw boxes to tag Shake / B&B / Dormer — guarantees those materials hit the quote even if AI missed them"
+                      >
+                        Tag Profiles
+                        {Object.entries(savedProfileAnnotations).filter(([k, v]) => !k.startsWith("_") && Array.isArray(v) && v.length > 0).length > 0 && (
+                          <span className="bg-[#F97316] text-white px-1 py-0 text-[9px]">
+                            {Object.entries(savedProfileAnnotations).reduce((a, [k, v]) => a + (k.startsWith("_") ? 0 : (Array.isArray(v) ? v.length : 0)), 0)}
+                          </span>
+                        )}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={apply}

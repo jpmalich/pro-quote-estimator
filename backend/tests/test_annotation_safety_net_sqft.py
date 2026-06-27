@@ -201,3 +201,75 @@ def test_apply_annotations_recomputes_polygon_sentinel_50():
     assert len(accents) == 1
     # 0.5*0.5 polygon at 800x600 = 400*300 = 120000 px² → ~533.86 sqft
     assert accents[0]["sqft"] > 400.0
+
+
+# ---------------------------------------------------------------------------
+# Iter 78z+++ — structured `location` field (body/gable/dormer/porch/trim/other)
+# routes through to the accent entry. Lets one elevation row carry mixed
+# accents — Lap on body + Shake on gable + B&B on dormer — without
+# splitting elevations.
+# ---------------------------------------------------------------------------
+def test_apply_annotations_uses_structured_location_field():
+    """When the new `location` dropdown is set (e.g. "dormer"), the
+    accent's `location` field reflects it, not the free-text callout."""
+    annotations = {
+        "0": [
+            {
+                "shape": "rect",
+                "elevation_label": "front",
+                "profile": "shake",
+                "sqft": 120.0,
+                "location": "dormer",
+                "callout": "north dormer face",
+            }
+        ],
+    }
+    out = apply_annotations_to_breakdown(_make_breakdown(), annotations)
+    accents = out["per_elevation"][0]["accents"]
+    assert len(accents) == 1
+    assert accents[0]["location"] == "dormer"
+    # callout free-text preserved separately
+    assert accents[0]["callout"] == "north dormer face"
+
+
+def test_apply_annotations_falls_back_to_callout_when_no_location():
+    """Pre-78z+++ annotations without a `location` field still route
+    via the free-text callout (backwards compat)."""
+    annotations = {
+        "0": [
+            {
+                "shape": "rect",
+                "elevation_label": "front",
+                "profile": "board_batten",
+                "sqft": 80.0,
+                "callout": "gable",
+            }
+        ],
+    }
+    out = apply_annotations_to_breakdown(_make_breakdown(), annotations)
+    accents = out["per_elevation"][0]["accents"]
+    assert len(accents) == 1
+    assert accents[0]["location"] == "gable"
+
+
+def test_dormer_elevation_label_creates_synthetic_row():
+    """Tagging a box on the new 'dormer' elevation creates a synthetic
+    elevation row when Claude didn't surface one (parity with existing
+    porch/other behavior)."""
+    annotations = {
+        "0": [
+            {
+                "shape": "rect",
+                "elevation_label": "dormer",
+                "profile": "shake",
+                "sqft": 65.0,
+                "location": "dormer",
+            }
+        ],
+    }
+    out = apply_annotations_to_breakdown(_make_breakdown(), annotations)
+    labels = [e["label"] for e in out["per_elevation"]]
+    assert "dormer" in labels
+    dormer_row = next(e for e in out["per_elevation"] if e["label"] == "dormer")
+    assert len(dormer_row["accents"]) == 1
+    assert dormer_row["accents"][0]["sqft"] == 65.0

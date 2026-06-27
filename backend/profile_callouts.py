@@ -422,10 +422,18 @@ def apply_annotations_to_breakdown(
             # from the catalog mapper.
             if is_non_siding_family(profile):
                 continue
+            # Iter 78z+++ — Prefer the structured `location` field (set
+            # by the new Callout Location dropdown in ProfileAnnotator)
+            # over the free-text `callout` so dormer / gable / porch
+            # routing is deterministic. Falls back to `callout` for
+            # backwards-compat with annotations saved pre-78z+++.
+            loc = (box.get("location") or "").strip().lower()
+            callout_text = (box.get("callout") or "").strip()
+            location_label = loc or callout_text or "manual annotation"
             entry = {
-                "location": box.get("callout") or "manual annotation",
+                "location": location_label,
                 "profile": profile,
-                "callout": box.get("callout") or "user box",
+                "callout": callout_text or loc or "user box",
                 "sqft": round(sqft, 1),
                 "_source": "annotation",
             }

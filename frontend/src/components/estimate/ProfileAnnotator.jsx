@@ -35,7 +35,12 @@ const PROFILES = [
   { value: "stucco",       label: "Stucco",       short: "SC",  color: "#9CA3AF", isSiding: false },
 ];
 
-const ELEVATIONS = ["front", "right", "back", "left", "front-left", "front-right", "rear-left", "rear-right", "porch", "other"];
+const ELEVATIONS = ["front", "right", "back", "left", "front-left", "front-right", "rear-left", "rear-right", "porch", "dormer", "other"];
+// Iter 78z+++ — Callout location within an elevation. Lets one elevation
+// row carry mixed accents (e.g. Lap body + Shake gable + B&B dormer on
+// the same wall). Routed through to the catalog mapper via the
+// annotation `callout` text — the backend already parses it.
+const CALLOUT_LOCATIONS = ["body", "gable", "dormer", "porch", "trim", "other"];
 
 const newId = () => `box_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -251,6 +256,7 @@ export default function ProfileAnnotator({
       profile: activeProfile,
       sqft: 50,
       callout: "",
+      location: "body",  // Iter 78z+++ — body/gable/dormer/porch/trim/other
     };
     const sqftFromPoly = computeSqftFromPolygon(points, imgPx, scaleRef);
     if (sqftFromPoly != null) newBox.sqft = sqftFromPoly;
@@ -326,6 +332,7 @@ export default function ProfileAnnotator({
       profile: activeProfile,
       sqft: 50,
       callout: "",
+      location: "body",  // Iter 78z+++ — body/gable/dormer/porch/trim/other
     };
     const computed = computeSqftFromBox(newBox, imgPx, scaleRef);
     if (computed != null) newBox.sqft = computed;
@@ -1013,6 +1020,20 @@ export default function ProfileAnnotator({
                       >
                         {ELEVATIONS.map((el) => (
                           <option key={el} value={el}>{el}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block mb-1">
+                      <span className="text-[9px] uppercase tracking-wider text-[#71717A] font-bold">Callout location</span>
+                      <select
+                        value={b.location || "body"}
+                        onChange={(e) => updateBox(b.id, { location: e.target.value })}
+                        className="block w-full text-[11px] border border-[#E4E4E7] px-1 py-0.5"
+                        data-testid={`annotator-list-location-${b.id}`}
+                        title="Where on this elevation the profile sits. Lets you carry mixed accents — Lap on body + Shake on gable + B&B on dormer — without splitting elevation rows."
+                      >
+                        {CALLOUT_LOCATIONS.map((loc) => (
+                          <option key={loc} value={loc}>{loc}</option>
                         ))}
                       </select>
                     </label>
