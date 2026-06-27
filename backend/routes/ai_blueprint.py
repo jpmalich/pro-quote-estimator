@@ -841,6 +841,20 @@ async def _execute_ai_blueprint_worker(
         )
     try:
         await _set_stage("claude")
+        # Iter 78z+ (Annotations as Claude hints) — load + format
+        # user-drawn boxes so Claude can use them as ground truth.
+        annotations: dict | None = None
+        if estimate_id:
+            est_doc = await db.estimates.find_one(
+                {"id": estimate_id},
+                {"_id": 0, "profile_annotations": 1},
+            )
+            if est_doc:
+                annotations = est_doc.get("profile_annotations") or None
+        # Reuse the AI Measure hint formatter — single source of truth.
+        from routes.ai_measure import _build_annotation_hint
+        annotation_hint = _build_annotation_hint(annotations)
+
         image_contents = [
             ImageContent(image_base64=base64.b64encode(p).decode("ascii"))
             for p in image_payloads
@@ -862,6 +876,8 @@ async def _execute_ai_blueprint_worker(
             "and extract the window/door schedule if one is present. "
             "Return the JSON takeoff object now."
         )
+        if annotation_hint:
+            prompt_parts.append(annotation_hint)
         user_text = "\n".join(prompt_parts)
         reply_text = await chat.send_message(
             UserMessage(text=user_text, file_contents=image_contents),
@@ -869,17 +885,8 @@ async def _execute_ai_blueprint_worker(
 
         await _set_stage("aggregating")
         raw = _json_from_reply(reply_text or "")
-        # Iter 78z — Load user-drawn profile annotations from the
-        # estimate so the breakdown overlay can layer them as
-        # authoritative accents.
-        annotations: dict | None = None
-        if estimate_id:
-            est_doc = await db.estimates.find_one(
-                {"id": estimate_id},
-                {"_id": 0, "profile_annotations": 1},
-            )
-            if est_doc:
-                annotations = est_doc.get("profile_annotations") or None
+        # Annotations already loaded above — pass through to the
+        # breakdown overlay so the catalog mapper emits per-profile lines.
         measurements = _aggregate_to_hover_shape(raw, annotations=annotations)
         measurements["overhang_in"] = float(overhang_in)
 

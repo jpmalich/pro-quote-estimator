@@ -868,6 +868,87 @@ def _json_from_reply(text: str) -> dict:
         raise HTTPException(status_code=502, detail=f"AI returned invalid JSON: {e}")
 
 
+# Iter 78z+ — Format user-drawn profile annotations into a short prompt
+# string Claude can read AS GROUND TRUTH. Two roles:
+#   1. Tells Claude what the contractor already nailed down — so it
+#      doesn't waste detection budget re-classifying those regions.
+#   2. Biases Claude toward inferring matching patterns elsewhere. If
+#      the user marked the front gable as Shake, the back & right
+#      gables PROBABLY are too (houses are symmetrical) — Claude
+#      should lean shake on those even when the photo is grainy.
+def _build_annotation_hint(annotations: dict | None) -> str:
+    if not annotations or not isinstance(annotations, dict):
+        return ""
+    # Aggregate by (photo_idx, elevation_label, profile) → sqft. The
+    # photo_idx maps to the order photos were uploaded; Claude sees
+    # them in the same order.
+    lines: list[str] = []
+    elev_profile_counts: dict[str, list[str]] = {}  # elevation_label → list of profiles
+    for key, boxes in annotations.items():
+        if key.startswith("_"):
+            continue
+        if not isinstance(boxes, list):
+            continue
+        for b in boxes:
+            if not isinstance(b, dict):
+                continue
+            profile = (b.get("profile") or "").strip().lower()
+            if not profile:
+                continue
+            sqft = b.get("sqft") or 0
+            try:
+                sqft = float(sqft)
+            except (TypeError, ValueError):
+                sqft = 0
+            if sqft <= 0:
+                continue
+            label = (b.get("elevation_label") or "").strip().lower() or "unknown"
+            callout = (b.get("callout") or "").strip()
+            note = f" ({callout})" if callout else ""
+            lines.append(
+                f"  - photo #{int(key) + 1 if key.isdigit() else key}, "
+                f"{label}: {profile.upper().replace('_', ' ')} ≈ {sqft:.0f} ft²{note}"
+            )
+            elev_profile_counts.setdefault(label, []).append(profile)
+    if not lines:
+        return ""
+
+    # Build "matching pattern" reminder for elevations that have shake/B&B.
+    # E.g. "The user marked SHAKE on front. Look CAREFULLY at every other
+    # elevation's gable — symmetrical houses repeat the same accent."
+    accent_lines = []
+    for label, profiles in elev_profile_counts.items():
+        unique = {p for p in profiles if p not in ("lap", "dutch_lap")}
+        for u in unique:
+            accent_lines.append(
+                f"  - {u.upper().replace('_', ' ')} appears on {label}; "
+                f"look carefully at other elevations for matching {u.upper().replace('_', ' ')} patterns."
+            )
+
+    hint = (
+        "USER GROUND-TRUTH ANNOTATIONS — the contractor has drawn boxes "
+        "on the photos and tagged each region with a profile + sqft. "
+        "Use these AS GROUND TRUTH:\n"
+        + "\n".join(lines)
+    )
+    if accent_lines:
+        hint += (
+            "\n\nMATCHING PATTERN HINTS — siding accents typically "
+            "repeat symmetrically on houses. Use the user's tags to "
+            "bias your per-elevation profile callouts:\n"
+            + "\n".join(accent_lines)
+        )
+    hint += (
+        "\n\nFor any elevation NOT covered by a user annotation, "
+        "perform your normal best-effort profile detection. The "
+        "annotated regions will land on the materials list "
+        "REGARDLESS of what you return — but the more accurately "
+        "you reflect them in `per_elevation` walls, the more "
+        "useful your output is to the contractor."
+    )
+    return hint
+
+
 # =====================================================================
 # Iter 57j — DEEP DORMER SCAN
 # =====================================================================
@@ -1652,6 +1733,23 @@ async def _execute_ai_measure_worker(
         )
     try:
         await _set_stage("claude")
+        # Iter 78z+ (Annotations as Claude hints) — Load user-drawn boxes
+        # from the estimate BEFORE the primary Claude call so we can
+        # surface them in the prompt. Claude uses them as ground truth
+        # AND can infer matching profile patterns on other elevations
+        # (e.g. user marked the front gable as Shake → Claude is biased
+        # toward calling matching scallop patterns on the back/right
+        # gables as Shake too instead of defaulting to lap).
+        annotations: dict | None = None
+        if estimate_id:
+            est_doc = await db.estimates.find_one(
+                {"id": estimate_id},
+                {"_id": 0, "profile_annotations": 1},
+            )
+            if est_doc:
+                annotations = est_doc.get("profile_annotations") or None
+        annotation_hint = _build_annotation_hint(annotations)
+
         image_contents = [
             ImageContent(image_base64=base64.b64encode(raw).decode("ascii"))
             for _ct, raw in image_payloads
@@ -1710,6 +1808,11 @@ async def _execute_ai_measure_worker(
         prompt_parts.append(
             "Photos attached below. Return the JSON measurement object now."
         )
+        # Iter 78z+ — Annotation hints (ground-truth boxes from the
+        # contractor) inserted right before the schema marker so Claude
+        # can use them throughout its analysis.
+        if annotation_hint:
+            prompt_parts.append(annotation_hint)
         user_text = "\n".join(prompt_parts)
 
         reply_text = await chat.send_message(
@@ -1741,18 +1844,9 @@ async def _execute_ai_measure_worker(
                 _merge_dormer_hits(raw, all_hits)
 
         await _set_stage("aggregating")
-        # Iter 78z — Load user-drawn profile annotations from the
-        # estimate (if any) so the breakdown overlay can fire. This
-        # ensures user-tagged Shake/B&B regions become guaranteed
-        # accent lines on the materials list.
-        annotations: dict | None = None
-        if estimate_id:
-            est_doc = await db.estimates.find_one(
-                {"id": estimate_id},
-                {"_id": 0, "profile_annotations": 1},
-            )
-            if est_doc:
-                annotations = est_doc.get("profile_annotations") or None
+        # Iter 78z — Annotations were already loaded above (for the
+        # Claude hint). Reuse them as the breakdown overlay so the
+        # catalog mapper emits per-profile lines.
         measurements = _aggregate_to_hover_shape(raw, annotations=annotations)
         measurements["overhang_in"] = float(overhang_in)
 
@@ -2143,3 +2237,142 @@ async def ai_cross_check(
     )
 
     return {"run_id": run_id, "recheck": recheck}
+
+
+
+# ---------------------------------------------------------------------------
+# Iter 78z+ — OCR Auto-Scale endpoint.
+#
+# Pointed at a blueprint page (or photo) URL, this endpoint runs a small
+# focused Claude vision call to:
+#   1. Find a labeled wall dimension on the image (e.g. "30'-0\"" arrow)
+#   2. Return the pixel endpoints of that dimension line + the labeled ft
+#   3. Optionally surface the scale notation ("SCALE 1/4\" = 1'-0\"")
+#
+# Frontend uses (px_height, real_ft) to set the ProfileAnnotator's
+# scale_ref — same shape as the manual drag UI but zero-click.
+# ---------------------------------------------------------------------------
+OCR_SCALE_PROMPT = """\
+You are an OCR + measurement-extraction assistant for blueprints and
+construction photos. Your ONLY job: find a dimension that can be used
+to calibrate the image's scale.
+
+PRIORITY 1 — Find a printed wall dimension with an arrow / extension
+lines (e.g. '30'-0"' or '40'-6"' marking the length of a wall on the
+elevation or floor plan). Return the pixel coordinates of the TWO
+endpoints of the dimension line (where the arrow tips sit) PLUS the
+labeled real-world value in feet.
+
+PRIORITY 2 — If no labeled dimension is visible, find the scale block
+(e.g. 'SCALE: 1/4" = 1'-0"') and return it as a fallback.
+
+The image you receive is RENDERED AT THE NATURAL PIXEL DIMENSIONS you
+see. Return pixel coordinates in that same coordinate system (origin
+at top-left, x right, y down).
+
+Return JSON ONLY (no prose, no markdown fences). Schema:
+{
+  "found":           true | false,
+  "method":          "dimension_line" | "scale_block" | "none",
+  "px_height":       number (Euclidean px distance between endpoints; 0 if not found),
+  "real_ft":         number (labeled real-world distance in ft),
+  "source":          "<short description of what you found, e.g. '30 ft front wall dimension' or 'SCALE 1/4\\" = 1\\\\'-0\\"' block'>",
+  "confidence":      "high" | "medium" | "low",
+  "endpoints":       [{"x": number, "y": number}, {"x": number, "y": number}],   // empty array if not found
+  "notes":           "<one sentence on anything unusual or empty>"
+}
+
+If you can't find ANY reliable dimension, return `{"found": false, "method": "none", "confidence": "low", "notes": "<why>"}`.
+"""
+
+
+@router.post("/ocr-scale")
+async def ocr_scale(
+    payload: dict,
+    user: dict = Depends(get_current_user),
+):
+    """Iter 78z+ — Auto-detect the scale on a blueprint page or photo.
+
+    Body: `{"upload_name": "bp_xxxxxxxx.png"}` — the filename returned
+    from the blueprint launch endpoint (or any /api/uploads/* filename).
+    """
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="payload must be an object")
+    upload_name = (payload.get("upload_name") or "").strip()
+    if not upload_name:
+        raise HTTPException(status_code=400, detail="missing 'upload_name'")
+    # Defense in depth — no path traversal.
+    if "/" in upload_name or ".." in upload_name:
+        raise HTTPException(status_code=400, detail="invalid upload_name")
+
+    from config import UPLOAD_DIR
+    target = UPLOAD_DIR / upload_name
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="upload not found on disk")
+    raw = target.read_bytes()
+    if not raw:
+        raise HTTPException(status_code=400, detail="upload is empty")
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+
+    # Compress through the same pipeline Claude already uses elsewhere.
+    img_bytes = _compress_for_claude(raw)
+    user_id = user.get("id") or "anon"
+    session_id = f"ai-ocr-scale-{user_id}-{uuid.uuid4().hex[:8]}"
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=OCR_SCALE_PROMPT,
+    ).with_model("anthropic", MODEL_NAME)
+    image_contents = [
+        ImageContent(image_base64=base64.b64encode(img_bytes).decode("ascii")),
+    ]
+    try:
+        reply_text = await chat.send_message(
+            UserMessage(
+                text="Find the calibration dimension on this image and return your JSON.",
+                file_contents=image_contents,
+            ),
+        )
+        parsed = _json_from_reply(reply_text or "")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[ocr-scale] Claude call failed for %s", upload_name)
+        raise HTTPException(status_code=502, detail=f"OCR scale pass failed: {e}") from e
+
+    # Sanity-check the response shape and derive px_height from endpoints
+    # when Claude didn't compute it.
+    endpoints = parsed.get("endpoints") or []
+    px_height = 0.0
+    try:
+        px_height = float(parsed.get("px_height") or 0)
+    except (TypeError, ValueError):
+        px_height = 0.0
+    if px_height <= 0 and len(endpoints) == 2:
+        try:
+            import math as _math
+            dx = float(endpoints[0]["x"]) - float(endpoints[1]["x"])
+            dy = float(endpoints[0]["y"]) - float(endpoints[1]["y"])
+            px_height = _math.sqrt(dx * dx + dy * dy)
+        except (KeyError, TypeError, ValueError):
+            px_height = 0.0
+
+    try:
+        real_ft = float(parsed.get("real_ft") or 0)
+    except (TypeError, ValueError):
+        real_ft = 0.0
+
+    found = bool(parsed.get("found")) and px_height > 0 and real_ft > 0
+    return {
+        "found":      found,
+        "method":     parsed.get("method") or ("none" if not found else "dimension_line"),
+        "px_height":  round(px_height, 2),
+        "real_ft":    real_ft,
+        "source":     parsed.get("source") or "",
+        "confidence": parsed.get("confidence") or "low",
+        "endpoints":  endpoints,
+        "notes":      parsed.get("notes") or "",
+    }

@@ -19,7 +19,7 @@
 //
 // The boxes use NORMALIZED coordinates (0-1) so they survive image resizing.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, Plus, Trash2, Ruler, Save, MousePointer2 } from "lucide-react";
+import { X, Plus, Trash2, Ruler, Save, MousePointer2, ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
@@ -95,12 +95,21 @@ export default function ProfileAnnotator({
   const [drawMode, setDrawMode] = useState("rect"); // "rect" | "polygon"
   const [drawing, setDrawing] = useState(null); // rect draft {x0, y0, x1, y1}
   const [polygonDraft, setPolygonDraft] = useState(null); // {points: [...], cursorX, cursorY}
+  // Iter 78z+ — OCR auto-scale busy flag.
+  const [ocrBusy, setOcrBusy] = useState(false);
   // Scale ref draft mode: when truthy, a click+drag draws a calibration line.
   const [scaleDraft, setScaleDraft] = useState(null); // {x0,y0,x1,y1,active}
   const [scaleRefInput, setScaleRefInput] = useState({ open: false, pxHeight: 0, realFt: "6.67" });
   const [imgPx, setImgPx] = useState({ w: 0, h: 0 }); // displayed image pixel size
+  // Iter 78z++ — Zoom + pan + fullscreen so contractors can hit
+  // small openings precisely on dense blueprint sheets. Wheel scrolls
+  // change `zoom`; pan happens via the container's native overflow
+  // (scrollbars) so click+drag remains dedicated to drawing.
+  const [zoom, setZoom] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const imgRef = useRef(null);
   const containerRef = useRef(null);
+  const stageRef = useRef(null);
 
   const currentPhoto = photos?.[selectedIdx];
   const photoKey = String(selectedIdx);
@@ -124,6 +133,68 @@ export default function ProfileAnnotator({
     window.addEventListener("resize", updateImgPx);
     return () => window.removeEventListener("resize", updateImgPx);
   }, [selectedIdx]);
+
+  // Iter 78z++ — Reset zoom + pan when switching between blueprint
+  // pages so each page starts fitted to the viewport.
+  useEffect(() => {
+    setZoom(1);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  }, [selectedIdx]);
+
+  // Iter 78z++ — Wheel-to-zoom, anchored at the cursor so the spot
+  // under the mouse stays under the mouse. Native overflow scrolling
+  // keeps panning as a free fall-through (scrollbars + trackpad
+  // two-finger drag both work without touching draw handlers).
+  const onWheelCanvas = (e) => {
+    // Only intercept wheel events when over the stage; if no photo,
+    // let the container scroll normally.
+    if (!currentPhoto) return;
+    e.preventDefault();
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const cx = e.clientX - rect.left + container.scrollLeft;
+    const cy = e.clientY - rect.top + container.scrollTop;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    setZoom((prev) => {
+      const next = Math.max(0.5, Math.min(8, prev * factor));
+      if (next === prev) return prev;
+      // Re-anchor scroll so the cursor world-point stays put.
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        containerRef.current.scrollLeft = cx * (next / prev) - (e.clientX - rect.left);
+        containerRef.current.scrollTop = cy * (next / prev) - (e.clientY - rect.top);
+      });
+      return next;
+    });
+  };
+
+  const bumpZoom = (factor) => {
+    const container = containerRef.current;
+    setZoom((prev) => {
+      const next = Math.max(0.5, Math.min(8, prev * factor));
+      if (next === prev || !container) return next;
+      // Anchor zoom-button changes on the container center.
+      const cx = container.clientWidth / 2 + container.scrollLeft;
+      const cy = container.clientHeight / 2 + container.scrollTop;
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        containerRef.current.scrollLeft = cx * (next / prev) - container.clientWidth / 2;
+        containerRef.current.scrollTop = cy * (next / prev) - container.clientHeight / 2;
+      });
+      return next;
+    });
+  };
+  const resetZoom = () => {
+    setZoom(1);
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+      containerRef.current.scrollTop = 0;
+    }
+  };
 
   const onMouseDown = (e) => {
     if (!imgRef.current) return;
@@ -319,14 +390,77 @@ export default function ProfileAnnotator({
     ), 0);
   }, [annotations]);
 
+  // Iter 78z+ — Derive the upload filename from photos[selectedIdx].url
+  // ("/api/uploads/<name>") so the OCR endpoint can find the bytes
+  // on disk. Empty for non-server-hosted photos (shouldn't happen).
+  const currentUploadName = (() => {
+    const url = photos?.[selectedIdx]?.url || "";
+    const m = url.match(/\/api\/uploads\/([^?#]+)/);
+    return m ? m[1] : "";
+  })();
+
+  // Iter 78z+ — Auto-detect scale via Claude OCR. Sets the scale_ref
+  // for THIS photo on success. Boxes already on the photo get their
+  // sqft recomputed using the new scale.
+  const autoDetectScale = async () => {
+    if (!currentUploadName) {
+      toast.error("This photo isn't server-hosted — can't auto-detect");
+      return;
+    }
+    setOcrBusy(true);
+    try {
+      const { data } = await api.post("/measure/ocr-scale", { upload_name: currentUploadName });
+      if (!data?.found) {
+        toast.error(
+          data?.notes
+            ? `No labeled dimension found · ${data.notes}`
+            : "No labeled dimension found — try setting scale manually",
+        );
+        return;
+      }
+      const pxHeight = Number(data.px_height) || 0;
+      const realFt = Number(data.real_ft) || 0;
+      if (pxHeight <= 0 || realFt <= 0) {
+        toast.error("OCR returned a degenerate scale — try setting manually");
+        return;
+      }
+      const newRefs = { ...(annotations._scale_refs || {}) };
+      newRefs[photoKey] = { px_height: pxHeight, real_ft: realFt };
+      const newBoxes = (annotations[photoKey] || []).map((b) => {
+        if (b.shape === "polygon" && Array.isArray(b.points)) {
+          const recomputed = computeSqftFromPolygon(b.points, imgPx, newRefs[photoKey]);
+          return recomputed != null ? { ...b, sqft: recomputed } : b;
+        }
+        const recomputed = computeSqftFromBox(b, imgPx, newRefs[photoKey]);
+        return recomputed != null ? { ...b, sqft: recomputed } : b;
+      });
+      setAnnotations((prev) => ({
+        ...prev,
+        [photoKey]: newBoxes,
+        _scale_refs: newRefs,
+      }));
+      toast.success(
+        `Scale detected · ${realFt.toFixed(2)} ft over ${Math.round(pxHeight)} px (${data.source || "AI"})`,
+      );
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e?.message || "OCR scale failed");
+    } finally {
+      setOcrBusy(false);
+    }
+  };
+
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      className={`fixed inset-0 z-[60] bg-black/60 flex items-center justify-center ${isFullscreen ? "p-0" : "p-4"}`}
       data-testid="profile-annotator"
       onClick={onClose}
     >
       <div
-        className="bg-white max-w-6xl w-full h-[90vh] flex flex-col border border-[#E4E4E7]"
+        className={
+          isFullscreen
+            ? "bg-white w-full h-full max-w-none flex flex-col border border-[#E4E4E7]"
+            : "bg-white max-w-6xl w-full h-[90vh] flex flex-col border border-[#E4E4E7]"
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -401,21 +535,87 @@ export default function ProfileAnnotator({
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 overflow-auto p-4 bg-[#27272A]" ref={containerRef}>
+          <div
+            className="flex-1 overflow-auto bg-[#27272A] relative"
+            ref={containerRef}
+            onWheel={onWheelCanvas}
+          >
+            {/* Iter 78z++ — Floating zoom + fullscreen toolbar. Sticky in
+                the top-right so it survives scroll/zoom. */}
+            {currentPhoto && (
+              <div
+                className="sticky top-2 z-20 flex items-center gap-1 ml-auto mr-2 mt-2 bg-white/95 border border-[#E4E4E7] px-1.5 py-1 shadow-sm w-fit"
+                data-testid="annotator-zoom-toolbar"
+              >
+                <button
+                  type="button"
+                  onClick={() => bumpZoom(1 / 1.25)}
+                  className="text-[#3F3F46] hover:bg-[#FAFAFA] p-1"
+                  title="Zoom out (or scroll-down on image)"
+                  data-testid="annotator-zoom-out"
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <span
+                  className="text-[10px] font-mono-num font-bold w-10 text-center text-[#52525B] select-none"
+                  data-testid="annotator-zoom-pct"
+                >
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => bumpZoom(1.25)}
+                  className="text-[#3F3F46] hover:bg-[#FAFAFA] p-1"
+                  title="Zoom in (or scroll-up on image)"
+                  data-testid="annotator-zoom-in"
+                >
+                  <ZoomIn size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={resetZoom}
+                  className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 hover:bg-[#FAFAFA] border-l border-[#E4E4E7]"
+                  title="Reset zoom to fit"
+                  data-testid="annotator-zoom-fit"
+                >
+                  Fit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen((f) => !f)}
+                  className="text-[#3F3F46] hover:bg-[#FAFAFA] p-1 border-l border-[#E4E4E7]"
+                  title={isFullscreen ? "Exit fullscreen" : "Expand to fullscreen"}
+                  data-testid="annotator-fullscreen"
+                >
+                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
+              </div>
+            )}
             {currentPhoto ? (
-              <div className="relative inline-block max-w-full">
+              <div className="p-4">
+                <div
+                  ref={stageRef}
+                  className="relative"
+                  style={{ width: `${zoom * 100}%`, lineHeight: 0 }}
+                >
                 <img
                   ref={imgRef}
                   src={currentPhoto.url}
                   alt={`elevation ${selectedIdx}`}
-                  className="block max-w-full select-none"
+                  className="select-none"
                   onLoad={updateImgPx}
                   onMouseDown={onMouseDown}
                   onMouseMove={onMouseMove}
                   onMouseUp={onMouseUp}
                   onMouseLeave={onMouseUp}
                   draggable={false}
-                  style={{ userSelect: "none", cursor: scaleDraft?.active ? "crosshair" : "crosshair" }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "auto",
+                    userSelect: "none",
+                    cursor: scaleDraft?.active ? "crosshair" : "crosshair",
+                  }}
                 />
                 {/* Existing boxes (rect + polygon) */}
                 {boxes.map((b) => {
@@ -425,7 +625,8 @@ export default function ProfileAnnotator({
                     <React.Fragment key={b.id}>
                       {isPolygon ? (
                         <svg
-                          className="absolute inset-0 pointer-events-none"
+                          className="absolute top-0 left-0 pointer-events-none"
+                          style={{ display: "block", width: "100%", height: "100%" }}
                           viewBox="0 0 100 100"
                           preserveAspectRatio="none"
                           data-testid={`annotator-poly-${b.id}`}
@@ -487,7 +688,8 @@ export default function ProfileAnnotator({
                 {/* In-progress polygon (live edges + vertex dots) */}
                 {polygonDraft && polygonDraft.points?.length > 0 && (
                   <svg
-                    className="absolute inset-0 pointer-events-none"
+                    className="absolute top-0 left-0 pointer-events-none"
+                    style={{ display: "block", width: "100%", height: "100%" }}
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
                   >
@@ -519,7 +721,8 @@ export default function ProfileAnnotator({
                 {/* Scale calibration line in progress */}
                 {scaleDraft?.dragging && (
                   <svg
-                    className="absolute inset-0 pointer-events-none"
+                    className="absolute top-0 left-0 pointer-events-none"
+                    style={{ display: "block", width: "100%", height: "100%" }}
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
                   >
@@ -530,9 +733,10 @@ export default function ProfileAnnotator({
                     />
                   </svg>
                 )}
+                </div>
               </div>
             ) : (
-              <div className="text-white text-sm">No photo selected</div>
+              <div className="text-white text-sm p-4">No photo selected</div>
             )}
           </div>
 
@@ -604,15 +808,30 @@ export default function ProfileAnnotator({
                   <span className="text-[10px] text-[#A1A1AA]">not set</span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => setScaleDraft({ active: true })}
-                className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1.5 border w-full flex items-center justify-center gap-1 ${scaleDraft?.active ? "bg-[#10B981] text-white" : "border-[#E4E4E7] hover:bg-[#FAFAFA]"}`}
-                data-testid="annotator-set-scale"
-              >
-                <Ruler size={12} />
-                {scaleDraft?.active ? "Drag a known length on the image…" : "+ Set scale (drag a door/window)"}
-              </button>
+              <div className="flex gap-1 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setScaleDraft({ active: true })}
+                  className={`flex-1 text-[10px] uppercase tracking-wider font-bold px-2 py-1.5 border flex items-center justify-center gap-1 ${scaleDraft?.active ? "bg-[#10B981] text-white" : "border-[#E4E4E7] hover:bg-[#FAFAFA]"}`}
+                  data-testid="annotator-set-scale"
+                >
+                  <Ruler size={12} />
+                  {scaleDraft?.active ? "Drag a known length…" : "+ Set scale"}
+                </button>
+                {/* Iter 78z+ — Auto-detect scale via Claude OCR. Only
+                    surface on actual page uploads (we need the
+                    upload_name, which is the photos[i].url tail). */}
+                <button
+                  type="button"
+                  onClick={autoDetectScale}
+                  disabled={ocrBusy || !currentUploadName}
+                  className="flex-1 text-[10px] uppercase tracking-wider font-bold px-2 py-1.5 border border-[#7C3AED] text-[#7C3AED] hover:bg-[#F5F3FF] flex items-center justify-center gap-1 disabled:opacity-50"
+                  data-testid="annotator-auto-scale"
+                  title="Use AI vision to find a labeled dimension on the image"
+                >
+                  {ocrBusy ? "Reading…" : "✨ Auto-detect"}
+                </button>
+              </div>
               {scaleRefInput.open && (
                 <div className="mt-2 p-2 border border-[#10B981] bg-[#ECFDF5]">
                   <div className="text-[10px] uppercase tracking-wider font-bold text-[#065F46] mb-1">
