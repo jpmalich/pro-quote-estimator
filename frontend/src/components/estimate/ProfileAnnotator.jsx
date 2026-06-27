@@ -431,9 +431,12 @@ export default function ProfileAnnotator({
     if (ocrBusy) return;
     if (!imgPx.w || !imgPx.h) return; // wait until image dimensions are measured
     autoOcrFiredRef.current.add(currentUploadName);
-    // Fire after a short delay so the page render doesn't block
+    // Fire after a short delay so the page render doesn't block.
+    // silent=true → no error toast (upload could be cleaned off disk
+    // for old estimates; user already sees the warning banner +
+    // broken image, no need to double-up with a red toast).
     const t = setTimeout(() => {
-      autoDetectScale();
+      autoDetectScale(true);
     }, 250);
     return () => clearTimeout(t);
   }, [currentUploadName, scaleRef, imgPx.w, imgPx.h]);
@@ -441,26 +444,31 @@ export default function ProfileAnnotator({
   // Iter 78z+ — Auto-detect scale via Claude OCR. Sets the scale_ref
   // for THIS photo on success. Boxes already on the photo get their
   // sqft recomputed using the new scale.
-  const autoDetectScale = async () => {
+  // `silent=true` suppresses error toasts — used when auto-firing on
+  // page open where the user didn't explicitly ask for OCR (e.g.
+  // upload was cleaned off disk on an old estimate).
+  const autoDetectScale = async (silent = false) => {
     if (!currentUploadName) {
-      toast.error("This photo isn't server-hosted — can't auto-detect");
+      if (!silent) toast.error("This photo isn't server-hosted — can't auto-detect");
       return;
     }
     setOcrBusy(true);
     try {
       const { data } = await api.post("/measure/ocr-scale", { upload_name: currentUploadName });
       if (!data?.found) {
-        toast.error(
-          data?.notes
-            ? `No labeled dimension found · ${data.notes}`
-            : "No labeled dimension found — try setting scale manually",
-        );
+        if (!silent) {
+          toast.error(
+            data?.notes
+              ? `No labeled dimension found · ${data.notes}`
+              : "No labeled dimension found — try setting scale manually",
+          );
+        }
         return;
       }
       const pxHeight = Number(data.px_height) || 0;
       const realFt = Number(data.real_ft) || 0;
       if (pxHeight <= 0 || realFt <= 0) {
-        toast.error("OCR returned a degenerate scale — try setting manually");
+        if (!silent) toast.error("OCR returned a degenerate scale — try setting manually");
         return;
       }
       const newRefs = { ...(annotations._scale_refs || {}) };
@@ -482,7 +490,7 @@ export default function ProfileAnnotator({
         `Scale detected · ${realFt.toFixed(2)} ft over ${Math.round(pxHeight)} px (${data.source || "AI"})`,
       );
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e?.message || "OCR scale failed");
+      if (!silent) toast.error(e?.response?.data?.detail || e?.message || "OCR scale failed");
     } finally {
       setOcrBusy(false);
     }
