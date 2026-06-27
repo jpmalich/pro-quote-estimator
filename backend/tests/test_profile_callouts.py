@@ -61,6 +61,8 @@ def test_lap_variants(text):
     "Shake",
     "SHAKER",                # Campbell blueprint uses this exact word
     "Shaker",
+    "SHINGLES",              # Claude's actual output on Campbell L/R gables
+    "Shingle",
     "hand-split",
     "Hand Split Shake",       # matches Pelican Bay Hand-Split (Campbell PO)
     "HAND SPLIT",
@@ -71,6 +73,18 @@ def test_lap_variants(text):
 ])
 def test_shake_variants(text):
     assert classify_profile(text) == "shake"
+
+
+# ─── Generic "SIDING" callout (Campbell prints — body label) ──────
+@pytest.mark.parametrize("text", [
+    "SIDING",
+    "Siding",
+    "EXT SIDING",
+    "EXTERIOR SIDING",
+    "Ext Siding",
+])
+def test_generic_siding_defaults_to_lap(text):
+    assert classify_profile(text) == "lap"
 
 
 # ─── Board & Batten variants (Campbell's dormer / vertical accent) ─
@@ -169,8 +183,15 @@ def test_human_labels():
 
 # ─── Campbell-specific golden case ─────────────────────────────────
 def test_campbell_blueprint_callouts():
-    """Exact callouts seen on the Campbell construction prints. If any of
-    these regress, the per-elevation breakdown for that job is broken."""
-    assert classify_profile("LAP 4\"") == "lap"           # all 4 wall bodies
-    assert classify_profile("SHAKER") == "shake"          # all 4 gables + 3 dormers
-    assert classify_profile("STONE WATERTABLE") == "stone"  # 4-side watertable
+    """Real-world callouts seen on the Campbell construction prints
+    AND what Claude actually returns when we run the AI Blueprint
+    endpoint on that PDF (verified 2026-02-13). If any of these
+    regress, the per-elevation breakdown for that job is broken."""
+    # Blueprint surface labels
+    assert classify_profile("LAP 4\"") == "lap"
+    assert classify_profile("SHAKER") == "shake"
+    assert classify_profile("STONE WATERTABLE") == "stone"
+    # Claude's verbatim output on the Campbell PDF
+    assert classify_profile("SIDING") == "lap"     # body label, all 4 walls
+    assert classify_profile("SHINGLES") == "shake" # Left + Right gables
+    assert classify_profile("STONE") == "stone"    # all 4 stone callouts

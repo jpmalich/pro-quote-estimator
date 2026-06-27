@@ -45,7 +45,11 @@ _PROFILE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(stucco|eifs)\b", re.I), "stucco"),
 
     # Shake / Shaker family
-    (re.compile(r"\b(shake|shaker|hand[\s-]?split|scallop|fish[\s-]?scale)\b", re.I), "shake"),
+    # Iter 78z (2026-02-13) — Claude often returns "SHINGLES" instead of
+    # "SHAKE/SHAKER" because that's how blueprints colloquially label
+    # cedar shake panels (e.g. Campbell's left + right gables read
+    # "SHINGLES" verbatim on the print). Treat them as shake.
+    (re.compile(r"\b(shake|shaker|shingle|shingles|hand[\s-]?split|scallop|fish[\s-]?scale)\b", re.I), "shake"),
 
     # Board & Batten variants (B&B / BNB / batt + vertical context)
     (re.compile(r"\bboard\s*(?:and|&|\+|n)?\s*batten\b", re.I), "board_batten"),
@@ -73,6 +77,14 @@ _PROFILE_PATTERNS: list[tuple[re.Pattern, str]] = [
 
     # Just "vinyl" — assume horizontal lap (no profile hint)
     (re.compile(r"\bvinyl\b", re.I), "lap"),
+
+    # Iter 78z (2026-02-13) — Generic "SIDING" callout. Construction
+    # prints often label the wall body as just "SIDING" or "EXT SIDING"
+    # without specifying the profile (Campbell's blueprint does this on
+    # all 4 walls). Default to horizontal lap — the safe assumption
+    # because ~80% of new builds in Howard's market are lap. Contractor
+    # can override per-elevation when the visible photo says otherwise.
+    (re.compile(r"\b(ext|exterior)?\s*siding\b", re.I), "lap"),
 ]
 
 
