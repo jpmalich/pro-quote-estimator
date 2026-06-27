@@ -2593,6 +2593,17 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
           }));
           toast.success("Annotations saved · Claude will see them when you Run AI Measure");
         }}
+        onOpenProfileAnnotator={
+          estimateId
+            ? () => {
+                // Iter 78z+++ — Profile button inside the annotate modal.
+                // Close the per-photo modal and open the cross-photo
+                // Tag Profiles tool (LAP / SHAKE / B&B / Stone / Brick
+                // / dormer routing). User keeps using AI Measure photos.
+                setProfileAnnotatorOpen(true);
+              }
+            : undefined
+        }
       />
       {/* Child modal: tap-on-photo refinement. Overrides any subset of
           the AI measurements with hand-measured values. The AI photos

@@ -18,7 +18,7 @@
 // patterns stay consistent, but stripped down: no measurement loop,
 // no openings, no labels — annotations only.
 import React, { useEffect, useRef, useState } from "react";
-import { X, Check, Ruler, Square, Trash2, RotateCcw, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { X, Check, Ruler, Square, Trash2, RotateCcw, ZoomIn, ZoomOut, Maximize, Tags } from "lucide-react";
 import { toast } from "sonner";
 
 const MODE_SCALE = "scale";
@@ -132,6 +132,7 @@ export default function PhotoAnnotateModal({
   targetPin,    // { x, y } | null — single point marking the target house
   windows,      // Iter 57e — array of {x,y,style,width_in,height_in,id}
   onSave,       // ({ reference, windowReference, zones, targetPin, windows }) => void
+  onOpenProfileAnnotator, // Iter 78z+++ — opens the cross-photo Tag Profiles tool (LAP / SHAKE / B&B / dormer / etc.)
 }) {
   const canvasRef = useRef();
   const [photo, setPhoto] = useState(null); // { width, height }
@@ -954,7 +955,7 @@ export default function PhotoAnnotateModal({
 
           {/* Controls */}
           <div className="space-y-3">
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-6 gap-1">
               <button type="button"
                       onClick={() => { setMode(MODE_TARGET); setPending(null); setHoverPoint(null); setPolyPoints([]); }}
                       className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border flex items-center justify-center gap-1 ${
@@ -999,6 +1000,22 @@ export default function PhotoAnnotateModal({
                       title="Tap a window in the photo to tag its style. Claude treats your tags as GROUND TRUTH (overrides its photo-inference).">
                 <Square className="w-3 h-3" /> Style
               </button>
+              {/* Iter 78z+++ — Profiles button. Opens the Tag Profiles
+                  cross-photo tool (LAP / SHAKE / B&B / VERTICAL /
+                  NICKEL GAP / STONE / BRICK / STUCCO) with dormer +
+                  callout-location dropdowns per box. Closes this
+                  modal so the parent can take over the workflow. */}
+              {onOpenProfileAnnotator && (
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onOpenProfileAnnotator(); }}
+                  className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider border bg-white text-[#7C3AED] border-[#7C3AED] hover:bg-[#FAF5FF] flex items-center justify-center gap-1"
+                  data-testid="annotate-mode-profile"
+                  title="Tag Shake / B&B / Dormer / Stone / Brick zones. Opens the cross-photo profile tagger — annotations land as authoritative accents in the materials list."
+                >
+                  <Tags className="w-3 h-3" /> Profile
+                </button>
+              )}
             </div>
 
             {mode === MODE_ZONE && (
