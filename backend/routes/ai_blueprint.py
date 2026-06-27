@@ -129,7 +129,19 @@ EXTRACTION SCHEMA — return EXACTLY this shape:
      "wall_body_profile_callout": "<verbatim text from the elevation showing the wall body siding (e.g. 'LAP 4\"', 'DUTCH LAP 5\"', 'VINYL'); leave empty if not labelled>",
      "gable_profile_callout":     "<verbatim text for the gable triangle's siding (e.g. 'SHAKER', 'SHAKE', 'B&B', 'BOARD AND BATTEN'); empty if gable matches the wall body or wall isn't a gable end>",
      "dormer_profile_callout":    "<verbatim text for any dormer face siding (e.g. 'SHAKER', 'B&B'); empty if no dormer or dormer matches body>",
-     "stone_callout":             "<'STONE WATERTABLE' or similar if the elevation shows a masonry watertable / wainscot below the siding line; empty if all siding>"
+     "stone_callout":             "<'STONE WATERTABLE' or similar if the elevation shows a masonry watertable / wainscot below the siding line; empty if all siding>",
+     // Iter 78z+ — ACCENT PANELS. A single wall can carry SMALL accent
+     // areas with a different profile from the body — these are easy to
+     // miss because they don't fit the "body / gable / dormer" buckets.
+     // Examples seen on Howard's jobs: B&B on a porch face, shake on
+     // column wraps, vertical siding on a bay-window cheek, fish-scale
+     // on an entry gable above the porch. Capture every accent you can
+     // see on THIS wall. Leave empty if the wall is uniform.
+     "accent_profiles": [
+       {"location": "<short description, e.g. 'porch face', 'column wrap', 'bay window cheek', 'entry gable', 'kneewall'>",
+        "profile_callout": "<verbatim text or pattern (e.g. 'B&B', 'BOARD AND BATTEN', 'SHAKE', 'VERTICAL')>",
+        "approx_sqft": number}
+     ]
     }
   ],
   "windows": [
@@ -226,6 +238,30 @@ E. SIDING vs MASONRY: Plans often callout "BRICK VENEER" or "STONE
    WAINSCOT TO 36\"". Reflect these by reducing siding_pct_this_wall
    (e.g. brick wainscot to 36" on a 9 ft wall → ~67% siding above).
    When in doubt, assume 100% siding and flag in notes.
+
+F. PROFILE CALLOUTS PER ELEVATION (Iter 78z — REQUIRED):
+   Construction prints almost always print the siding profile in plain
+   text directly on (or near) the siding surface — common labels are
+   "LAP 4\"", "DUTCH LAP", "VINYL", "SHAKER", "SHAKE", "B&B",
+   "BOARD AND BATTEN", "VERTICAL", "NICKEL GAP", "STONE WATERTABLE".
+   For every elevation page, capture FOUR distinct callouts:
+     1. `wall_body_profile_callout` — the main field of the wall
+     2. `gable_profile_callout`     — only if there's a visible gable
+                                        triangle on this elevation
+     3. `dormer_profile_callout`    — only if there's a dormer
+     4. `accent_profiles[]`         — SMALL accent zones with a
+                                        DIFFERENT profile from the body
+                                        (porch face B&B, column wrap
+                                        shake, bay-window cheek
+                                        vertical, kneewall B&B, entry-
+                                        roof gable shake). Estimate the
+                                        approx ft² for each accent.
+   ACCENT ZONES ARE THE #1 SOURCE OF UNDER-QUOTING on Howard's mixed-
+   material houses. A single 24"-wide B&B porch face costs ~$80 in
+   material — miss it on 20% of jobs and you lose real money. Look
+   for any printed text or any visible texture/pattern that differs
+   from the main wall body. Always include accents you suspect, even
+   if you're uncertain.
 
 F. ROUNDING:
      - Wall widths to nearest 0.5 ft

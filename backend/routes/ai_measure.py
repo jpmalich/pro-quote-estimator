@@ -148,6 +148,18 @@ Schema:
      "wall_body_profile_callout": "<raw text from photo IF visible (e.g. 'LAP 4\"', 'DUTCH LAP', 'VINYL'); OR the pattern you can see ('horizontal lap', 'dutch lap', 'board and batten', 'shake', 'nickel gap', 'vertical'); OR empty if you can't tell>",
      "gable_profile_callout": "<same shape; only fill when gable_triangle_height_ft > 0. Common: 'shake', 'board and batten', 'vertical'. Leave empty if the gable matches the wall body>",
      "dormer_profile_callout": "<same shape; only fill when dormer_face_sqft > 0. Common: 'shake', 'board and batten'. Leave empty if dormer matches the wall body>",
+     // Iter 78z+ — ACCENT PANELS. A single wall can carry SMALL accent
+     // areas with a different profile from the body — easy to miss
+     // because they don't fit the "body / gable / dormer" buckets.
+     // Examples seen on Howard's jobs: B&B on a porch face, shake on
+     // column wraps, vertical siding on a bay-window cheek, fish-scale
+     // on an entry gable above the porch. Capture every accent you
+     // can see on THIS wall in the photo. Leave [] if uniform.
+     "accent_profiles": [
+       {"location": "<short description, e.g. 'porch face', 'column wrap', 'bay window cheek', 'entry gable', 'kneewall'>",
+        "profile_callout": "<raw text or visible pattern (e.g. 'B&B', 'BOARD AND BATTEN', 'SHAKE', 'VERTICAL')>",
+        "approx_sqft": number}
+     ],
      "confidence": number,                // 0-100, how confident are you in THIS wall's measurements. <50 = barely visible / inferred. 50-79 = visible but obstructed or angled. 80-100 = clear straight-on shot with reference.
      "confidence_reasoning": "<1 short sentence — what reduces or supports confidence on THIS wall>"
     }
@@ -376,10 +388,18 @@ CRITICAL accuracy rules (read every time):
      • Body of the wall = horizontal LAP or DUTCH LAP (most common)
      • Gable triangles  = SHAKE / SHAKER / scallop accent
      • Dormer faces     = SHAKE or BOARD & BATTEN accent
-   Capture three separate callouts per wall:
+     • SMALL ACCENT AREAS = B&B / shake / vertical on porch faces,
+       column wraps, bay-window cheeks, kneewalls, entry-roof gables.
+       These are the EASIEST to miss and the #1 cause of an under-quote
+       on Howard's mixed-material houses. Always look for vertical
+       texture or "different from the rest of the wall" areas.
+   Capture four separate callouts per wall:
      - `wall_body_profile_callout`  → the main wall body's profile
      - `gable_profile_callout`      → only when gable_triangle_height_ft > 0
      - `dormer_profile_callout`     → only when dormer_face_sqft > 0
+     - `accent_profiles[]`          → small accent zones (B&B porch face,
+                                       shake column wrap, vertical bay
+                                       cheek, etc.). Estimate ft² each.
    What to look for:
      (a) Text labels visible IN the photo. Architects on construction
          drawings write things like "LAP 4\"", "DUTCH LAP 5\"", "SHAKER",
@@ -400,6 +420,9 @@ CRITICAL accuracy rules (read every time):
    downstream code will inherit from the body. Leaving these empty is
    fine — but a WRONG profile is worse than an empty one (the catalog
    mapper will split the line by profile and produce wrong SKUs).
+   For `accent_profiles`, err on the side of including small accents
+   even when unsure — under-counting B&B is the most expensive
+   mistake we've seen on real jobs.
 
 6. CONSERVATIVE BIAS: When in doubt, under-estimate. Contractors over-buy
    to cover waste; you don't need to add buffer. If your math gives a
