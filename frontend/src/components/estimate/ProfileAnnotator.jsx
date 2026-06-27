@@ -19,7 +19,7 @@
 //
 // The boxes use NORMALIZED coordinates (0-1) so they survive image resizing.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, Plus, Trash2, Ruler, Save, MousePointer2, ZoomIn, ZoomOut, Maximize2, Minimize2 } from "lucide-react";
+import { X, Plus, Trash2, Ruler, Save, MousePointer2, ZoomIn, ZoomOut, Maximize2, Minimize2, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 
@@ -110,6 +110,9 @@ export default function ProfileAnnotator({
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const stageRef = useRef(null);
+  // Iter 78z+++ — Track which blueprint pages we've already auto-OCR'd
+  // so we don't waste Claude calls re-running on every page revisit.
+  const autoOcrFiredRef = useRef(new Set());
 
   const currentPhoto = photos?.[selectedIdx];
   const photoKey = String(selectedIdx);
@@ -414,6 +417,27 @@ export default function ProfileAnnotator({
     return m ? m[1] : "";
   })();
 
+  // Iter 78z+++ — Auto-fire OCR scale detection on first visit to each
+  // blueprint page that doesn't have a scale set yet. Without this,
+  // every annotated box defaults to 50 ft² and contractors don't
+  // realize they had to set scale manually — Shake / B&B would all
+  // hit the materials list as 50 sqft regardless of the box size
+  // drawn. Cheap one-time Claude OCR per page (and only when the page
+  // is actually being viewed) is well worth the accuracy gain.
+  useEffect(() => {
+    if (!currentUploadName) return;
+    if (scaleRef) return; // already calibrated for this page
+    if (autoOcrFiredRef.current.has(currentUploadName)) return;
+    if (ocrBusy) return;
+    if (!imgPx.w || !imgPx.h) return; // wait until image dimensions are measured
+    autoOcrFiredRef.current.add(currentUploadName);
+    // Fire after a short delay so the page render doesn't block
+    const t = setTimeout(() => {
+      autoDetectScale();
+    }, 250);
+    return () => clearTimeout(t);
+  }, [currentUploadName, scaleRef, imgPx.w, imgPx.h]);
+
   // Iter 78z+ — Auto-detect scale via Claude OCR. Sets the scale_ref
   // for THIS photo on success. Boxes already on the photo get their
   // sqft recomputed using the new scale.
@@ -610,6 +634,43 @@ export default function ProfileAnnotator({
               >
                 <Maximize2 className="w-3 h-3" />
                 <span>Scroll to zoom · scroll bars to pan when zoomed</span>
+              </div>
+            )}
+            {/* Iter 78z+++ — Loud warning when this page has no scale.
+                Every new box would default to 50 ft² and silently feed
+                the materials list (the bug Howard reported). Either
+                wait for the auto-OCR (if still running) or invite the
+                contractor to set scale manually. */}
+            {currentPhoto && !scaleRef && (
+              <div
+                className="mx-2 mt-2 px-3 py-2 bg-[#FEF3C7] border border-[#F59E0B] flex items-center gap-2 text-[11px] shadow-sm relative z-10"
+                data-testid="annotator-no-scale-warning"
+              >
+                {ocrBusy ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#92400E] flex-shrink-0" />
+                    <span className="text-[#92400E] font-bold">
+                      Auto-detecting scale from blueprint…
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-[#92400E] flex-shrink-0" />
+                    <span className="text-[#92400E] font-bold flex-1">
+                      No scale set on this page — new boxes default to 50 ft². Set scale so Shake / B&B come in at real square footage.
+                    </span>
+                    {currentUploadName && (
+                      <button
+                        type="button"
+                        onClick={autoDetectScale}
+                        className="px-2 py-1 bg-[#F59E0B] text-white text-[10px] font-bold uppercase tracking-wider hover:bg-[#D97706] flex-shrink-0"
+                        data-testid="annotator-no-scale-auto-btn"
+                      >
+                        Auto-detect
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             )}
             {currentPhoto ? (
