@@ -458,6 +458,49 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     setPreview(data);
   };
 
+  // Iter 78z+ — Re-fire AI Measure using cached photo bytes server-side
+  // (no re-upload). Triggered from ProfileAnnotator's "Save & Re-run".
+  // Mirrors `resumeRunPolling` but kicks off a fresh worker first.
+  const rerunWithAnnotations = async () => {
+    if (!currentRunId) {
+      toast.error("No previous AI Measure run to re-fire — upload photos first");
+      return;
+    }
+    setBusy(true);
+    setBusyStage("starting");
+    try {
+      const launch = await api.post(`/measure/ai-measure/rerun/${currentRunId}`);
+      const newRunId = launch?.data?.run_id;
+      if (!newRunId) throw new Error("Backend didn't return a new run_id");
+      setCurrentRunId(newRunId);
+      setBusyStage(launch?.data?.stage || "starting");
+      // Poll the new run to completion using the same 5-min loop.
+      let result = null;
+      for (let i = 0; i < 100; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        let statusResp;
+        try {
+          statusResp = await api.get(`/measure/ai-measure/status/${newRunId}`);
+        } catch (e) {
+          if (i >= 5) console.warn("ai-measure rerun status poll failed", e?.message);
+          continue;
+        }
+        const s = statusResp?.data || {};
+        if (s.stage && s.stage !== busyStage) setBusyStage(s.stage);
+        if (s.status === "error") throw new Error(s.error || "AI measure re-run failed");
+        if (s.status === "done") { result = s.result; break; }
+      }
+      if (!result) throw new Error("Re-run timed out after 5 minutes");
+      _applyAIResult(result);
+      toast.success("Re-run complete · annotations applied to materials list");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e?.message || "Re-run failed");
+    } finally {
+      setBusy(false);
+      setBusyStage("");
+    }
+  };
+
   const resumeRunPolling = async () => {
     if (!lastRun || !lastRun.run_id) return;
     setBusy(true);
@@ -2620,8 +2663,10 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
           onClose={() => setProfileAnnotatorOpen(false)}
           onSaved={(saved) => {
             setSavedProfileAnnotations(saved);
-            toast.message("Profile annotations saved · Run AI Measure to apply them to the takeoff");
           }}
+          onSaveAndRerun={currentRunId ? async () => {
+            rerunWithAnnotations();
+          } : null}
         />
       )}
     </div>

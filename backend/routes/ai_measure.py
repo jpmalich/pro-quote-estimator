@@ -1432,6 +1432,109 @@ async def ai_measure(
     }
 
 
+# Iter 78z+ — Re-run a previous AI Measure launch using the CACHED
+# photo bytes. Mirrors the blueprint rerun: lets the contractor save
+# profile annotations and fire a fresh Claude pass without re-uploading
+# the photo grid.
+@router.post("/ai-measure/rerun/{prev_run_id}")
+async def ai_measure_rerun(
+    prev_run_id: str,
+    user: dict = Depends(get_current_user),
+):
+    prev = await db.ai_measure_runs.find_one({"run_id": prev_run_id})
+    if not prev:
+        raise HTTPException(status_code=404, detail="Previous run not found")
+    user_id = user.get("id") or "anon"
+    if prev.get("user_id") not in (user_id, "anon"):
+        raise HTTPException(status_code=403, detail="Not your run")
+
+    photo_paths_str = prev.get("photo_paths") or ""
+    paths = [p.strip() for p in photo_paths_str.split(",") if p.strip()]
+    if not paths:
+        raise HTTPException(
+            status_code=400,
+            detail="No cached photos on this run — re-upload to use rerun",
+        )
+    from config import UPLOAD_DIR  # local import to dodge cycle
+    image_payloads: list[tuple[str, bytes]] = []
+    for name in paths:
+        target = UPLOAD_DIR / name
+        if not target.exists():
+            continue
+        raw = target.read_bytes()
+        # Reuse the same compressor the primary pass uses so the box
+        # coordinates from the annotator line up with what Claude sees.
+        image_payloads.append((name, _compress_for_claude(raw)))
+    if not image_payloads:
+        raise HTTPException(
+            status_code=400,
+            detail="Cached photos are no longer on disk — re-upload",
+        )
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+
+    new_run_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+    address = prev.get("address")
+    estimate_id = prev.get("estimate_id")
+    kind = prev.get("kind") or "siding"
+    deep_dormer_scan = bool(prev.get("deep_dormer_scan") or False)
+
+    # Pull worker params from the previous result's measurements when
+    # available; fall back to sane defaults that match the form schema.
+    prev_meas = ((prev.get("result") or {}).get("measurements") or {})
+    prev_overhang = 12.0
+    try:
+        if prev_meas.get("overhang_in") is not None:
+            prev_overhang = float(prev_meas["overhang_in"])
+    except Exception:
+        prev_overhang = 12.0
+
+    await db.ai_measure_runs.insert_one({
+        "run_id":          new_run_id,
+        "user_id":         user_id,
+        "estimate_id":     estimate_id,
+        "status":          "running",
+        "stage":           "starting",
+        "photo_count":     len(image_payloads),
+        "photo_paths":     ",".join(name for name, _ in image_payloads),
+        "deep_dormer_scan": deep_dormer_scan,
+        "kind":            kind,
+        "address":         address,
+        "rerun_of":        prev_run_id,
+        "created_at":      now,
+        "updated_at":      now,
+        "completed_at":    None,
+        "result":          None,
+        "error":           None,
+    })
+    asyncio.create_task(_execute_ai_measure_worker(
+        run_id=new_run_id,
+        image_payloads=image_payloads,
+        api_key=api_key,
+        user_id=user_id,
+        address=address,
+        reference_dim=None,
+        kind=kind,
+        overhang_in=prev_overhang,
+        brick_course_in=None,
+        siding_exposure_in=None,
+        deep_dormer_scan=deep_dormer_scan,
+        elevation_tags=None,
+        estimate_id=estimate_id,
+    ))
+    return {
+        "run_id":           new_run_id,
+        "status":           "running",
+        "stage":            "starting",
+        "photo_count":      len(image_payloads),
+        "deep_dormer_scan": deep_dormer_scan,
+        "rerun_of":         prev_run_id,
+    }
+
+
 def _as_aware_utc(dt):
     """Coerce a datetime to a timezone-aware UTC datetime. MongoDB may
     return naive datetimes depending on the driver/codec settings, which
