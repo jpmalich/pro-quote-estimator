@@ -1150,10 +1150,10 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       : "text-[#DC2626] border-[#DC2626] bg-red-50";
 
   return (
-    <div data-testid="ai-measure">
+    <div data-testid="ai-measure" className="w-full">
       <button
         type="button"
-        className="px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+        className="w-full justify-center px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
         onClick={() => setOpen(true)}
         data-testid="ai-measure-btn"
         title={preview ? "Resume AI measure session — add more photos or refine" : "AI photo measure — upload 2-8 phone photos of the house (+ optional aerial)"}

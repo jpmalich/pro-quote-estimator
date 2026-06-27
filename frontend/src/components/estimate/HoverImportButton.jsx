@@ -389,7 +389,7 @@ export default function HoverImportButton({ est, update, save }) {
   };
 
   return (
-    <div data-testid="hover-import" className="inline-flex items-center gap-2 flex-wrap">
+    <div data-testid="hover-import" className="w-full flex flex-col gap-1.5">
       <input
         ref={fileRef}
         type="file"
@@ -400,7 +400,7 @@ export default function HoverImportButton({ est, update, save }) {
       />
       <button
         type="button"
-        className="px-3 py-1.5 bg-white text-[#09090B] border border-[#09090B] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+        className="w-full justify-center px-3 py-1.5 bg-white text-[#09090B] border border-[#09090B] hover:bg-[#FAFAFA] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
         onClick={() => setShowWarning(true)}
         disabled={busy}
         data-testid="hover-import-btn"
@@ -415,7 +415,7 @@ export default function HoverImportButton({ est, update, save }) {
       {hasCached && (
         <button
           type="button"
-          className="px-3 py-1.5 bg-white text-[#0369A1] border border-[#0EA5E9] hover:bg-[#F0F9FF] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+          className="w-full justify-center px-3 py-1.5 bg-white text-[#0369A1] border border-[#0EA5E9] hover:bg-[#F0F9FF] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
           onClick={restore}
           disabled={busy}
           data-testid="hover-restore-btn"

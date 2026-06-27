@@ -542,7 +542,7 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
   };
 
   return (
-    <div data-testid="blueprint-import">
+    <div data-testid="blueprint-import" className="w-full flex flex-col gap-1.5">
       <input
         ref={fileRef}
         type="file"
@@ -553,7 +553,7 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
       />
       <button
         type="button"
-        className="px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAF5FF] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+        className="w-full justify-center px-3 py-1.5 bg-white text-[#7C3AED] border border-[#7C3AED] hover:bg-[#FAF5FF] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
         onClick={() => {
           // Iter 78 — Waste % flow:
           //   1. If estimate already has waste_pct > 0 → respect it, no prompt.
@@ -611,7 +611,7 @@ export default function BlueprintMeasureButton({ est, update, save, applyLines }
           type="button"
           onClick={() => setProfileAnnotatorOpen(true)}
           disabled={busy}
-          className="ml-2 px-3 py-2 bg-white text-[#F97316] border border-[#F97316] hover:bg-[#FFF7ED] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+          className="w-full justify-center px-3 py-1.5 bg-white text-[#F97316] border border-[#F97316] hover:bg-[#FFF7ED] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
           data-testid="blueprint-tag-profiles-btn"
           title="Draw boxes to tag Shake / B&B / etc. — guarantees those materials hit the quote"
         >
