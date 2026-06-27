@@ -477,15 +477,13 @@ export default function ProfileAnnotator({
         }
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E4E7]">
+        {/* Header — matches PhotoAnnotateModal styling for cross-tool consistency */}
+        <div className="bg-[#7C3AED] text-white px-5 py-3 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-              Profile Annotator
-            </div>
-            <div className="text-sm font-bold">
+            <div className="font-heading text-lg">Profile Annotator</div>
+            <div className="text-xs opacity-90 mt-0.5">
               Tag Shake / B&B / etc. so AI can&apos;t miss them
-              <span className="text-[#71717A] font-normal text-xs ml-2">
+              <span className="opacity-80 ml-2">
                 · {totalBoxes} box{totalBoxes === 1 ? "" : "es"}
               </span>
             </div>
@@ -495,7 +493,7 @@ export default function ProfileAnnotator({
               <button
                 type="button"
                 onClick={saveAndRerun}
-                className="bg-[#7C3AED] text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 hover:bg-[#6D28D9] flex items-center gap-1"
+                className="bg-white text-[#7C3AED] text-xs font-bold uppercase tracking-wider px-3 py-1.5 hover:bg-[#FAFAFA] flex items-center gap-1"
                 data-testid="annotator-save-rerun"
                 title="Save annotations and immediately re-read the blueprint with them"
               >
@@ -513,7 +511,7 @@ export default function ProfileAnnotator({
             <button
               type="button"
               onClick={onClose}
-              className="text-[#71717A] hover:text-[#09090B]"
+              className="text-white/90 hover:text-white"
               data-testid="annotator-cancel"
             >
               <X size={16} />
