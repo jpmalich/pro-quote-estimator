@@ -23,8 +23,9 @@ export default function ISSPricingPanel({ token }) {
   const handleExport = async () => {
     setBusy(true);
     try {
-      const res = await axios.get(`${API}/admin/iss/export?token=${encodeURIComponent(token)}`, {
+      const res = await axios.get(`${API}/admin/iss/export`, {
         responseType: "blob",
+        headers: { "X-Admin-Token": token },
       });
       const blob = new Blob([res.data], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
@@ -50,9 +51,9 @@ export default function ISSPricingPanel({ token }) {
       const fd = new FormData();
       fd.append("file", file);
       const { data } = await axios.post(
-        `${API}/admin/iss/upload?token=${encodeURIComponent(token)}`,
+        `${API}/admin/iss/upload`,
         fd,
-        { headers: { "Content-Type": "multipart/form-data" } },
+        { headers: { "Content-Type": "multipart/form-data", "X-Admin-Token": token } },
       );
       setPreview(data);
       if (!data.changes?.length && !data.unmatched?.length) {
@@ -71,8 +72,9 @@ export default function ISSPricingPanel({ token }) {
     setApplying(true);
     try {
       const { data } = await axios.post(
-        `${API}/admin/iss/apply?token=${encodeURIComponent(token)}`,
+        `${API}/admin/iss/apply`,
         { changes: preview.changes },
+        { headers: { "X-Admin-Token": token } },
       );
       toast.success(`Applied ${data.applied} price ${data.applied === 1 ? "change" : "changes"}`);
       setPreview(null);

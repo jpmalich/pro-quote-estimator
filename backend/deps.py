@@ -6,7 +6,7 @@ import bcrypt
 import jwt
 from fastapi import HTTPException, Request, Response
 
-from config import JWT_SECRET, JWT_ALG, SUPPLIER_ADMIN_TOKEN
+from config import JWT_SECRET, JWT_ALG, JWT_TTL_SECONDS, SUPPLIER_ADMIN_TOKEN
 from db import db
 
 
@@ -25,7 +25,7 @@ def create_access_token(user_id: str, email: str) -> str:
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=JWT_TTL_SECONDS),
         "type": "access",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
@@ -38,7 +38,7 @@ def set_auth_cookie(response: Response, token: str):
         httponly=True,
         secure=True,
         samesite="none",
-        max_age=604800,
+        max_age=JWT_TTL_SECONDS,
         path="/",
     )
 
@@ -79,6 +79,10 @@ async def get_company_for(user: dict) -> dict:
 
 
 def check_admin_token(request: Request):
-    token = request.headers.get("X-Admin-Token") or request.query_params.get("token")
-    if not SUPPLIER_ADMIN_TOKEN or token != SUPPLIER_ADMIN_TOKEN:
+    # SEC-006 — Iter 78z++++: header-only admin token check.
+    # Tokens in query strings leak into browser history, web server
+    # access logs, and referrer headers. The branding-admin frontend
+    # now sends the token as `X-Admin-Token`.
+    token = request.headers.get("X-Admin-Token")
+    if not SUPPLIER_ADMIN_TOKEN or not token or token != SUPPLIER_ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Forbidden")

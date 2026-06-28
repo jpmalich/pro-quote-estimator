@@ -197,10 +197,11 @@ class TestAdminGating:
         assert r.status_code == 200, r.text
         assert r.json().get("signup_code") == SIGNUP_CODE
 
-    def test_signup_code_with_query_param_token(self):
+    def test_signup_code_with_query_param_token_now_rejected(self):
+        # SEC-006 — Iter 78z++++: query-string token is no longer accepted;
+        # tokens must come via X-Admin-Token header. Verifies the regression.
         r = requests.get(f"{API}/admin/signup-code", params={"token": ADMIN_TOKEN})
-        assert r.status_code == 200, r.text
-        assert r.json().get("signup_code") == SIGNUP_CODE
+        assert r.status_code == 403, r.text
 
     def test_admin_branding_put_no_token_forbidden(self):
         r = requests.put(f"{API}/admin/branding", json={"supplier_name": "x"})

@@ -33,7 +33,7 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 ### Public
 - `GET /api/branding` — supplier name, tagline, logo (used on Login page)
 
-### Supplier Admin (token gated via `X-Admin-Token` header OR `?token=`)
+### Supplier Admin (token gated via `X-Admin-Token` header — query string `?token=` was removed in SEC-006)
 - `GET /api/admin/signup-code`
 - `PUT /api/admin/branding` `{supplier_name?, supplier_tagline?, supplier_logo_url?}`
 - `POST /api/admin/upload-logo` multipart `file`
@@ -49,6 +49,15 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - `GET /api/exports/estimates.csv` · `GET /api/exports/estimates/{id}.csv`
 
 ## Implementation Timeline
+- **Iter 78z++++** — **P3 Security Hardening (SEC-004 / SEC-005 / SEC-006 / SEC-007)** (Feb 2026): completed the remaining security-audit recommendations on top of the SEC-001/002/003 work shipped earlier in the previous session.
+  - **SEC-004** — `config.py` now raises `RuntimeError` at import time if `JWT_SECRET` is shorter than 32 chars or `ADMIN_PASSWORD` is empty. No more `change-me-…` random fallback (which silently invalidated all sessions on every restart) and no more `Admin123!` default.
+  - **SEC-005** — JWT lifetime trimmed from 7 days to 24 h via new `JWT_TTL_SECONDS` env var (default 86400). Cookie `max-age` follows. Added a single-process in-memory rate-limiter on `POST /api/auth/login`: 5 failed attempts per IP within a 15-min window → `429 Too many failed login attempts`. Successful login clears the bucket so a legit user is never locked out by an earlier typo. Trusts `X-Forwarded-For` so the kubernetes ingress chain is honored.
+  - **SEC-006** — `check_admin_token` no longer accepts `?token=…` in the URL — header-only (`X-Admin-Token`). Tokens in URLs leak via browser history, referrer headers, and server access logs. Migrated every frontend admin call (BrandingAdmin, PricingUpdatePanel, MezzoPricingPanel, VeroPricingPanel, ISSPricingPanel) to send the header. The CSV export download was previously a `window.location.href = …?token=…` assignment — replaced with a `fetch → Blob → synthetic <a download>` pattern so the header still rides.
+  - **SEC-007** — Dropped the `"anon"` allowlist in AI-run ownership checks (`/measure/ai-measure/*` and `/measure/ai-blueprint/*`). Authenticated users now strictly own their runs; runs with `user_id="anon"` are no longer reachable. Removed every `user.get("id") or "anon"` insertion point so future runs are always tagged to the real authenticated user.
+  - **Tests** — Added `/app/backend/tests/test_security_p3_hardening.py` (10 tests) covering each fix end-to-end against the live preview URL. Migrated 23 legacy admin tests (`test_mezzo_pricing`, `test_vero_pricing`, `test_vero_iter_b`, `test_invite_contractor`) from `?token=…` to `headers=ADMIN_HEADERS`. Updated 3 AI-run tests that seeded with `user_id="anon"` to use the authenticated admin's real user_id (`test_cross_check_http`, `test_ai_measure_rerun_http`, `test_blueprint_rerun_http`).
+  - **End-to-end verification**: 53/53 security regression tests pass; live login + admin header flow confirmed via curl and BrandingAdmin screenshot.
+
+
 - **Iter 42g** — **Install + Trim showing $0 on Vero / Mezzo tabs — FIXED (two bugs)** (Feb 2026): user reported the Install + Trim tile on the Vero tab snapshot was stuck at $0 while Mezzo "seemed to work". Two root causes traced and fixed:
   - **Bug 1 (VeroJobSnapshot.jsx)**: the filter was `(l.tab || "vinyl") === "vero"` but in this codebase the Vero tab id is literally `"windows"` (per `tabsConfig.js` — windows-kind has tab ids `windows` + `mezzo`). Fixed: filter on `=== "windows"`.
   - **Bug 2 (useEstimate.js TAB_IDS)**: `TAB_IDS` only listed `["vinyl", "ascend", "lp_smart"]` — so `inferTab(savedLine)` rejected windows/mezzo tab values on load and rebadged them via `legacyTabForSection()` to "vinyl". The catalog-merge `lineKey` lookup then never matched the saved install lines → their qty dropped to 0 → next autosave wiped them from the DB. Fixed by expanding `TAB_IDS = ["vinyl", "ascend", "lp_smart", "windows", "mezzo"]`. The same constant gates the `backfillMisc()` misc-row tab preservation, so misc labor/material rows on windows-kind estimates now round-trip correctly too.

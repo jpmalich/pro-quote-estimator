@@ -5,11 +5,27 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-" + uuid.uuid4().hex)
+# SEC-004 — Iter 78z++++: Fail closed if critical secrets are missing
+# rather than silently falling back to an in-process random or a known
+# default password. Both must come from the deployment environment.
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+if not JWT_SECRET or len(JWT_SECRET) < 32:
+    raise RuntimeError(
+        "JWT_SECRET must be set in backend/.env and at least 32 chars long. "
+        "Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'"
+    )
 JWT_ALG = "HS256"
 
+# Iter 78z++++ — JWT + cookie lifetime trimmed from 7 days to 24 hours
+# to limit the blast radius of a stolen cookie / JWT.
+JWT_TTL_SECONDS = int(os.environ.get("JWT_TTL_SECONDS", "86400"))
+
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@wolfandson.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+if not ADMIN_PASSWORD:
+    raise RuntimeError(
+        "ADMIN_PASSWORD must be set in backend/.env (no default fallback)."
+    )
 ADMIN_COMPANY = os.environ.get("ADMIN_COMPANY", "Pro-Quote Estimating Tool")
 
 SUPPLIER_NAME = os.environ.get("SUPPLIER_NAME", "Alside Supply")

@@ -43,13 +43,20 @@ def test_rerun_endpoint_exists(session):
 
 
 def test_rerun_400_when_run_has_no_cached_photos(session):
-    """Seed a run with empty photo_paths → 400."""
+    """SEC-007 — Iter 78z++++: 'anon' is no longer an allowed owner.
+    Seed a run with empty photo_paths AND user_id matching the
+    authenticated admin → 400."""
     from motor.motor_asyncio import AsyncIOMotorClient
     import asyncio
     mongo_url = os.environ.get("MONGO_URL")
     db_name = os.environ.get("DB_NAME")
     if not mongo_url or not db_name:
         pytest.skip("MONGO_URL/DB_NAME missing")
+
+    # Look up the admin user_id once so we own the seeded run.
+    me = session.get(f"{API}/auth/me", timeout=10)
+    assert me.status_code == 200
+    admin_user_id = me.json()["id"]
 
     run_id = uuid.uuid4().hex
 
@@ -58,7 +65,7 @@ def test_rerun_400_when_run_has_no_cached_photos(session):
         db = client[db_name]
         await db.ai_measure_runs.insert_one({
             "run_id": run_id,
-            "user_id": "anon",
+            "user_id": admin_user_id,
             "estimate_id": None,
             "status": "done",
             "stage": "done",

@@ -21,6 +21,7 @@ BASE_URL = os.environ.get(
 API = f"{BASE_URL}/api"
 
 ADMIN_TOKEN = os.environ.get("TEST_ADMIN_TOKEN") or os.environ.get("SUPPLIER_ADMIN_TOKEN", "")
+ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 SIGNUP_CODE = os.environ.get("TEST_SIGNUP_CODE") or os.environ.get("SIGNUP_CODE", "")
 
@@ -44,23 +45,26 @@ class TestInviteAuthAndValidation:
 
     def test_invite_with_wrong_token_is_forbidden(self):
         r = requests.post(
-            f"{API}/admin/invite-contractor?token=BAD_TOKEN",
+            f"{API}/admin/invite-contractor",
             json={"email": "x@y.com", "app_url": "https://example.com"},
+            headers={"X-Admin-Token": "BAD_TOKEN"},
         )
         assert r.status_code == 403
 
     def test_invite_missing_app_url_is_bad_request(self):
         r = requests.post(
-            f"{API}/admin/invite-contractor?token={ADMIN_TOKEN}",
+            f"{API}/admin/invite-contractor",
             json={"email": "x@y.com"},
+            headers=ADMIN_HEADERS,
         )
         assert r.status_code == 400
         assert "app_url" in r.json()["detail"]
 
     def test_invite_invalid_email_is_validation_error(self):
         r = requests.post(
-            f"{API}/admin/invite-contractor?token={ADMIN_TOKEN}",
+            f"{API}/admin/invite-contractor",
             json={"email": "not-an-email", "app_url": "https://example.com"},
+            headers=ADMIN_HEADERS,
         )
         # Pydantic EmailStr validation triggers 422
         assert r.status_code == 422
@@ -68,7 +72,7 @@ class TestInviteAuthAndValidation:
     def test_invitations_list_requires_admin_token(self):
         r = requests.get(f"{API}/admin/invitations")
         assert r.status_code == 403
-        r = requests.get(f"{API}/admin/invitations?token={ADMIN_TOKEN}")
+        r = requests.get(f"{API}/admin/invitations", headers=ADMIN_HEADERS)
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
@@ -82,11 +86,12 @@ class TestInviteSendBehaviour:
     def test_invite_existing_user_returns_conflict(self):
         # hhunt6677@yahoo.com is the production admin account — guaranteed to exist.
         r = requests.post(
-            f"{API}/admin/invite-contractor?token={ADMIN_TOKEN}",
+            f"{API}/admin/invite-contractor",
             json={
                 "email": "hhunt6677@yahoo.com",
                 "app_url": "https://example.com",
             },
+            headers=ADMIN_HEADERS,
         )
         assert r.status_code == 409
         assert "already has an account" in r.json()["detail"]
@@ -95,13 +100,14 @@ class TestInviteSendBehaviour:
         # Use Resend's safe sandbox address so we don't blast real users.
         target = f"delivered+{uuid.uuid4().hex[:8]}@resend.dev"
         r = requests.post(
-            f"{API}/admin/invite-contractor?token={ADMIN_TOKEN}",
+            f"{API}/admin/invite-contractor",
             json={
                 "email": target,
                 "name": "Test Contractor",
                 "personal_note": "Auto-generated test invite — please ignore.",
                 "app_url": "https://example.com",
             },
+            headers=ADMIN_HEADERS,
         )
         # Resend's "delivered@resend.dev" + tag is allow-listed even on free plans.
         assert r.status_code == 200, f"send failed: {r.status_code} {r.text}"
@@ -114,7 +120,7 @@ class TestInviteSendBehaviour:
         assert "code=" in inv["register_url"]
 
         # Verify it shows up in the recent invitations list.
-        listing = requests.get(f"{API}/admin/invitations?token={ADMIN_TOKEN}")
+        listing = requests.get(f"{API}/admin/invitations", headers=ADMIN_HEADERS)
         assert listing.status_code == 200
         emails = [i["email"] for i in listing.json()]
         assert target in emails

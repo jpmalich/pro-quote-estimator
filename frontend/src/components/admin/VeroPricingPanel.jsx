@@ -50,7 +50,8 @@ export default function VeroPricingPanel({ token }) {
     (async () => {
       try {
         const { data: res } = await axios.get(
-          `${API}/admin/vero/prices?token=${encodeURIComponent(token)}`
+          `${API}/admin/vero/prices`,
+          { headers: { "X-Admin-Token": token } }
         );
         if (!alive) return;
         setMeta({ tiers: res.tiers, products: res.products, products_meta: res.products_meta });
@@ -181,8 +182,9 @@ export default function VeroPricingPanel({ token }) {
     setBusy(true);
     try {
       const { data: saved } = await axios.put(
-        `${API}/admin/vero/prices?token=${encodeURIComponent(token)}`,
-        { tier: activeTier, product_type: activeProduct, payload: activeDoc }
+        `${API}/admin/vero/prices`,
+        { tier: activeTier, product_type: activeProduct, payload: activeDoc },
+        { headers: { "X-Admin-Token": token } }
       );
       setData((prev) => ({
         ...prev,
@@ -201,7 +203,8 @@ export default function VeroPricingPanel({ token }) {
     setBusy(true);
     try {
       const { data: res } = await axios.get(
-        `${API}/admin/vero/prices?token=${encodeURIComponent(token)}`
+        `${API}/admin/vero/prices`,
+        { headers: { "X-Admin-Token": token } }
       );
       setData(res.data);
       setDirty(false);

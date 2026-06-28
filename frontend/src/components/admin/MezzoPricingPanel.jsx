@@ -37,7 +37,8 @@ export default function MezzoPricingPanel({ token }) {
     (async () => {
       try {
         const { data: res } = await axios.get(
-          `${API}/admin/mezzo/prices?token=${encodeURIComponent(token)}`
+          `${API}/admin/mezzo/prices`,
+          { headers: { "X-Admin-Token": token } }
         );
         if (!alive) return;
         setMeta({
@@ -132,13 +133,14 @@ export default function MezzoPricingPanel({ token }) {
     try {
       const entry = data[activeTier][activeProduct];
       const { data: saved } = await axios.put(
-        `${API}/admin/mezzo/prices?token=${encodeURIComponent(token)}`,
+        `${API}/admin/mezzo/prices`,
         {
           tier: activeTier,
           product_type: activeProduct,
           base_prices: entry.base_prices,
           adder_prices: entry.adder_prices,
-        }
+        },
+        { headers: { "X-Admin-Token": token } }
       );
       setData((prev) => ({
         ...prev,
@@ -163,7 +165,8 @@ export default function MezzoPricingPanel({ token }) {
     setBusy(true);
     try {
       const { data: res } = await axios.get(
-        `${API}/admin/mezzo/prices?token=${encodeURIComponent(token)}`
+        `${API}/admin/mezzo/prices`,
+        { headers: { "X-Admin-Token": token } }
       );
       setData(res.data);
       setDirty(false);

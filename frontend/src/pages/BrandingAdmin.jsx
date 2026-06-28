@@ -29,7 +29,7 @@ export default function BrandingAdmin() {
       try {
         const [b, s] = await Promise.all([
           axios.get(`${API}/branding`),
-          axios.get(`${API}/admin/signup-code?token=${encodeURIComponent(token)}`),
+          axios.get(`${API}/admin/signup-code`, { headers: { "X-Admin-Token": token } }),
         ]);
         setBranding(b.data);
         setSupplierName(b.data.supplier_name || "");
@@ -39,7 +39,7 @@ export default function BrandingAdmin() {
       } catch (e) {
         setError(
           e.response?.status === 403
-            ? "Invalid admin token. Check your URL ?token=... and try again."
+            ? "Invalid admin token. Check the token in your URL (?token=...) and try again."
             : "Failed to load. " + (e.response?.data?.detail || e.message)
         );
       }
@@ -81,8 +81,8 @@ export default function BrandingAdmin() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const { data } = await axios.post(`${API}/admin/upload-logo?token=${encodeURIComponent(token)}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const { data } = await axios.post(`${API}/admin/upload-logo`, fd, {
+        headers: { "Content-Type": "multipart/form-data", "X-Admin-Token": token },
       });
       setBranding({ ...branding, supplier_logo_url: data.url });
       toast.success("Supplier logo uploaded");
@@ -97,8 +97,9 @@ export default function BrandingAdmin() {
     setBusy(true);
     try {
       const { data } = await axios.put(
-        `${API}/admin/branding?token=${encodeURIComponent(token)}`,
-        { supplier_name: supplierName, supplier_tagline: supplierTagline }
+        `${API}/admin/branding`,
+        { supplier_name: supplierName, supplier_tagline: supplierTagline },
+        { headers: { "X-Admin-Token": token } }
       );
       setBranding(data);
       toast.success("Branding saved");
@@ -113,8 +114,9 @@ export default function BrandingAdmin() {
     setBusy(true);
     try {
       const { data } = await axios.put(
-        `${API}/admin/branding?token=${encodeURIComponent(token)}`,
-        { default_pricing_mode: mode }
+        `${API}/admin/branding`,
+        { default_pricing_mode: mode },
+        { headers: { "X-Admin-Token": token } }
       );
       setBranding(data);
       setDefaultPricingMode(data.default_pricing_mode || "margin");
@@ -288,8 +290,9 @@ export default function BrandingAdmin() {
                     setBusy(true);
                     try {
                       const { data } = await axios.put(
-                        `${API}/admin/branding?token=${encodeURIComponent(token)}`,
-                        { supplier_logo_url: "" }
+                        `${API}/admin/branding`,
+                        { supplier_logo_url: "" },
+                        { headers: { "X-Admin-Token": token } }
                       );
                       setBranding(data);
                       toast.success("Logo removed");
@@ -340,7 +343,7 @@ function PricingTiersPanel({ token }) {
 
   const load = React.useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API}/admin/tiers?token=${encodeURIComponent(token)}`);
+      const { data } = await axios.get(`${API}/admin/tiers`, { headers: { "X-Admin-Token": token } });
       setTiers(data);
     } catch (e) {
       toast.error(e.response?.data?.detail || e.message);
@@ -353,7 +356,7 @@ function PricingTiersPanel({ token }) {
 
   const openEdit = async (tierId) => {
     setEditingId(tierId);
-    const { data } = await axios.get(`${API}/admin/tiers/${tierId}?token=${encodeURIComponent(token)}`);
+    const { data } = await axios.get(`${API}/admin/tiers/${tierId}`, { headers: { "X-Admin-Token": token } });
     setEditTier(data);
   };
 
@@ -368,9 +371,9 @@ function PricingTiersPanel({ token }) {
   const saveTier = async () => {
     setBusy(true);
     try {
-      await axios.put(`${API}/admin/tiers/${editingId}?token=${encodeURIComponent(token)}`, {
+      await axios.put(`${API}/admin/tiers/${editingId}`, {
         sections: editTier.sections,
-      });
+      }, { headers: { "X-Admin-Token": token } });
       toast.success(`${editTier.name} prices saved`);
       await load();
     } catch (e) {
@@ -468,7 +471,8 @@ function PipelinePanel({ token }) {
     (async () => {
       try {
         const { data } = await axios.get(
-          `${API}/admin/pipeline?token=${encodeURIComponent(token)}`
+          `${API}/admin/pipeline`,
+          { headers: { "X-Admin-Token": token } }
         );
         if (alive) setData(data);
       } catch (e) {
@@ -579,7 +583,7 @@ function InviteContractorPanel({ token, signupCode }) {
 
   const load = React.useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API}/admin/invitations?token=${encodeURIComponent(token)}`);
+      const { data } = await axios.get(`${API}/admin/invitations`, { headers: { "X-Admin-Token": token } });
       setInvitations(data);
       setLoaded(true);
     } catch (e) {
@@ -600,12 +604,12 @@ function InviteContractorPanel({ token, signupCode }) {
     }
     setBusy(true);
     try {
-      await axios.post(`${API}/admin/invite-contractor?token=${encodeURIComponent(token)}`, {
+      await axios.post(`${API}/admin/invite-contractor`, {
         email: clean,
         name: name.trim() || undefined,
         personal_note: note.trim() || undefined,
         app_url: window.location.origin,
-      });
+      }, { headers: { "X-Admin-Token": token } });
       toast.success(`Invitation sent to ${clean}`);
       setEmail("");
       setName("");
@@ -742,8 +746,8 @@ function CompaniesPanel({ token }) {
   const load = React.useCallback(async () => {
     try {
       const [co, t] = await Promise.all([
-        axios.get(`${API}/admin/companies?token=${encodeURIComponent(token)}`),
-        axios.get(`${API}/admin/tiers?token=${encodeURIComponent(token)}`),
+        axios.get(`${API}/admin/companies`, { headers: { "X-Admin-Token": token } }),
+        axios.get(`${API}/admin/tiers`, { headers: { "X-Admin-Token": token } }),
       ]);
       setCompanies(co.data);
       setTiers(t.data);
@@ -758,9 +762,9 @@ function CompaniesPanel({ token }) {
   const assign = async (companyId, tierId) => {
     setBusy((b) => ({ ...b, [companyId]: true }));
     try {
-      await axios.put(`${API}/admin/companies/${companyId}/tier?token=${encodeURIComponent(token)}`, {
+      await axios.put(`${API}/admin/companies/${companyId}/tier`, {
         price_tier_id: tierId,
-      });
+      }, { headers: { "X-Admin-Token": token } });
       toast.success("Tier updated");
       await load();
     } catch (e) {
@@ -783,7 +787,8 @@ function CompaniesPanel({ token }) {
     setBusy((b) => ({ ...b, [company.id]: true }));
     try {
       const { data } = await axios.delete(
-        `${API}/admin/companies/${company.id}?token=${encodeURIComponent(token)}`
+        `${API}/admin/companies/${company.id}`,
+        { headers: { "X-Admin-Token": token } }
       );
       toast.success(
         `Deleted ${data.company_name} (${data.estimates_deleted} estimates, ${data.users_deleted} users)`

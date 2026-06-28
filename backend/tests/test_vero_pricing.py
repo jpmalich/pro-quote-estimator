@@ -18,6 +18,7 @@ BASE_URL = os.environ.get(
     "https://app-converter-170.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
+ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}
 
 
 def _login_howard() -> str:
@@ -31,7 +32,7 @@ def _login_howard() -> str:
 
 
 def test_admin_get_matrix_returns_3_tiers_3_products():
-    r = requests.get(f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}", timeout=10)
+    r = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10, headers=ADMIN_HEADERS)
     assert r.status_code == 200
     body = r.json()
     assert body["tiers"] == ["whole-sale", "Contractor", "Builder-Dealer"]
@@ -45,30 +46,32 @@ def test_admin_get_matrix_returns_3_tiers_3_products():
 
 
 def test_admin_get_matrix_requires_token():
-    r = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10)
+    r = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10, headers=ADMIN_HEADERS)
     assert r.status_code in (401, 403)
 
 
 def test_admin_put_invalid_tier_rejected():
     r = requests.put(
-        f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}",
+        f"{BASE_URL}/api/admin/vero/prices",
         json={"tier": "premium-bogus", "product_type": "Vero Double Hung", "payload": {}},
         timeout=10,
+        headers=ADMIN_HEADERS,
     )
     assert r.status_code == 400
 
 
 def test_admin_put_invalid_product_rejected():
     r = requests.put(
-        f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}",
+        f"{BASE_URL}/api/admin/vero/prices",
         json={"tier": "Contractor", "product_type": "Bogus Window", "payload": {}},
         timeout=10,
+        headers=ADMIN_HEADERS,
     )
     assert r.status_code == 400
 
 
 def test_admin_put_roundtrip():
-    r = requests.get(f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}", timeout=10)
+    r = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10, headers=ADMIN_HEADERS)
     orig = r.json()["data"]["whole-sale"]["Vero Double Hung"]
     edited = {
         **orig,
@@ -78,19 +81,21 @@ def test_admin_put_roundtrip():
         },
     }
     r2 = requests.put(
-        f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}",
+        f"{BASE_URL}/api/admin/vero/prices",
         json={"tier": "whole-sale", "product_type": "Vero Double Hung", "payload": edited},
         timeout=10,
+        headers=ADMIN_HEADERS,
     )
     assert r2.status_code == 200
-    r3 = requests.get(f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}", timeout=10)
+    r3 = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10, headers=ADMIN_HEADERS)
     after = r3.json()["data"]["whole-sale"]["Vero Double Hung"]
     assert after["base_prices"]["0-101"]["White Interior/White Exterior"] == 999.99
     # Restore
     requests.put(
-        f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}",
+        f"{BASE_URL}/api/admin/vero/prices",
         json={"tier": "whole-sale", "product_type": "Vero Double Hung", "payload": orig},
         timeout=10,
+        headers=ADMIN_HEADERS,
     )
 
 

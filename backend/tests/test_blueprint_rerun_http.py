@@ -51,14 +51,19 @@ def test_rerun_endpoint_exists(session):
 
 
 def test_rerun_400_when_run_has_no_cached_pages(session):
-    """Seed a run doc with empty page_paths → 400 'No cached blueprint
-    pages on this run'. Requires direct mongo insertion."""
+    """SEC-007 — Iter 78z++++: 'anon' is no longer an allowed owner.
+    Seed a run with empty page_paths AND user_id matching the
+    authenticated admin → 400 'No cached blueprint pages on this run'."""
     from motor.motor_asyncio import AsyncIOMotorClient
     import asyncio
     mongo_url = os.environ.get("MONGO_URL")
     db_name = os.environ.get("DB_NAME")
     if not mongo_url or not db_name:
         pytest.skip("MONGO_URL/DB_NAME missing — skip direct seed")
+
+    me = session.get(f"{API}/auth/me", timeout=10)
+    assert me.status_code == 200
+    admin_user_id = me.json()["id"]
 
     run_id = uuid.uuid4().hex
 
@@ -67,7 +72,7 @@ def test_rerun_400_when_run_has_no_cached_pages(session):
         db = client[db_name]
         await db.ai_blueprint_runs.insert_one({
             "run_id": run_id,
-            "user_id": "anon",
+            "user_id": admin_user_id,
             "estimate_id": None,
             "status": "done",
             "stage": "done",

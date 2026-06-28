@@ -21,7 +21,7 @@ export default function PricingUpdatePanel({ token }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get(`${API}/admin/tiers?token=${encodeURIComponent(token)}`);
+        const { data } = await axios.get(`${API}/admin/tiers`, { headers: { "X-Admin-Token": token } });
         setTiers(data);
       } catch (e) {
         toast.error(e.response?.data?.detail || e.message);
@@ -34,8 +34,9 @@ export default function PricingUpdatePanel({ token }) {
     setBusy(true);
     try {
       const { data } = await axios.post(
-        `${API}/admin/pricing/apply?token=${encodeURIComponent(token)}`,
+        `${API}/admin/pricing/apply`,
         { changes },
+        { headers: { "X-Admin-Token": token } },
       );
       toast.success(`Applied ${data.applied} price ${data.applied === 1 ? "change" : "changes"}`);
       setChanges(null);
@@ -123,12 +124,13 @@ function BumpForm({ tiers, token, setChanges, setUnmatched }) {
     setBusy(true);
     try {
       const { data } = await axios.post(
-        `${API}/admin/pricing/preview-bump?token=${encodeURIComponent(token)}`,
+        `${API}/admin/pricing/preview-bump`,
         {
           percent: Number(percent),
           target,
           scope: { tier_ids: tierIds.length ? tierIds : null, section_titles: null },
         },
+        { headers: { "X-Admin-Token": token } },
       );
       setChanges(data.changes || []);
       setUnmatched([]);
@@ -241,9 +243,9 @@ function UploadForm({ token, setChanges, setUnmatched }) {
       fd.append("file", file);
       fd.append("commit", "false");
       const { data } = await axios.post(
-        `${API}/admin/pricing/upload?token=${encodeURIComponent(token)}`,
+        `${API}/admin/pricing/upload`,
         fd,
-        { headers: { "Content-Type": "multipart/form-data" } },
+        { headers: { "Content-Type": "multipart/form-data", "X-Admin-Token": token } },
       );
       setChanges(data.changes || []);
       setUnmatched(data.unmatched || []);
@@ -291,8 +293,27 @@ function UploadForm({ token, setChanges, setUnmatched }) {
 // Export
 // ---------------------------------------------------------------------------
 function ExportPanel({ token }) {
-  const download = () => {
-    window.location.href = `${API}/admin/pricing/export?token=${encodeURIComponent(token)}`;
+  const download = async () => {
+    // SEC-006 — Iter 78z++++: header-based auth. We can't use
+    // window.location.href anymore (it can't attach the header), so we
+    // fetch the CSV as a blob and synthesize a download link.
+    try {
+      const res = await axios.get(`${API}/admin/pricing/export`, {
+        responseType: "blob",
+        headers: { "X-Admin-Token": token },
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "text/csv" }));
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `pricing-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message || "Export failed");
+    }
   };
   return (
     <div className="space-y-3">

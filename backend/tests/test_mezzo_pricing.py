@@ -5,6 +5,7 @@ import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.preview.emergentagent.com").rstrip("/")
 ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
+ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}
 LOGIN_EMAIL = "hhunt6677@yahoo.com"
 LOGIN_PASSWORD = "Admin123!"
 
@@ -15,7 +16,7 @@ PRODUCTS = ["Mezzo Double Hung", "Mezzo 2-Lite Slider", "Mezzo 3-Lite Slider", "
 # ─────────── Admin GET /api/admin/mezzo/prices ───────────
 class TestAdminMezzoGet:
     def test_get_with_valid_token_returns_full_matrix(self):
-        r = requests.get(f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}")
+        r = requests.get(f"{BASE_URL}/api/admin/mezzo/prices", headers=ADMIN_HEADERS)
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["tiers"] == TIERS
@@ -43,7 +44,7 @@ class TestAdminMezzoGet:
 class TestAdminMezzoPut:
     def test_put_round_trip_and_restore(self):
         # Read original
-        r = requests.get(f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}")
+        r = requests.get(f"{BASE_URL}/api/admin/mezzo/prices", headers=ADMIN_HEADERS)
         assert r.status_code == 200
         orig = r.json()["data"]["whole-sale"]["Mezzo Double Hung"]
         original_base = dict(orig["base_prices"])
@@ -59,15 +60,16 @@ class TestAdminMezzoPut:
             "adder_prices": original_adders,
         }
         put = requests.put(
-            f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}",
+            f"{BASE_URL}/api/admin/mezzo/prices",
             json=body,
+            headers=ADMIN_HEADERS,
         )
         assert put.status_code == 200, put.text
         saved = put.json()
         assert saved["base_prices"]["32-73 UI"] == pytest.approx(999.99)
 
         # Read back
-        r2 = requests.get(f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}")
+        r2 = requests.get(f"{BASE_URL}/api/admin/mezzo/prices", headers=ADMIN_HEADERS)
         assert r2.json()["data"]["whole-sale"]["Mezzo Double Hung"]["base_prices"]["32-73 UI"] == pytest.approx(999.99)
 
         # Restore
@@ -78,34 +80,37 @@ class TestAdminMezzoPut:
             "adder_prices": original_adders,
         }
         put2 = requests.put(
-            f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}",
+            f"{BASE_URL}/api/admin/mezzo/prices",
             json=restore_body,
+            headers=ADMIN_HEADERS,
         )
         assert put2.status_code == 200
-        r3 = requests.get(f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}")
+        r3 = requests.get(f"{BASE_URL}/api/admin/mezzo/prices", headers=ADMIN_HEADERS)
         assert r3.json()["data"]["whole-sale"]["Mezzo Double Hung"]["base_prices"]["32-73 UI"] == pytest.approx(259.608, rel=1e-4)
 
     def test_put_invalid_tier_400(self):
         r = requests.put(
-            f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}",
+            f"{BASE_URL}/api/admin/mezzo/prices",
             json={
                 "tier": "bogus-tier",
                 "product_type": "Mezzo Double Hung",
                 "base_prices": {},
                 "adder_prices": {},
             },
+            headers=ADMIN_HEADERS,
         )
         assert r.status_code == 400, r.text
 
     def test_put_invalid_product_400(self):
         r = requests.put(
-            f"{BASE_URL}/api/admin/mezzo/prices?token={ADMIN_TOKEN}",
+            f"{BASE_URL}/api/admin/mezzo/prices",
             json={
                 "tier": "whole-sale",
                 "product_type": "Mezzo Nonexistent",
                 "base_prices": {},
                 "adder_prices": {},
             },
+            headers=ADMIN_HEADERS,
         )
         assert r.status_code == 400, r.text
 

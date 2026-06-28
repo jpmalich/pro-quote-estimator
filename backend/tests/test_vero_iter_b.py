@@ -11,6 +11,7 @@ BASE_URL = os.environ.get(
     "https://app-converter-170.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
+ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}
 
 
 def _login_howard_cookies() -> dict:
@@ -27,7 +28,7 @@ def _login_howard_cookies() -> dict:
 # Iter 78y (2026-02-13): collapsed to 3 product types (DH, 2-Lite Slider,
 # Patio Door). 3-Lite Slider / Picture / Casement dropped per Howard.
 def test_admin_matrix_includes_products_meta_with_sizing():
-    r = requests.get(f"{BASE_URL}/api/admin/vero/prices?token={ADMIN_TOKEN}", timeout=10)
+    r = requests.get(f"{BASE_URL}/api/admin/vero/prices", timeout=10, headers=ADMIN_HEADERS)
     assert r.status_code == 200
     body = r.json()
     meta = body.get("products_meta") or {}

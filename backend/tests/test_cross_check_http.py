@@ -116,9 +116,9 @@ class TestCrossCheckEndpointValidation:
         finally:
             _delete_run(mongo_db, run_id)
 
-    def test_409_also_fires_when_status_is_anon_owner(self, admin_session, mongo_db):
-        """anon-owned run with status!=done should hit 409, not 403 — owner check
-        accepts 'anon' as a fallback. Confirms ordering of guards."""
+    def test_403_when_run_is_anonymous_no_longer_allowlisted(self, admin_session, mongo_db):
+        """SEC-007 — Iter 78z++++: 'anon' is no longer an authorized owner.
+        Runs with user_id='anon' must 403 (used to fall through to 409)."""
         run_id = _insert_run(
             mongo_db,
             user_id="anon",
@@ -127,8 +127,7 @@ class TestCrossCheckEndpointValidation:
         )
         try:
             r = admin_session.post(f"{API}/measure/ai-cross-check/{run_id}", timeout=15)
-            # 409 — primary run not done
-            assert r.status_code == 409, f"expected 409, got {r.status_code}: {r.text}"
+            assert r.status_code == 403, f"expected 403, got {r.status_code}: {r.text}"
         finally:
             _delete_run(mongo_db, run_id)
 

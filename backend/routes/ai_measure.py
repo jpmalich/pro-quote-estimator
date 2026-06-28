@@ -1460,7 +1460,7 @@ async def ai_measure(
     if not api_key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
 
-    user_id = user.get("id") or "anon"
+    user_id = user["id"]
     run_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc)
     # Persist a "running" run doc so the status endpoint can return
@@ -1525,8 +1525,8 @@ async def ai_measure_rerun(
     prev = await db.ai_measure_runs.find_one({"run_id": prev_run_id})
     if not prev:
         raise HTTPException(status_code=404, detail="Previous run not found")
-    user_id = user.get("id") or "anon"
-    if prev.get("user_id") not in (user_id, "anon"):
+    user_id = user["id"]
+    if prev.get("user_id") != user_id:
         raise HTTPException(status_code=403, detail="Not your run")
 
     photo_paths_str = prev.get("photo_paths") or ""
@@ -1646,7 +1646,7 @@ async def ai_measure_status(
     doc = await db.ai_measure_runs.find_one({"run_id": run_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Run not found")
-    if doc.get("user_id") not in (user.get("id"), "anon"):
+    if doc.get("user_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Not your run")
     created = _as_aware_utc(doc.get("created_at"))
     completed = _as_aware_utc(doc.get("completed_at") or doc.get("updated_at"))
@@ -2131,7 +2131,7 @@ async def ai_cross_check(
     doc = await db.ai_measure_runs.find_one({"run_id": run_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Run not found")
-    if doc.get("user_id") not in (user.get("id"), "anon"):
+    if doc.get("user_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Not your run")
     if doc.get("status") != "done":
         raise HTTPException(
@@ -2194,7 +2194,7 @@ async def ai_cross_check(
     if not api_key:
         raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
 
-    session_id = f"ai-cross-check-{user.get('id', 'anon')}-{uuid.uuid4().hex[:8]}"
+    session_id = f"ai-cross-check-{user['id']}-{uuid.uuid4().hex[:8]}"
     chat = LlmChat(
         api_key=api_key,
         session_id=session_id,
@@ -2325,7 +2325,7 @@ async def ocr_scale(
 
     # Compress through the same pipeline Claude already uses elsewhere.
     img_bytes = _compress_for_claude(raw)
-    user_id = user.get("id") or "anon"
+    user_id = user["id"]
     session_id = f"ai-ocr-scale-{user_id}-{uuid.uuid4().hex[:8]}"
     chat = LlmChat(
         api_key=api_key,
