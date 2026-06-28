@@ -80,15 +80,15 @@ def test_sec004_config_refuses_missing_admin_password():
 # --------------------------------------------------------------------------- #
 # SEC-005 — JWT TTL is 24h, cookie max-age is 24h, login is rate-limited.
 # --------------------------------------------------------------------------- #
-def test_sec005_jwt_ttl_is_24h_by_default():
+def test_sec005_jwt_ttl_is_7d_by_default():
     import config
     importlib.reload(config)
-    assert config.JWT_TTL_SECONDS == 86400
+    assert config.JWT_TTL_SECONDS == 604800
 
 
-def test_sec005_login_cookie_max_age_is_24h():
+def test_sec005_login_cookie_max_age_is_7d():
     """Smoke-check: a real /auth/login response sets the cookie with
-    Max-Age=86400 (24 h)."""
+    Max-Age=604800 (7 d)."""
     s = requests.Session()
     # Use an isolated synthetic client IP so we don't poison the
     # rate-limit bucket for the rest of the suite.
@@ -100,18 +100,17 @@ def test_sec005_login_cookie_max_age_is_24h():
         timeout=10,
     )
     assert r.status_code == 200, r.text
-    # Search for the access_token cookie and verify expires within ~24h.
+    # Search for the access_token cookie and verify expires within ~7d.
     found_max_age = None
     raw_set_cookie = r.headers.get("set-cookie") or ""
     if "access_token" in raw_set_cookie and "Max-Age" in raw_set_cookie:
-        # e.g. "...; Max-Age=86400; ..."
         for part in raw_set_cookie.split(";"):
             part = part.strip()
             if part.lower().startswith("max-age="):
                 found_max_age = int(part.split("=", 1)[1])
                 break
-    assert found_max_age == 86400, (
-        f"Expected Max-Age=86400 on access_token cookie, got {found_max_age}. "
+    assert found_max_age == 604800, (
+        f"Expected Max-Age=604800 on access_token cookie, got {found_max_age}. "
         f"Set-Cookie: {raw_set_cookie!r}"
     )
 

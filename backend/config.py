@@ -16,9 +16,10 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
     )
 JWT_ALG = "HS256"
 
-# Iter 78z++++ — JWT + cookie lifetime trimmed from 7 days to 24 hours
-# to limit the blast radius of a stolen cookie / JWT.
-JWT_TTL_SECONDS = int(os.environ.get("JWT_TTL_SECONDS", "86400"))
+# Iter 78z++++ — JWT + cookie lifetime configurable via env. Default
+# 7 days for contractor convenience (per user feedback Feb 2026 —
+# 24 h was too aggressive). Set JWT_TTL_SECONDS in .env to override.
+JWT_TTL_SECONDS = int(os.environ.get("JWT_TTL_SECONDS", "604800"))
 
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@wolfandson.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
