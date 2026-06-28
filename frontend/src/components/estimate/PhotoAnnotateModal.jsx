@@ -952,6 +952,12 @@ export default function PhotoAnnotateModal({
                 ? "WALL SCALE — tap two points on a known span (entry door = 7 ft, garage = 7 ft tall, eave-to-ground, etc.), then enter its real length. Lines auto-snap to horizontal/vertical when within ±5°."
                 : mode === MODE_SCALE_WINDOW
                 ? "WINDOW SCALE — tap two points on a known window edge (a window you know the size of, e.g. 36\" wide), then enter it. Gives Claude per-window precision (±5%). Auto-snaps to H/V."
+                : mode === MODE_WINDOW
+                ? "Tap each window to tag its style. Claude treats your tags as ground-truth."
+                : mode === MODE_PROFILE
+                ? (zoneShape === "rect"
+                    ? `Tap top-left then bottom-right to mark a ${(PROFILE_FAMILIES.find((f) => f.key === profileFamily)?.label) || profileFamily} region`
+                    : `Tap polygon points, then Close to commit a ${(PROFILE_FAMILIES.find((f) => f.key === profileFamily)?.label) || profileFamily} region`)
                 : (zoneShape === "rect"
                     ? `Tap top-left then bottom-right to mark a ${ZONE_CATEGORIES.find((c) => c.key === zoneCategory)?.name} zone`
                     : `Tap polygon points, then Close to commit a ${ZONE_CATEGORIES.find((c) => c.key === zoneCategory)?.name} zone`)}
@@ -1277,11 +1283,15 @@ export default function PhotoAnnotateModal({
                 </div>
                 {zoneShape === "poly" && polyPoints.length > 0 && (
                   <div className="flex gap-1">
-                    <button type="button" onClick={closePolygon} disabled={polyPoints.length < 3}
-                            className="flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#7C3AED] text-white border border-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-40">
+                    <button type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); closePolygon(); }}
+                            disabled={polyPoints.length < 3}
+                            className="flex-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#7C3AED] text-white border border-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-40"
+                            data-testid="profile-poly-close-btn">
                       Close ({polyPoints.length} pts)
                     </button>
-                    <button type="button" onClick={() => setPolyPoints([])}
+                    <button type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPolyPoints([]); }}
                             className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white text-[#52525B] border border-[#E4E4E7] hover:bg-[#F4F4F5]">Cancel</button>
                   </div>
                 )}

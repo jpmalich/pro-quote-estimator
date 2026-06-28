@@ -2306,9 +2306,15 @@ async def ocr_scale(
         raise HTTPException(status_code=400, detail="invalid upload_name")
 
     from config import UPLOAD_DIR
+    from upload_store import rehydrate_to_disk  # Iter 78z+++ — self-heal
     target = UPLOAD_DIR / upload_name
     if not target.exists():
-        raise HTTPException(status_code=404, detail="upload not found on disk")
+        # Disk miss — try the MongoDB backing store (durable across
+        # container restarts / disk wipes).
+        restored = await rehydrate_to_disk(upload_name, UPLOAD_DIR)
+        if not (restored and restored.exists()):
+            raise HTTPException(status_code=404, detail="upload not found on disk")
+        target = restored
     raw = target.read_bytes()
     if not raw:
         raise HTTPException(status_code=400, detail="upload is empty")

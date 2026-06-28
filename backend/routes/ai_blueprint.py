@@ -528,9 +528,10 @@ async def ai_blueprint(
     # to UPLOAD_DIR so the frontend ProfileAnnotator can display them
     # back to the contractor. Same pattern as AI Measure's photo_paths.
     from config import UPLOAD_DIR  # local import to dodge cycle
+    from upload_store import save_blob  # Iter 78z+++ — durable backing store
     page_paths: list[str] = []
 
-    def _persist_page_image(img_bytes: bytes) -> str:
+    async def _persist_page_image(img_bytes: bytes) -> str:
         # Sniff magic bytes to pick the correct extension. PDF pages
         # come out as PNG (pypdfium2). Image-sheet uploads pass through
         # `_compress_for_claude` which JPEG-encodes. /api/uploads
@@ -540,6 +541,9 @@ async def ai_blueprint(
         name = f"bp_{uuid.uuid4().hex}.{ext}"
         target = UPLOAD_DIR / name
         target.write_bytes(img_bytes)
+        # Iter 78z+++ — Mirror into MongoDB so the page survives any
+        # disk wipe. Non-fatal on failure (disk is still primary).
+        await save_blob(name, img_bytes, f"image/{ext}")
         return name
 
     # PDF path — render to PNGs
@@ -560,7 +564,7 @@ async def ai_blueprint(
         page_pngs = _render_pdf_to_pngs(raw, max_pages)
         for png in page_pngs:
             try:
-                page_paths.append(_persist_page_image(png))
+                page_paths.append(await _persist_page_image(png))
             except Exception:
                 # If disk write fails we still want Claude to see the
                 # page — we just lose the annotator preview for it.
@@ -588,7 +592,7 @@ async def ai_blueprint(
             # version since that's what Claude sees — keeps box coords
             # aligned with what was analyzed.
             try:
-                page_paths.append(_persist_page_image(compressed))
+                page_paths.append(await _persist_page_image(compressed))
             except Exception:
                 page_paths.append("")
 
