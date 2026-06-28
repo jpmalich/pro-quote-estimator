@@ -219,11 +219,14 @@ async def ensure_tiers_seeded():
     # all estimates". The old `& Material` spelling is normalized to
     # `and Material` so the contractor catalog matches the ISS catalog.
     #
-    # Three migrations run in order:
+    # Four migrations run in order:
     #   (1) tier docs: rename `& Material` section → `and Material`
     #   (2) tier docs: copy items from `Misc. Labor Only` into the
     #       renamed section, then drop the now-redundant section
-    #   (3) saved estimates: rename the section on saved lines, and
+    #   (3) tier docs: dedupe any duplicate `Misc. Labor and Material`
+    #       sections (a previous partial migration may have left two
+    #       with the same title side-by-side)
+    #   (4) saved estimates: rename the section on saved lines, and
     #       move any ad-hoc `misc_labor` rows into `misc_material` so
     #       the single new section renders both legacy buckets.
     # All idempotent — once the tiers + estimates have been migrated,
@@ -267,6 +270,34 @@ async def ensure_tiers_seeded():
                       "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
         logger.info("Merged 'Misc. Labor Only' into 'Misc. Labor and Material' on tier %s", tier["id"])
+    # Dedupe duplicate "Misc. Labor and Material" sections produced by
+    # partial migrations during development. Collapse all into the first
+    # occurrence, union the items by name (later duplicates lose).
+    async for tier in db.price_tiers.find(
+        {"sections.title": "Misc. Labor and Material"},
+        {"_id": 0, "id": 1, "sections": 1},
+    ):
+        sections = tier.get("sections") or []
+        misc_idxs = [i for i, s in enumerate(sections) if s.get("title") == "Misc. Labor and Material"]
+        if len(misc_idxs) < 2:
+            continue
+        keep_idx = misc_idxs[0]
+        seen = {it.get("name") for it in sections[keep_idx].get("items", [])}
+        for dup_idx in misc_idxs[1:]:
+            for it in sections[dup_idx].get("items", []) or []:
+                if it.get("name") and it["name"] not in seen:
+                    sections[keep_idx]["items"].append(it)
+                    seen.add(it["name"])
+        # Pop duplicates from the back so earlier indices stay valid.
+        for dup_idx in sorted(misc_idxs[1:], reverse=True):
+            sections.pop(dup_idx)
+        await db.price_tiers.update_one(
+            {"id": tier["id"]},
+            {"$set": {"sections": sections,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        logger.info("Deduped 'Misc. Labor and Material' (%d → 1) on tier %s",
+                    len(misc_idxs), tier["id"])
     # Rename the section on every saved estimate's `lines[]` array.
     await db.estimates.update_many(
         {"lines": {"$elemMatch": {"section": "Misc. Labor & Material"}}},
