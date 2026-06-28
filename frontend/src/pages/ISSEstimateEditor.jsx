@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lightbulb, Save } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lightbulb, Save, Upload, FileText, Sparkles } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
 import {
   vinylSidingColorGroupsForEstimate,
@@ -32,9 +32,30 @@ import QuoteModal from "@/components/QuoteModal";
 import ISSHoverImportButton from "@/components/estimate/ISSHoverImportButton";
 import AIMeasureButton from "@/components/estimate/AIMeasureButton";
 import BlueprintMeasureButton from "@/components/estimate/BlueprintMeasureButton";
-import { FileText, Printer, Download, ClipboardList } from "lucide-react";
+import { Printer, Download, ClipboardList } from "lucide-react";
 
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+// Iter 78z++++ — Local copy of the JobInfoPanel ToolTile so ISS quotes
+// render the same 3-column measurement-tools row as siding/windows
+// estimates without dragging the heavy JobInfoPanel (and its
+// useEstimate hook) into the ISS page.
+function ISSToolTile({ icon: Icon, label, children, testid, accent = "#7C3AED" }) {
+  return (
+    <div
+      className="border border-[#E4E4E7] bg-white p-3 flex flex-col gap-2 min-w-0"
+      data-testid={testid}
+    >
+      <div className="flex items-center gap-1.5">
+        <Icon className="w-3.5 h-3.5" style={{ color: accent }} />
+        <div className="text-[10px] uppercase tracking-wider font-bold text-[#52525B] truncate">
+          {label}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 items-start">{children}</div>
+    </div>
+  );
+}
 
 export default function ISSEstimateEditor() {
   const { id } = useParams();
@@ -327,65 +348,108 @@ export default function ISSEstimateEditor() {
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] pb-24">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-40 bg-white border-b border-[#E4E4E7]">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+      {/* Iter 78z++++ — Sticky black banner that mirrors the multi-tab
+          StickyBar used on the Vinyl/Ascend page. Single "ISS QUOTE"
+          tab-block on the right so contractors see the same shape
+          across every estimate kind. */}
+      <div className="sell-bar" data-testid="iss-sticky-bar">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center gap-3 sm:gap-6">
           <button
             type="button"
             onClick={() => nav("/dashboard/iss")}
-            className="text-xs font-bold uppercase tracking-[0.18em] text-[#52525B] hover:text-[#09090B] flex items-center gap-1"
+            className="text-white/70 hover:text-white"
+            aria-label="Back"
             data-testid="iss-back-btn"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> ISS Quotes
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">Grand Total</div>
-              <div className="font-mono-num text-lg font-bold text-[#09090B]" data-testid="iss-grand-total">{fmt(grandTotal)}</div>
+          <div className="flex-1 min-w-[180px]">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-white/50">Estimate</div>
+            <div className="font-heading text-base sm:text-lg truncate">
+              {est.customer_name || `Untitled · ${est.estimate_number || ""}`}
             </div>
-            <button
-              type="button"
-              onClick={() => flush({ force: true })}
-              disabled={saving}
-              className="px-4 py-2 bg-[#09090B] text-white hover:bg-[#27272A] disabled:opacity-60 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
-              data-testid="iss-save-btn"
-              title="Save changes now (also auto-saves after each edit)"
+          </div>
+          <div className="flex items-stretch gap-2 sm:gap-3 flex-wrap">
+            <div
+              className="px-3 py-1 border-l border-[#F97316]"
+              data-testid="iss-bar-totals"
             >
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              {saving ? "Saving…" : "Save"}
-            </button>
+              <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-[#F97316]">
+                ISS Quote
+              </div>
+              <div
+                className="font-mono-num text-base sm:text-xl font-bold text-[#F97316]"
+                data-testid="iss-grand-total"
+              >
+                {fmt(grandTotal)}
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-[10px] text-white/50 font-mono-num">
+                  Base {fmt(totals.base)}
+                </span>
+                <span
+                  className="text-[10px] font-mono-num"
+                  style={{ color: totals.profit >= 0 ? "#10B981" : "#F87171" }}
+                >
+                  + {fmt(totals.profit)}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 pt-6">
-        <div className="card p-4 mb-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <section className="card p-5 sm:p-6 mb-6" data-testid="iss-job-info">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
-              ISS Quote · {est.estimate_number || "Draft"}
+            <div className="flex items-center gap-3">
+              <div className="section-tag">Job Information</div>
+              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold">
+                ISS Quote · {est.estimate_number || "Draft"}
+              </div>
             </div>
-            <ISSHoverImportButton est={est} applyLines={applyHoverLines} />
-            <BlueprintMeasureButton est={est} applyLines={applyHoverLines} />
-            <AIMeasureButton
-              kind="iss"
-              address={est?.address}
-              overhangIn={est?.overhang_in ?? 12}
-              estimateId={est?.id}
-              onApply={async ({ measurements }) => {
-                const { buildISSLinesFromMeasurements } = await import(
-                  "@/components/estimate/ISSHoverImportButton"
-                );
-                const rows = buildISSLinesFromMeasurements(measurements || {});
-                await applyHoverLines(rows);
-                // Persist masked-zones summary so the PDF / email can
-                // show "Materials excluded: brick wainscot (220 ft²)".
-                if (measurements?._photo_zones_summary) {
-                  updateField("photo_zones_summary", measurements._photo_zones_summary);
-                  updateField("photo_zones_deducted_sqft", measurements._photo_zones_deducted_sqft || 0);
-                }
-              }}
-            />
+            {saving && (
+              <div className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Saving…
+              </div>
+            )}
           </div>
+
+          {/* Iter 78z++++ — Three equal-width measurement-tool tiles —
+              same shape as JobInfoPanel on siding/windows estimates. */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="iss-measurement-tools-row">
+            <ISSToolTile icon={Upload} label="HOVER PDF" accent="#09090B" testid="iss-tile-hover">
+              <ISSHoverImportButton est={est} applyLines={applyHoverLines} />
+            </ISSToolTile>
+            <ISSToolTile icon={FileText} label="Blueprints" accent="#7C3AED" testid="iss-tile-blueprint">
+              <BlueprintMeasureButton est={est} applyLines={applyHoverLines} />
+            </ISSToolTile>
+            <ISSToolTile icon={Sparkles} label="AI Photo Measure" accent="#7C3AED" testid="iss-tile-ai">
+              <AIMeasureButton
+                kind="iss"
+                address={est?.address}
+                overhangIn={est?.overhang_in ?? 12}
+                estimateId={est?.id}
+                onApply={async ({ measurements }) => {
+                  const { buildISSLinesFromMeasurements } = await import(
+                    "@/components/estimate/ISSHoverImportButton"
+                  );
+                  const rows = buildISSLinesFromMeasurements(measurements || {});
+                  await applyHoverLines(rows);
+                  // Persist masked-zones summary so the PDF / email can
+                  // show "Materials excluded: brick wainscot (220 ft²)".
+                  if (measurements?._photo_zones_summary) {
+                    updateField("photo_zones_summary", measurements._photo_zones_summary);
+                    updateField("photo_zones_deducted_sqft", measurements._photo_zones_deducted_sqft || 0);
+                  }
+                }}
+              />
+            </ISSToolTile>
+          </div>
+        </section>
+
+        <div className="card p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-bold block mb-0.5">Customer</label>
