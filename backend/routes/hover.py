@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from deps import get_current_user
+import lp_smartside_formulas as lp_formulas
 
 # Iter 78q — Phase 3 Deep Verify uses MongoDB to cache rendered elevation
 # page PNGs. The TTL index purges entries 1 hour after creation so we
@@ -522,11 +523,26 @@ HOVER_MAPPING_SPEC = [
         "section": "LP Smart Siding",
         "item": '38 Series Lap 3/8" x 8" x 16\'',
         "unit": "PCS",
-        "extract": lambda m: max(
-            1,
-            round(((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) * 0.11),
+        "extract": lambda m: (
+            # Iter 78ab — when LP_AI_FORMULAS_V1 is enabled, use the
+            # PDF-accurate 8" Lap coverage (9.17 sqft/PCS) + 10% waste
+            # + round-up. Otherwise keep the legacy `sqft × 0.11` math
+            # (≈ 9.09 sqft/PCS, no explicit waste) so existing quotes
+            # don't shift while we're staging.
+            lp_formulas.lap_pieces(
+                (m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0),
+            )
+            if lp_formulas.is_enabled()
+            else max(
+                1,
+                round(((m.get("siding_with_openings_sqft") or m.get("siding_sqft") or 0)) * 0.11),
+            )
         ),
-        "note": "11 PCS per Sq (LP 8\" lap exposure); sqft × 0.11 rounded",
+        "note": lambda m: (
+            f"LP 8\" Lap: ceil(sqft ÷ 9.17 × 1.10) — PDF coverage (LPZB0884)"
+            if lp_formulas.is_enabled()
+            else "11 PCS per Sq (LP 8\" lap exposure); sqft × 0.11 rounded"
+        ),
         "_is_default_siding": True,
     },
     # Iter 68 (2026-06-22) — LP starter-pack auto-fill so HOVER imports
@@ -554,6 +570,9 @@ HOVER_MAPPING_SPEC = [
     # wrap. Per-opening trim LF mirrors the J-channel formula divisors
     # Howard set in Iter 57ee: 14 ft per window, 21 ft per entry, 25 ft
     # per patio (sliding glass), 32 ft per garage door. Sum ÷ 16 (board).
+    # Iter 78ab — when LP_AI_FORMULAS_V1 is enabled AND shakes appear in
+    # the per-profile breakdown, add Howard's 540 belly-band bump per
+    # LP PDF guidance ("recommends 540 Series for shake reveals 7"–10"").
     {
         "tabs": ["lp_smart"],
         "section": "LP SmartSide Trim",
@@ -566,9 +585,42 @@ HOVER_MAPPING_SPEC = [
                 + (m.get("entry_door_count") or 0) * 21
                 + (m.get("patio_door_count") or 0) * 25
                 + (m.get("garage_door_count") or 0) * 32
-            ) / 16),
+            ) / 16) + (
+                lp_formulas.shake_540_series_bump(
+                    float((m.get("_per_profile_sqft") or {}).get("shake") or 0)
+                )
+                if lp_formulas.is_enabled()
+                else 0
+            ),
         ),
-        "note": "Window/entry/patio/garage perimeter wrap ÷ 16",
+        "note": lambda m: (
+            "Window/entry/patio/garage perimeter wrap ÷ 16 + "
+            f"{lp_formulas.shake_540_series_bump(float((m.get('_per_profile_sqft') or {}).get('shake') or 0))} "
+            "shake belly-band pcs (LP PDF)"
+            if lp_formulas.is_enabled()
+               and float((m.get("_per_profile_sqft") or {}).get("shake") or 0) > 0
+            else "Window/entry/patio/garage perimeter wrap ÷ 16"
+        ),
+    },
+    # Iter 78ab — 190 Series Trim 19/32" x 3" x 16' is LP's batten strip
+    # SKU. Only fires when the AI/Blueprint pipeline returned a
+    # board_batten breakdown AND the flag is on. PDF formula:
+    #   batten_LF = wall_sqft × (LF_per_100sqft ÷ 100), default 16" o.c.
+    #   pcs = ceil(batten_LF × 1.10 / 16)
+    {
+        "tabs": ["lp_smart"],
+        "section": "LP SmartSide Trim",
+        "item": '190 Series Trim 19/32" x 3" x 16\'',
+        "unit": "PCS",
+        "extract": lambda m: (
+            lp_formulas.board_batten_batten_pieces(
+                float((m.get("_per_profile_sqft") or {}).get("board_batten") or 0)
+                + float((m.get("_per_profile_sqft") or {}).get("vertical") or 0),
+            )
+            if lp_formulas.is_enabled()
+            else 0
+        ),
+        "note": "190 Series batten strips — wall_sqft × 0.75 LF/sqft ÷ 16 (PDF default 16\" o.c.)",
     },
     # .019 Coil — default 1 ROLL for flashing transitions (siding ↔ brick/
     # stone, kickout flashing, etc.). Contractor zeros it out on pure-
@@ -1449,6 +1501,10 @@ _PROFILE_SKU_MAP: dict[tuple[str, str], tuple[str, str, float]] = {
     ("vertical",     "ascend"):   ('Ascend Composite B&B 12" (add 30% Waste)',             "SQ", 100.0),
     # Shake has no Ascend SKU — skipped.
     # ---- LP tab — 38 Series + Shake + Nickel Gap ---------------------
+    # Legacy uniform 9.09 sqft/PCS conversion. When LP_AI_FORMULAS_V1 is
+    # enabled, `_lp_profile_sku_entry()` below overrides these with the
+    # PDF-accurate per-profile coverage (8" Lap = 9.17, Shake @ 7" = 2.33,
+    # etc.) per Howard's master LP reference (2026-02-28).
     ("lap",          "lp_smart"): ('38 Series Lap 3/8" x 8" x 16\'', "PCS", 100.0 / 11),  # ≈9.09 sqft/pc
     ("dutch_lap",    "lp_smart"): ('38 Series Lap 3/8" x 8" x 16\'', "PCS", 100.0 / 11),
     ("shake",        "lp_smart"): ('Shake',                          "PCS", 100.0 / 11),
@@ -1456,6 +1512,44 @@ _PROFILE_SKU_MAP: dict[tuple[str, str], tuple[str, str, float]] = {
     ("board_batten", "lp_smart"): ('38 Series Vertical Panel',       "PCS", 32.0),
     ("vertical",     "lp_smart"): ('38 Series Vertical Panel',       "PCS", 32.0),
 }
+
+
+def _lp_profile_sku_entry(family: str) -> tuple[str, str, float] | None:
+    """Iter 78ab — When `LP_AI_FORMULAS_V1` is enabled, return the LP
+    SKU + accurate per-profile coverage rate from the PDF formulas
+    (8" Lap / 16" Soffit / 7" shake reveal defaults). Else None so
+    the caller falls back to the legacy `_PROFILE_SKU_MAP` row.
+
+    Coverage rates are sqft per PCS — keep the unit aligned with the
+    legacy map so the qty math (`sqft / sqft_per_unit`) is unchanged.
+    """
+    if not lp_formulas.is_enabled():
+        return None
+    if family in ("lap", "dutch_lap"):
+        return (
+            '38 Series Lap 3/8" x 8" x 16\'',
+            "PCS",
+            lp_formulas.lap_coverage_sqft_per_pc(),  # default 8" Lap
+        )
+    if family == "shake":
+        return (
+            'Shake',
+            "PCS",
+            lp_formulas.shake_coverage_sqft_per_pc(lp_formulas.DEFAULT_SHAKE_REVEAL_INCHES),
+        )
+    if family == "nickel_gap":
+        return (
+            'Nickel Gap',
+            "PCS",
+            lp_formulas.NICKEL_GAP_COVERAGE_SQFT_PER_PC,
+        )
+    if family in ("board_batten", "vertical"):
+        return (
+            "38 Series 4' x 10' Panel",
+            "PCS",
+            lp_formulas.BB_PANEL_COVERAGE_SQFT,
+        )
+    return None
 
 # Section per tab for the per-profile siding lines (keyed by tab).
 _PROFILE_SECTION_BY_TAB = {
@@ -1490,13 +1584,26 @@ def _profile_siding_lines(measurements: dict) -> list[dict]:
     for tab in ("vinyl", "ascend", "lp_smart"):
         section = _PROFILE_SECTION_BY_TAB[tab]
         for family, sqft in positive.items():
-            sku = _PROFILE_SKU_MAP.get((family, tab))
+            # Iter 78ab — flag-aware LP override. When
+            # LP_AI_FORMULAS_V1 is ON, swap the legacy 9.09 sqft/PCS
+            # row for the PDF-accurate per-profile coverage rate.
+            sku = None
+            if tab == "lp_smart":
+                sku = _lp_profile_sku_entry(family)
+            if sku is None:
+                sku = _PROFILE_SKU_MAP.get((family, tab))
             if not sku:
                 continue
             item, unit, sqft_per_unit = sku
             if sqft_per_unit <= 0:
                 continue
-            qty = round(sqft / sqft_per_unit, 1)
+            # Iter 78ab — LP tab applies 10% waste + round-up per PDF.
+            # Vinyl + Ascend keep the legacy 1-decimal quantity to
+            # preserve existing quote behaviour.
+            if tab == "lp_smart" and lp_formulas.is_enabled():
+                qty = lp_formulas.pieces_needed(sqft, sqft_per_unit)
+            else:
+                qty = round(sqft / sqft_per_unit, 1)
             if qty <= 0:
                 continue
             out.append({
