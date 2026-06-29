@@ -93,6 +93,14 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
     "Ascend Cladding",
     "LP Smart Siding",
   ]);
+  // Iter 78aj — soffit sections show a tiny "Includes XXX sqft of
+  // porch ceiling" caption below the items so the homeowner sees
+  // exactly what they're paying for instead of wondering "why is the
+  // soffit count higher than I expected?".
+  const SOFFIT_SECTIONS = new Set([
+    "Vinyl Soffit with Siding",
+    "LP SmartSide Soffit",
+  ]);
   const zonesSummary = (estimate.photo_zones_summary || "").trim();
   const zonesDeducted = Number(estimate.photo_zones_deducted_sqft || 0);
   const renderExcludedNote = () =>
@@ -104,6 +112,36 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
         </td>
       </tr>`
       : "";
+
+  // Iter 78aj — porch ceiling caption: "Includes 220 sqft of porch
+  // ceiling (Front Porch 22'×10')". Only renders when the estimate has
+  // at least one porch with non-zero area.
+  const porches = Array.isArray(estimate.porch_ceilings) ? estimate.porch_ceilings : [];
+  const sizedPorches = porches.filter(
+    (p) => (Number(p.length_ft) || 0) > 0 && (Number(p.width_ft) || 0) > 0
+  );
+  const porchTotalSqft = sizedPorches.reduce(
+    (s, p) => s + Number(p.length_ft) * Number(p.width_ft),
+    0
+  );
+  const renderPorchCeilingNote = () => {
+    if (porchTotalSqft <= 0) return "";
+    const plural = sizedPorches.length > 1 ? "s" : "";
+    const label = t("email.porchCeilingsIncluded").replace("{plural}", plural);
+    const detail = sizedPorches
+      .map((p) => {
+        const tag = (p.label || "").trim();
+        const dims = `${Number(p.length_ft)}'×${Number(p.width_ft)}'`;
+        return tag ? `${esc(tag)} ${dims}` : dims;
+      })
+      .join(" · ");
+    return `
+      <tr>
+        <td style="padding:6px 0 10px 0;font-family:${FONT};font-size:12px;color:${C.muted};font-style:italic;border-bottom:1px solid ${C.line};">
+          ${esc(label)}: <strong style="color:${C.ink};">${Math.round(porchTotalSqft)} ft²</strong> <span style="color:${C.faint};">(${detail})</span>
+        </td>
+      </tr>`;
+  };
 
   const sectionBlock = ([section, items]) => `
     <tr><td style="padding:18px 0 6px 0;font-family:${FONT};font-size:11px;font-weight:bold;letter-spacing:1.8px;text-transform:uppercase;color:${C.accent};border-bottom:1px solid ${C.ink};">${esc(tSection(section, lang))}</td></tr>
@@ -123,6 +161,7 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
       )
       .join("")}
     ${SIDING_SECTIONS.has(section) ? renderExcludedNote() : ""}
+    ${SOFFIT_SECTIONS.has(section) ? renderPorchCeilingNote() : ""}
   `;
 
   const photoGrid = (estimate.photos || []).length
