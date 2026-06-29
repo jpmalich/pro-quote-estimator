@@ -811,7 +811,7 @@ function NumField({ label, value, onChange, testid, minWidth = 78, isQty = false
 const BASE_INCLUDED_ITEMS = [
   "Climatech Plus glass (standard insulating package)",
   "White interior / White exterior frame",
-  "Standard half screen (Bright White)",
+  "Full Flex Screen (standard)",
   "Tilt-out sashes + standard cam locks",
 ];
 
