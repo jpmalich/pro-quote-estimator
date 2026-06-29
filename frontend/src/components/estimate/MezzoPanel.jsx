@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import DOMPurify from "dompurify";
-import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote } from "lucide-react";
+import { Plus, Trash2, X, ChevronDown, ChevronRight, StickyNote, HelpCircle } from "lucide-react";
 import { v4 as uuid } from "uuid";
 import { useT, useLang } from "@/lib/i18n";
 import { tSection } from "@/lib/catalogTranslations";
@@ -594,23 +594,26 @@ function OpeningRow({
 
       {inRange && (
         <div className="mt-2">
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-bold text-[#52525B] hover:text-[#09090B]"
-            data-testid={`mezzo-adders-toggle-${op.id}`}
-          >
-            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            {t("win.upgradeOptions")}
-            {(op.adders || []).length > 0 && (
-              <span className="bg-[#F97316] text-white px-2 py-0.5 text-[10px] tracking-wider font-bold normal-case">
-                {op.adders.length}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-bold text-[#52525B] hover:text-[#09090B]"
+              data-testid={`mezzo-adders-toggle-${op.id}`}
+            >
+              {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              {t("win.upgradeOptions")}
+              {(op.adders || []).length > 0 && (
+                <span className="bg-[#F97316] text-white px-2 py-0.5 text-[10px] tracking-wider font-bold normal-case">
+                  {op.adders.length}
+                </span>
+              )}
+              <span className="font-mono-num text-[#52525B] normal-case tracking-normal ml-1">
+                {addersTotal > 0 ? `+${fmt(addersTotal)}` : ""}
               </span>
-            )}
-            <span className="font-mono-num text-[#52525B] normal-case tracking-normal ml-1">
-              {addersTotal > 0 ? `+${fmt(addersTotal)}` : ""}
-            </span>
-          </button>
+            </button>
+            <MezzoBaseIncludedHint testid={`mezzo-base-included-${op.id}`} />
+          </div>
           {isExpanded && (
             <div className="mt-2 pl-5 pb-2 space-y-2">
               {ADDER_ROWS.map((rowNames, rowIdx) => {
@@ -700,6 +703,84 @@ function OpeningRow({
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+
+// Iter 78aa+ — Inline "What's included in the base price?" popover.
+// Mezzo ships with Climatech Plus glass + an aluminum 1/2 screen,
+// so contractors shouldn't double-bill those as upgrades.
+const MEZZO_BASE_INCLUDED_ITEMS = [
+  "Climatech Plus glass (standard insulating package)",
+  "White interior / White exterior frame",
+  "Aluminum 1/2 Screen (standard)",
+  "Tilt-out sashes + standard cam locks",
+];
+
+function MezzoBaseIncludedHint({ testid }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className={`flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] font-bold px-1.5 py-0.5 border ${
+          open
+            ? "border-[#09090B] bg-[#09090B] text-white"
+            : "border-[#E4E4E7] bg-white text-[#71717A] hover:text-[#09090B] hover:border-[#09090B]"
+        }`}
+        title="What's included in the base price?"
+        aria-expanded={open}
+        data-testid={testid}
+      >
+        <HelpCircle className="w-3 h-3" />
+        Base includes
+      </button>
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+            data-testid={`${testid}-backdrop`}
+          />
+          <div
+            className="absolute z-50 left-0 top-full mt-1 w-72 bg-white border border-[#09090B] shadow-lg p-3"
+            data-testid={`${testid}-popover`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#09090B]">
+                Included in base price
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-[#71717A] hover:text-[#09090B] -mt-0.5"
+                title="Close"
+                data-testid={`${testid}-close`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <ul className="space-y-1 text-[11px] text-[#3F3F46] leading-snug">
+              {MEZZO_BASE_INCLUDED_ITEMS.map((item) => (
+                <li key={item} className="flex items-start gap-1.5">
+                  <span className="text-[#F97316] font-bold mt-px">·</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 pt-2 border-t border-[#E4E4E7] text-[10px] text-[#71717A] leading-snug">
+              Pick an Upgrade Option only to <em>change</em> one of these
+              (e.g., upgrade glass from Climatech Plus → Climatech TG2 Plus).
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
