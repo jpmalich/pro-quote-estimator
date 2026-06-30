@@ -883,8 +883,14 @@ async def _execute_ai_blueprint_worker(
         if annotation_hint:
             prompt_parts.append(annotation_hint)
         user_text = "\n".join(prompt_parts)
-        reply_text = await chat.send_message(
-            UserMessage(text=user_text, file_contents=image_contents),
+        # Iter 79e — same 4-min Claude wall-clock cap as the HOVER + AI
+        # Measure workers. Stops the run doc from getting stuck at
+        # `status: "running"` if Claude stalls on a big plan-sheet set.
+        reply_text = await asyncio.wait_for(
+            chat.send_message(
+                UserMessage(text=user_text, file_contents=image_contents),
+            ),
+            timeout=240,
         )
 
         await _set_stage("aggregating")

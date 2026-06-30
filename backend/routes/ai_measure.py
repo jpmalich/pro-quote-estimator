@@ -1815,8 +1815,17 @@ async def _execute_ai_measure_worker(
             prompt_parts.append(annotation_hint)
         user_text = "\n".join(prompt_parts)
 
-        reply_text = await chat.send_message(
-            UserMessage(text=user_text, file_contents=image_contents),
+        # Iter 79e — same 4-min Claude wall-clock cap as the HOVER worker.
+        # If Claude is unresponsive (rare, but the LLM provider can stall),
+        # the asyncio.wait_for raises TimeoutError → outer except flips
+        # the run doc to `status: "error"` instead of leaving it orphaned
+        # at `status: "running"` indefinitely. Frontend polls a 5-min cap
+        # so this aligns to a clean client-side error message.
+        reply_text = await asyncio.wait_for(
+            chat.send_message(
+                UserMessage(text=user_text, file_contents=image_contents),
+            ),
+            timeout=240,
         )
         raw = _json_from_reply(reply_text or "")
 
@@ -1836,7 +1845,14 @@ async def _execute_ai_measure_worker(
                     _run_dormer_pass_for_photo(api_key, user_id, raw_bytes, elev, idx)
                 )
             if dormer_coros:
-                results = await asyncio.gather(*dormer_coros, return_exceptions=True)
+                # Iter 79e — also cap the parallel dormer scan. 300 s is
+                # comfortably above the realistic p99 (12 photos × ~20 s
+                # each in parallel ≈ 30 s wall-clock) but stops a single
+                # stuck request from holding up the whole run.
+                results = await asyncio.wait_for(
+                    asyncio.gather(*dormer_coros, return_exceptions=True),
+                    timeout=300,
+                )
                 all_hits: list[dict] = []
                 for r in results:
                     if isinstance(r, list):

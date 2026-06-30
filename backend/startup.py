@@ -45,6 +45,21 @@ async def run_startup():
         "created_at", expireAfterSeconds=86400,
     )
 
+    # Iter 79e — same 24h TTL + unique run_id on the sibling async-run
+    # collections so they don't accumulate forever. Each doc holds image
+    # payloads + result objects (non-trivial size). Contractors always
+    # poll the result inside the 5-min frontend window, so a day is more
+    # than enough retention. Run docs include both AI Measure (photo
+    # takeoffs) + AI Blueprint (PDF plan-sheet takeoffs).
+    await db.ai_measure_runs.create_index("run_id", unique=True)
+    await db.ai_measure_runs.create_index(
+        "created_at", expireAfterSeconds=86400,
+    )
+    await db.ai_blueprint_runs.create_index("run_id", unique=True)
+    await db.ai_blueprint_runs.create_index(
+        "created_at", expireAfterSeconds=86400,
+    )
+
     # Seed the 4 price tiers
     await ensure_tiers_seeded()
 
