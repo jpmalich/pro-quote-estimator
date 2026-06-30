@@ -12,7 +12,6 @@ import { Upload, FileText, Check, X, Loader2, AlertTriangle, Printer } from "luc
 import { toast } from "sonner";
 import api from "@/lib/api";
 import TakeoffReconCard from "@/components/estimate/TakeoffReconCard";
-import { getSavedWasteDefault } from "@/lib/wasteDefaults";
 import { bakeWasteIntoLines, steerLpSoffit } from "@/lib/wasteLogic";
 // Iter 78t — same elevation drawing component as AI Measure, fed from
 // Phase 2 vision data (`per_elevation_siding_from_drawing`).
@@ -135,17 +134,21 @@ export default function HoverImportButton({ est, update, save }) {
 
   const upload = async (f) => {
     if (!f) return;
-    // Iter 78 — silent auto-apply of the per-workspace default Waste %.
-    // No prompt here (HOVER reports already include their own waste row);
-    // we just respect the contractor's saved default so the
-    // reconciliation card shows the right "Order @ X%" column. The
-    // Blueprint button is the one place that prompts.
+    // Iter 79c (Feb 2026): Howard's directive — force waste_pct = 0 on
+    // every HOVER upload. HOVER's siding sqft already includes its own
+    // waste (the report literally has a "+ Openings < 20ft² +10%" line),
+    // so any contractor-side waste % on top is double-counting.
+    //
+    // The Waste % input on the SettingsRow stays editable so the
+    // contractor can bump it up manually if they want extra (e.g.
+    // a tear-off with a lot of cut waste) — but the auto-applied
+    // saved default is no longer used for HOVER imports. The Blueprint
+    // button keeps its own prompt-based UX since blueprint takeoffs
+    // don't pre-bake waste.
     if (typeof update === "function") {
-      const kind = est?.kind || "siding";
       const currentWaste = Number(est?.waste_pct ?? 0);
-      if (currentWaste <= 0) {
-        const saved = getSavedWasteDefault(kind);
-        if (saved) update({ waste_pct: saved });
+      if (currentWaste !== 0) {
+        update({ waste_pct: 0 });
       }
     }
     setBusy(true);
@@ -266,12 +269,13 @@ export default function HoverImportButton({ est, update, save }) {
     const pairedMezzoOpenings = srcKind === "windows" ? [] : openings.map(veroToMezzo);
 
     // ─── Merge SOURCE-side lines into the current estimate ─────────────────
-    // Iter 78 — bake the contractor's Waste % into qty for cut-prone items
-    // before merging. Siding/soffit/J/finish-trim/corners/starter lines
-    // come out already scaled (e.g. 18 SQ → 24 SQ at 33% waste) and stash
-    // the original raw measurement in `raw_qty` so waste-% changes can
-    // recompute later.
-    const wastePct = Number(est?.waste_pct) || 0;
+    // Iter 79c (Feb 2026): Howard forced waste_pct = 0 on HOVER imports
+    // (above, at the top of upload()). Bake 0% here so the merged lines
+    // don't carry stale waste from the pre-import `est` closure. The
+    // contractor can bump waste % manually after import — `bakeWasteIntoLines`
+    // re-runs (via the SettingsRow recompute hook) and re-scales those
+    // same lines when the % changes.
+    const wastePct = 0;
     const soffitType = est?.lp_soffit_type || "mix";
     const wastedSource = steerLpSoffit(bakeWasteIntoLines(sourceLines, wastePct), soffitType);
     const wastedPaired = steerLpSoffit(bakeWasteIntoLines(pairedLines, wastePct), soffitType);
@@ -420,6 +424,12 @@ export default function HoverImportButton({ est, update, save }) {
       toast.success(
         `Imported HOVER: ${added} new + ${updated} updated${winNote} · saved${pairedMsg}`
       );
+      // Iter 79c — friendly reminder that HOVER waste-baked sqft means the
+      // estimate's Waste % was reset to 0. Contractors can still bump it
+      // manually in Job Info → Waste Factor if they want extra cut waste.
+      toast.info("Waste % reset to 0 — HOVER's sqft already includes waste. Bump it manually if you need extra.", {
+        duration: 6000,
+      });
     } catch (e) {
       toast.error(e?.response?.data?.detail || e?.message || "Saved locally but failed to persist — click Save");
     } finally {
