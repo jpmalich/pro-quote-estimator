@@ -881,3 +881,9 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 
 ## Refactor (later, once flow is stable)
 - Split `PhotoAnnotateModal.jsx` (1600+ lines) into per-step components
+
+- **Iter 79j.3 — Guided Mask/Profile Polygon option restored (2026-02-28)**: Howard reported step 4 (Mask) and step 5 (Profile) only offered the Rectangle drawing option — the Polygon toggle was missing entirely in guided flow. Root cause: the classic-toolbar `{!guidedFlow && ...}` JSX gate wrapped the ENTIRE mode-toolbar section, including the MODE_ZONE and MODE_PROFILE sub-panels that own the Rectangle/Polygon shape toggle + category/family picker + polygon Close/Cancel buttons. In guided mode those sub-panels never rendered.
+  - **Fix**: Restructured `PhotoAnnotateModal.jsx` so only the 6-mode top-toolbar button grid (Pin/Wall/Window/Mask/Style/Profile) and the 'Existing annotations' summary lists stay hidden in guided flow. The MODE_ZONE sub-panel (mask shape toggle + 5 zone categories + polygon Close/Cancel) and the MODE_PROFILE sub-panel (profile shape toggle + 9 family picker + polygon Close/Cancel) now render unconditionally whenever their mode is active.
+  - **Verification**: `testing_agent_v3_fork` iter 29 — 100% pass. All 9 verification points confirmed: Rectangle + Polygon both visible on Mask and Profile, top toolbar hidden, existing-annotations block hidden, Polygon click toggles active state correctly, zone-category and profile-family grids render as expected.
+  - **Files**: `frontend/src/components/estimate/PhotoAnnotateModal.jsx` only. Lint clean.
+  - **Status**: SHIPPED + testing agent verified. USER VERIFICATION PENDING.
