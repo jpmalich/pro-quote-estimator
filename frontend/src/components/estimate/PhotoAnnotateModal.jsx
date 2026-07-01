@@ -254,8 +254,8 @@ export default function PhotoAnnotateModal({
       { key: "wall", mode: MODE_SCALE, banner: "Wall Measurement — tap two points on a known span (door height, garage height, eave-to-ground) then enter its real length", skipLabel: null },
       { key: "window-measure", mode: MODE_SCALE_WINDOW, banner: "Window Measurement — tap two points on ONE known window edge (e.g. a 36\" wide window), then enter its real dimension. Gives Claude per-window sizing precision (±5%).", skipLabel: "Skip · no window to calibrate" },
       { key: "window-style", mode: MODE_WINDOW, banner: "Window Style — tap each window on this wall to place it and tag its style (double-hung, casement, picture, etc.)", skipLabel: "Skip · no windows on this wall" },
-      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw a rectangle OR polygon around brick / stone / masonry areas that are NOT getting new siding", skipLabel: "Skip · nothing to mask" },
-      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw a rectangle OR polygon around each siding profile family (Lap · Shake · B&B · Vertical · etc). Skip if this whole wall is one profile.", skipLabel: "Skip · single profile" },
+      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw a rectangle OR polygon around brick / stone / masonry areas that are NOT getting new siding. Tip: tap your first polygon point again to close.", skipLabel: "Skip · nothing to mask" },
+      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw a rectangle OR polygon around each siding profile family (Lap · Shake · B&B · Vertical · etc). Tap your first polygon point again to close. Skip if this whole wall is one profile.", skipLabel: "Skip · single profile" },
     ];
   }, [guidedFlow]);
   const [guidedStepIdx, setGuidedStepIdx] = useState(0);
@@ -575,7 +575,25 @@ export default function PhotoAnnotateModal({
         setPending(null);
         return;
       }
-      // polygon
+      // polygon — Iter 79j.4: snap-close when tap lands within
+      // ~20 screen px of the first vertex (≥3 pts already placed).
+      if (polyPoints.length >= 3 && _isNearFirstPoint(p, polyPoints[0])) {
+        const sqft = _computeProfileSqft(polyPoints, localRef);
+        setLocalProfileBoxes((prev) => [
+          ...prev,
+          {
+            id: `p-${Date.now()}`,
+            shape: "polygon",
+            points: polyPoints,
+            profile: profileFamily,
+            location: "body",
+            sqft,
+            note: "",
+          },
+        ]);
+        setPolyPoints([]);
+        return;
+      }
       setPolyPoints((prev) => [...prev, p]);
       return;
     }
@@ -598,7 +616,29 @@ export default function PhotoAnnotateModal({
       setPending(null);
       return;
     }
+    // MODE_ZONE polygon — same snap-close behavior as profile
+    if (polyPoints.length >= 3 && _isNearFirstPoint(p, polyPoints[0])) {
+      setLocalZones((prev) => [
+        ...prev,
+        { id: `z-${Date.now()}`, kind: "poly", category: zoneCategory, points: polyPoints },
+      ]);
+      setPolyPoints([]);
+      return;
+    }
     setPolyPoints((prev) => [...prev, p]);
+  };
+
+  // Iter 79j.4 — snap-close helper. Threshold is ~18 screen pixels
+  // converted to photo coords via current zoom, so it feels the same
+  // whether the contractor is zoomed in on an iPad or looking at the
+  // full photo on desktop. Floor of 8 photo-px guarantees a usable
+  // hit area even at extreme zoom.
+  const _isNearFirstPoint = (p, first) => {
+    if (!p || !first) return false;
+    const thresholdPhotoPx = Math.max(8, 18 / Math.max(0.25, zoom));
+    const dx = p.x - first.x;
+    const dy = p.y - first.y;
+    return (dx * dx + dy * dy) <= (thresholdPhotoPx * thresholdPhotoPx);
   };
 
   // Iter 78z+++ — Wall-Anchor-driven sqft for profile boxes. Returns
@@ -919,12 +959,23 @@ export default function PhotoAnnotateModal({
         {mode === MODE_ZONE && zoneShape === "poly" && polyPoints.length > 0 && (() => {
           const c = ZONE_CATEGORIES.find((x) => x.key === zoneCategory) || ZONE_CATEGORIES[0];
           const d = polyPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+          // Iter 79j.4 — snap-close visual cue on the first vertex
+          const canSnap = polyPoints.length >= 3 && hoverPoint && _isNearFirstPoint(hoverPoint, polyPoints[0]);
+          const r0 = Math.max(5, photo.width / 350);
           return (
             <g>
               <path d={d} fill="none" stroke={c.color} strokeWidth={Math.max(3, photo.width / 600)} strokeDasharray="8 4" />
               {polyPoints.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={Math.max(5, photo.width / 350)} fill={c.color} />
+                <circle key={i} cx={p.x} cy={p.y} r={i === 0 && polyPoints.length >= 3 ? r0 * 1.4 : r0} fill={c.color} />
               ))}
+              {polyPoints.length >= 3 && (
+                <circle cx={polyPoints[0].x} cy={polyPoints[0].y}
+                        r={r0 * (canSnap ? 3.2 : 2.4)}
+                        fill="none" stroke={c.color}
+                        strokeWidth={Math.max(2, photo.width / 800)}
+                        strokeDasharray={canSnap ? "none" : "4 3"}
+                        opacity={canSnap ? 1 : 0.6} />
+              )}
             </g>
           );
         })()}
@@ -964,12 +1015,23 @@ export default function PhotoAnnotateModal({
           const d = previewPts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
           const live = polyPoints.length >= 2 ? _computeProfileSqft(previewPts, localRef) : null;
           const fontPx = Math.max(13, photo.width / 75);
+          // Iter 79j.4 — snap-close visual cue
+          const canSnap = polyPoints.length >= 3 && hoverPoint && _isNearFirstPoint(hoverPoint, polyPoints[0]);
+          const r0 = Math.max(5, photo.width / 350);
           return (
             <g>
               <path d={d} fill="none" stroke={fam.fg} strokeWidth={Math.max(3, photo.width / 600)} strokeDasharray="8 4" />
               {polyPoints.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={Math.max(5, photo.width / 350)} fill={fam.fg} />
+                <circle key={i} cx={p.x} cy={p.y} r={i === 0 && polyPoints.length >= 3 ? r0 * 1.4 : r0} fill={fam.fg} />
               ))}
+              {polyPoints.length >= 3 && (
+                <circle cx={polyPoints[0].x} cy={polyPoints[0].y}
+                        r={r0 * (canSnap ? 3.2 : 2.4)}
+                        fill="none" stroke={fam.fg}
+                        strokeWidth={Math.max(2, photo.width / 800)}
+                        strokeDasharray={canSnap ? "none" : "4 3"}
+                        opacity={canSnap ? 1 : 0.6} />
+              )}
               {live != null && polyPoints.length >= 2 && (
                 <>
                   <rect x={polyPoints[0].x - 70} y={polyPoints[0].y - fontPx - 14}
