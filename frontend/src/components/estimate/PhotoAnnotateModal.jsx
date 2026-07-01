@@ -245,11 +245,11 @@ export default function PhotoAnnotateModal({
     }
     // Default 5-step sequence per Howard's spec.
     return [
-      { key: "wall", mode: MODE_SCALE, banner: "Wall Scale — tap two points on a known span, then enter its real length in ft/in", skipLabel: null },
-      { key: "window", mode: MODE_WINDOW, banner: "Windows — tap each window to mark it and set its style", skipLabel: "Skip · no windows" },
-      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw around brick / stone / masonry areas that aren't getting siding", skipLabel: "Skip · nothing to mask" },
-      { key: "style", mode: MODE_WINDOW, banner: "Confirm Styles — tap any window to change its style if needed", skipLabel: "Skip · styles are good" },
-      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw regions for each siding profile family (Lap / Shake / B&B / etc)", skipLabel: "Skip · single profile" },
+      { key: "wall", mode: MODE_SCALE, banner: "Wall Scale — tap two points on a known span (door height, garage height, eave-to-ground) then enter its real length", skipLabel: null },
+      { key: "window", mode: MODE_WINDOW, banner: "Mark Windows — tap each window on this wall to place it. A style picker opens so you can tag it as you go.", skipLabel: "Skip · no windows on this wall" },
+      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw around brick / stone / masonry areas that are NOT getting new siding", skipLabel: "Skip · nothing to mask" },
+      { key: "style", mode: MODE_WINDOW, banner: "Review Window Styles — tap any window you already marked to CHANGE its style if it's wrong. Skip if the tags are already correct.", skipLabel: "Skip · styles are correct" },
+      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw regions for each siding profile family (Lap · Shake · B&B · Vertical · etc). Skip if this whole wall is a single profile.", skipLabel: "Skip · single profile" },
     ];
   }, [guidedFlow]);
   const [guidedStepIdx, setGuidedStepIdx] = useState(0);
@@ -1271,7 +1271,7 @@ export default function PhotoAnnotateModal({
             >
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="text-xs uppercase tracking-wider font-bold text-[#7C3AED]">
-                  Step {guidedStepIdx + 1} of {guidedSteps.length} · {guidedSteps[guidedStepIdx]?.key}
+                  Step {guidedStepIdx + 1} of {guidedSteps.length}
                 </div>
                 <div className="flex items-center gap-1">
                   {guidedSteps.map((_s, i) => (
@@ -1288,7 +1288,18 @@ export default function PhotoAnnotateModal({
                   ))}
                 </div>
               </div>
-              <div className="text-sm text-[#09090B] font-medium mb-3">
+              {/* Iter 79j.1 (Feb 2026) — big friendly step title so
+                  contractors can see AT A GLANCE which step they're on.
+                  Fixes the "banner says both Window and Style, which one
+                  am I on?" confusion Howard hit. */}
+              <div className="text-lg font-heading font-bold text-[#09090B] uppercase tracking-wider mb-1">
+                {guidedSteps[guidedStepIdx]?.key === "wall" && "🎯 Wall Scale"}
+                {guidedSteps[guidedStepIdx]?.key === "window" && "🪟 Mark Windows"}
+                {guidedSteps[guidedStepIdx]?.key === "mask" && "🧱 Mask (brick / stone)"}
+                {guidedSteps[guidedStepIdx]?.key === "style" && "🎨 Review Window Styles"}
+                {guidedSteps[guidedStepIdx]?.key === "profile" && "🏠 Profile"}
+              </div>
+              <div className="text-sm text-[#52525B] font-medium mb-3">
                 {guidedSteps[guidedStepIdx]?.banner}
               </div>
               <div className="flex flex-wrap gap-2 items-center">

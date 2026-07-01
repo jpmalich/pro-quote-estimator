@@ -1,0 +1,26 @@
+{
+  "summary": "Iter 79j.1 guided-flow banner rewrite verified end-to-end. Logged in as Howard (hhunt6677@yahoo.com), created a fresh Vinyl+Ascend estimate (EST-780795), opened AI Measure → Guided Capture, uploaded /tmp/dummy.png for Step 1/Front elevation. PhotoAnnotateModal auto-opened after ~1s. Walked all 5 guided steps and captured banner text + progress-dot counts at each stage; every assertion passed. Modal closed on Save & Continue and outer GuidedCaptureWizard auto-advanced from Step 1 (Front) to Step 2 (Front-Left Corner).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PhotoAnnotateModal guided banner (big title)", "issues": ["The big-title text is styled uppercase + wide tracking with a leading emoji. On the rendered screenshot the emoji-to-text kerning is tight (e.g. '🪟 MARK WINDOWS' visually reads like the emoji is bumping into the M). Purely cosmetic, does NOT affect the fix (each step has a distinct emoji + label). Not blocking."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PhotoAnnotateModal.jsx:721 handleGuidedNext advances setGuidedStepIdx unconditionally — no gating on whether the current step actually has data. That means a contractor can hit Next on Step 1 (Wall Scale) without placing a scale ref and still move on to Step 2. Scale is described as 'required' in the code comment above (line 268-269) but the code does not enforce it. Consider disabling Next on Step 1 until localRef is set, or at least showing a soft-warn toast. (Note: this actually made the test possible without a real photo, so it isn't necessarily wrong — just worth confirming with the PO.)",
+    "PhotoAnnotateModal.jsx:1296-1300 the 5 big-title strings are hard-coded inline via chained short-circuit expressions on step.key. If guidedFlow.steps is customized by a caller (line 243), any key not in {wall,window,mask,style,profile} renders the small caption but no big title. Consider moving the emoji+title into each step object (e.g. step.title, step.emoji) so custom flows still get a visible header.",
+    "GuidedCaptureWizard.jsx:301 setTimeout(() => setAnnotateOpen(true), 100) auto-fires the annotator only on non-aerial steps. If a contractor lands on the wizard, takes a photo, then hits Retake before the 100ms fires, the annotator will still open with the STALE (retaken-away) photo url. Consider clearing the pending setTimeout on retake."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test per request)", "frontend": "100% — all 5 step banners, progress dots, skip labels, Save&Continue label, and outer-wizard auto-advance verified"},
+  "test_credentials": "hhunt6677@yahoo.com / Admin123! (verified working via /api/auth/login)",
+  "seed_data_creation": "Created new estimate EST-780795 in Vinyl+Ascend workspace (empty previous list). Used /tmp/dummy.png (600x400 lightgray PNG) as the Front elevation photo.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The 5-step guided banner sequence in PhotoAnnotateModal is confirmed correct and each step is visually distinct. Verified banner texts (case-insensitive):\n Step 1 = '🎯 WALL SCALE' / 'Wall Scale — tap two points on a known span...' / dots 0G/1P/4Gy / no skip button\n Step 2 = '🪟 MARK WINDOWS' / 'Mark Windows — tap each window on this wall...' / dots 1G/1P/3Gy / skip 'SKIP · NO WINDOWS ON THIS WALL'\n Step 3 = '🧱 MASK (BRICK / STONE)' / 'Mask — draw around brick / stone / masonry...' / dots 2G/1P/2Gy / skip 'SKIP · NOTHING TO MASK'\n Step 4 = '🎨 REVIEW WINDOW STYLES' / '...CHANGE its style if it's wrong' / dots 3G/1P/1Gy / skip 'SKIP · STYLES ARE CORRECT'\n Step 5 = '🏠 PROFILE' / 'Profile — draw regions for each siding profile family...' / dots 4G/1P/0Gy / green button reads 'SAVE & CONTINUE' / skip 'SKIP · SINGLE PROFILE'\n\nHoward's original regression report ('jumped from wall scale to window style') is definitively fixed — Step 2 shows '🪟 MARK WINDOWS' not '🎨 REVIEW WINDOW STYLES', and the two are visually distinct via the big emoji title + counter row above.",
+  "rca of the issue": "No blocker found. Fix is complete and correct.\n- guidedSteps array (PhotoAnnotateModal.jsx:247-253) defines wall→window→mask→style→profile with distinct banner strings that no longer overlap on the word 'style'.\n- Big emoji title block (PhotoAnnotateModal.jsx:1295-1301) renders '🎯 Wall Scale', '🪟 Mark Windows', '🧱 Mask (brick / stone)', '🎨 Review Window Styles', '🏠 Profile' — each unique.\n- handleGuidedNext (PhotoAnnotateModal.jsx:721-740) does setGuidedStepIdx+1 exactly once per click and updates mode + clears per-mode pending state. Verified via UI: clicking Next/Skip once advances by exactly one step every time; progress-dot counts (green=completed, purple=current, grey=remaining) match expected values 1-5.\n- On the last step, Save & Continue calls save() → onClose() then fires guidedFlow.onFinish on next tick (setTimeout 0). onFinish in GuidedCaptureWizard.jsx:654 does setStepIdx+1, which correctly advanced the outer wizard from 'Step 1 of 9 · FRONT' to 'Step 2 of 9 · FRONT-LEFT CORNER'."
+}
