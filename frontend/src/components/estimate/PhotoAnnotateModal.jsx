@@ -789,6 +789,27 @@ export default function PhotoAnnotateModal({
   };
   const handleGuidedSkip = () => handleGuidedNext();
 
+  // Iter 79j.9 — Back button lets the contractor step BACKWARD through
+  // the guided flow to fix a mistake in the last annotate pass (e.g.
+  // change a window style tag or delete a stray profile box) without
+  // having to cancel and re-upload the photo. State setters clear the
+  // in-progress pending values but preserve all committed annotations
+  // (localRef, localWindows, localZones, localProfileBoxes) so the
+  // contractor's earlier work is retained across the step change.
+  const handleGuidedBack = () => {
+    if (!guidedSteps) return;
+    if (guidedStepIdx <= 0) return;
+    const prevIdx = guidedStepIdx - 1;
+    setGuidedStepIdx(prevIdx);
+    setMode(guidedSteps[prevIdx].mode);
+    setPending(null);
+    setHoverPoint(null);
+    setPolyPoints([]);
+    setScalePending(null);
+    setScaleValue("");
+    setWindowPending(null);
+  };
+
   // Render overlay markup
   const renderOverlay = () => {
     if (!photo) return null;
@@ -1503,7 +1524,123 @@ export default function PhotoAnnotateModal({
                 </div>
               )}
 
+              {/* Iter 79j.9 — Per-step committed-items list so the
+                  contractor can delete a stray tag / box / measurement
+                  without leaving guided mode. Renders the items that
+                  apply to the current step. */}
+              {guidedFlow && guidedSteps[guidedStepIdx]?.key === "wall" && localRef && (
+                <div className="mb-3 p-2 bg-white border border-[#E4E4E7] flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 bg-[#DC2626]"></span>
+                    <span className="font-mono-num font-bold">{localRef.inches}&quot;</span>
+                    <span className="text-[#71717A]">wall scale</span>
+                  </span>
+                  <button type="button" onClick={removeReference}
+                          className="text-[#A1A1AA] hover:text-[#DC2626] flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider"
+                          data-testid="guided-wall-ref-remove">
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                </div>
+              )}
+              {guidedFlow && guidedSteps[guidedStepIdx]?.key === "window-measure" && localWindowRef && (
+                <div className="mb-3 p-2 bg-white border border-[#E4E4E7] flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 bg-[#2563EB]"></span>
+                    <span className="font-mono-num font-bold">{localWindowRef.inches}&quot;</span>
+                    <span className="text-[#71717A]">window scale</span>
+                  </span>
+                  <button type="button" onClick={removeWindowReference}
+                          className="text-[#A1A1AA] hover:text-[#DC2626] flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider"
+                          data-testid="guided-winref-remove">
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                </div>
+              )}
+              {guidedFlow && guidedSteps[guidedStepIdx]?.key === "window-style" && localWindows.length > 0 && (
+                <div className="mb-3 p-2 bg-white border border-[#E4E4E7] space-y-1">
+                  <div className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Tagged windows ({localWindows.length})</div>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {localWindows.map((w) => (
+                      <li key={w.id} className="flex items-center justify-between text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-bold text-[#92400E]">{STYLE_ABBR[w.style] || "?"}</span>
+                          <span className="text-[#52525B]">{w.style}</span>
+                        </span>
+                        <button type="button" onClick={() => removeWindow(w.id)}
+                                className="text-[#A1A1AA] hover:text-[#DC2626]"
+                                data-testid={`guided-window-remove-${w.id}`}
+                                title="Delete this window tag">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {guidedFlow && guidedSteps[guidedStepIdx]?.key === "mask" && localZones.length > 0 && (
+                <div className="mb-3 p-2 bg-white border border-[#E4E4E7] space-y-1">
+                  <div className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Mask zones ({localZones.length})</div>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {localZones.map((z) => {
+                      const c = ZONE_CATEGORIES.find((x) => x.key === z.category);
+                      return (
+                        <li key={z.id} className="flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c?.color }} />
+                            <span className="text-[#52525B]">{c?.name} ({z.kind})</span>
+                          </span>
+                          <button type="button" onClick={() => removeZone(z.id)}
+                                  className="text-[#A1A1AA] hover:text-[#DC2626]"
+                                  data-testid={`guided-zone-remove-${z.id}`}
+                                  title="Delete this mask zone">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {guidedFlow && guidedSteps[guidedStepIdx]?.key === "profile" && localProfileBoxes.length > 0 && (
+                <div className="mb-3 p-2 bg-white border border-[#E4E4E7] space-y-1">
+                  <div className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Profile boxes ({localProfileBoxes.length})</div>
+                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    {localProfileBoxes.map((b) => {
+                      const fam = PROFILE_FAMILIES.find((f) => f.key === b.profile) || { label: b.profile, bg: "#F4F4F5", fg: "#71717A" };
+                      return (
+                        <li key={b.id} className="flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                                  style={{ background: fam.bg, color: fam.fg }}>
+                              {fam.label}
+                            </span>
+                            <span className="text-[#52525B] font-mono-num tabular-nums">{b.sqft} ft²</span>
+                          </span>
+                          <button type="button" onClick={() => removeProfileBox(b.id)}
+                                  className="text-[#A1A1AA] hover:text-[#DC2626]"
+                                  data-testid={`guided-profile-remove-${b.id}`}
+                                  title="Delete this profile box">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2 items-center">
+                {guidedStepIdx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleGuidedBack()}
+                    className="px-3 py-2 bg-white border border-[#E4E4E7] text-[#52525B] hover:bg-[#F4F4F5] text-xs font-bold uppercase tracking-wider flex items-center gap-1"
+                    data-testid="annotate-guided-back-btn"
+                    title="Go back to the previous step to change something"
+                  >
+                    ← Back
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleGuidedNext()}

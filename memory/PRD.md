@@ -920,3 +920,14 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
 - **Iter 79j.8 — Sticky right sidebar in annotate modal (2026-02-28)**: Wrapped the guided banner + controls column in a sticky container (`md:sticky md:top-0 md:self-start md:max-h-[calc(100vh-9rem)] md:overflow-y-auto`) so Next/Skip + shape/category stay pinned in thumb range while the contractor scrolls/pinch-zooms the photo below. Own overflow-y-auto lets the sidebar scroll internally when its content is taller than the viewport (e.g. Profile step with a long family list). No changes on mobile (single-column layout unchanged).
   - **Files**: `frontend/src/components/estimate/PhotoAnnotateModal.jsx` only. Lint clean.
   - **Status**: SHIPPED. USER VERIFICATION PENDING.
+
+- **Iter 79j.9 — Guided flow "Back" button + inline delete for committed items (2026-02-28)**: Howard hit two UX gaps: (1) no way to fix a mistake in the previous annotate step without cancelling and re-uploading, (2) no way to delete a committed profile box / window style / mask zone / wall or window scale ref from within the guided banner (the summary lists that had trash icons are hidden in guided mode).
+  - **Back button**: New `handleGuidedBack()` decrements `guidedStepIdx` while preserving all committed annotations. Rendered in the guided banner button row as the first button (`← Back`, data-testid `annotate-guided-back-btn`) when `guidedStepIdx > 0`. Contractor can now walk back to Wall / Window Measurement / Window Style / Mask to adjust and then continue forward.
+  - **Inline delete lists**: Each guided step now shows the items it committed with a Trash icon per row:
+    - Wall Measurement: `data-testid="guided-wall-ref-remove"` — removes `localRef`.
+    - Window Measurement: `data-testid="guided-winref-remove"` — removes `localWindowRef`.
+    - Window Style: `data-testid="guided-window-remove-{id}"` per tagged window.
+    - Mask: `data-testid="guided-zone-remove-{id}"` per zone.
+    - Profile: `data-testid="guided-profile-remove-{id}"` per profile box.
+  - **Files**: `frontend/src/components/estimate/PhotoAnnotateModal.jsx` only. Lint clean.
+  - **Status**: SHIPPED. USER VERIFICATION PENDING.
