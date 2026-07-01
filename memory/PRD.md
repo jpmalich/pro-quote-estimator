@@ -903,3 +903,10 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - Mask row (amber): `data-testid="zone-poly-undo-btn"` · Profile row (violet): `data-testid="profile-poly-undo-btn"`.
   - Implementation: `setPolyPoints((prev) => prev.slice(0, -1))`. Lint clean.
   - **Status**: SHIPPED. USER VERIFICATION PENDING.
+
+- **Iter 79j.6 — Polygon snap-close hardening (2026-02-28)**: Howard reported the polygon on the Mask/Profile guided steps appeared to close on the 2nd pick. Root code review confirms the guard is `polyPoints.length >= 3` (min 3 vertices already placed before snap can fire on the next tap), so a strict-triangle minimum is enforced. To eliminate any perception of eager snap and make the armed state unmissable:
+  - **Tighter threshold**: `_isNearFirstPoint` snap distance shrunk from ~18 → ~12 screen pixels (floor 10 photo-px). Contractors now have to be squarely on the first vertex, not just adjacent.
+  - **Explicit "TAP TO CLOSE" callout**: When ≥3 points are placed AND the hover/pencil is inside the snap threshold, a colored badge (`TAP TO CLOSE`) appears right next to the first vertex — orange on Mask, violet on Profile. Removes any ambiguity about when snap is armed.
+  - **Banner copy sharpened**: "For polygon: place at least 3 corners, then tap your first corner again to close" — makes the 3-point minimum explicit.
+  - **Files**: `frontend/src/components/estimate/PhotoAnnotateModal.jsx` only. Lint clean.
+  - **Status**: SHIPPED. USER VERIFICATION PENDING.

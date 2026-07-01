@@ -254,8 +254,8 @@ export default function PhotoAnnotateModal({
       { key: "wall", mode: MODE_SCALE, banner: "Wall Measurement — tap two points on a known span (door height, garage height, eave-to-ground) then enter its real length", skipLabel: null },
       { key: "window-measure", mode: MODE_SCALE_WINDOW, banner: "Window Measurement — tap two points on ONE known window edge (e.g. a 36\" wide window), then enter its real dimension. Gives Claude per-window sizing precision (±5%).", skipLabel: "Skip · no window to calibrate" },
       { key: "window-style", mode: MODE_WINDOW, banner: "Window Style — tap each window on this wall to place it and tag its style (double-hung, casement, picture, etc.)", skipLabel: "Skip · no windows on this wall" },
-      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw a rectangle OR polygon around brick / stone / masonry areas that are NOT getting new siding. Tip: tap your first polygon point again to close.", skipLabel: "Skip · nothing to mask" },
-      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw a rectangle OR polygon around each siding profile family (Lap · Shake · B&B · Vertical · etc). Tap your first polygon point again to close. Skip if this whole wall is one profile.", skipLabel: "Skip · single profile" },
+      { key: "mask", mode: MODE_ZONE, banner: "Mask — draw a rectangle OR polygon around brick / stone / masonry that is NOT getting new siding. For polygon: place at least 3 corners, then tap your first corner again to close.", skipLabel: "Skip · nothing to mask" },
+      { key: "profile", mode: MODE_PROFILE, banner: "Profile — draw a rectangle OR polygon around each siding profile family (Lap · Shake · B&B · Vertical · etc). For polygon: place at least 3 corners, then tap your first corner again to close. Skip if this whole wall is one profile.", skipLabel: "Skip · single profile" },
     ];
   }, [guidedFlow]);
   const [guidedStepIdx, setGuidedStepIdx] = useState(0);
@@ -575,8 +575,11 @@ export default function PhotoAnnotateModal({
         setPending(null);
         return;
       }
-      // polygon — Iter 79j.4: snap-close when tap lands within
-      // ~20 screen px of the first vertex (≥3 pts already placed).
+      // polygon — Iter 79j.4: snap-close ONLY when 3+ vertices are
+      // already placed AND the current tap lands within the tight
+      // threshold of the first vertex. Guard tightened Feb 2026 per
+      // user feedback (previously snap could feel eager on the 2nd
+      // pick due to a looser threshold).
       if (polyPoints.length >= 3 && _isNearFirstPoint(p, polyPoints[0])) {
         const sqft = _computeProfileSqft(polyPoints, localRef);
         setLocalProfileBoxes((prev) => [
@@ -616,7 +619,8 @@ export default function PhotoAnnotateModal({
       setPending(null);
       return;
     }
-    // MODE_ZONE polygon — same snap-close behavior as profile
+    // MODE_ZONE polygon — same snap-close behavior as profile; strict
+    // 3-point minimum before snap can fire.
     if (polyPoints.length >= 3 && _isNearFirstPoint(p, polyPoints[0])) {
       setLocalZones((prev) => [
         ...prev,
@@ -628,14 +632,13 @@ export default function PhotoAnnotateModal({
     setPolyPoints((prev) => [...prev, p]);
   };
 
-  // Iter 79j.4 — snap-close helper. Threshold is ~18 screen pixels
-  // converted to photo coords via current zoom, so it feels the same
-  // whether the contractor is zoomed in on an iPad or looking at the
-  // full photo on desktop. Floor of 8 photo-px guarantees a usable
-  // hit area even at extreme zoom.
+  // Iter 79j.4 — snap-close helper. Threshold ≈ 12 screen pixels
+  // converted to photo coords via current zoom. Tightened Feb 2026
+  // per user feedback (previous 18px was too generous). Floor of
+  // 10 photo-px guarantees a usable hit area at extreme zoom.
   const _isNearFirstPoint = (p, first) => {
     if (!p || !first) return false;
-    const thresholdPhotoPx = Math.max(8, 18 / Math.max(0.25, zoom));
+    const thresholdPhotoPx = Math.max(10, 12 / Math.max(0.25, zoom));
     const dx = p.x - first.x;
     const dy = p.y - first.y;
     return (dx * dx + dy * dy) <= (thresholdPhotoPx * thresholdPhotoPx);
@@ -962,6 +965,7 @@ export default function PhotoAnnotateModal({
           // Iter 79j.4 — snap-close visual cue on the first vertex
           const canSnap = polyPoints.length >= 3 && hoverPoint && _isNearFirstPoint(hoverPoint, polyPoints[0]);
           const r0 = Math.max(5, photo.width / 350);
+          const fontPx = Math.max(13, photo.width / 75);
           return (
             <g>
               <path d={d} fill="none" stroke={c.color} strokeWidth={Math.max(3, photo.width / 600)} strokeDasharray="8 4" />
@@ -975,6 +979,17 @@ export default function PhotoAnnotateModal({
                         strokeWidth={Math.max(2, photo.width / 800)}
                         strokeDasharray={canSnap ? "none" : "4 3"}
                         opacity={canSnap ? 1 : 0.6} />
+              )}
+              {canSnap && (
+                <g>
+                  <rect x={polyPoints[0].x + r0 * 4} y={polyPoints[0].y - fontPx / 2 - 6}
+                        width={fontPx * 7.5} height={fontPx + 12} fill={c.color} rx={3} />
+                  <text x={polyPoints[0].x + r0 * 4 + fontPx * 0.4}
+                        y={polyPoints[0].y + fontPx / 2 - 1}
+                        fill="#FFFFFF" fontSize={fontPx} fontWeight="bold">
+                    TAP TO CLOSE
+                  </text>
+                </g>
               )}
             </g>
           );
@@ -1031,6 +1046,17 @@ export default function PhotoAnnotateModal({
                         strokeWidth={Math.max(2, photo.width / 800)}
                         strokeDasharray={canSnap ? "none" : "4 3"}
                         opacity={canSnap ? 1 : 0.6} />
+              )}
+              {canSnap && (
+                <g>
+                  <rect x={polyPoints[0].x + r0 * 4} y={polyPoints[0].y - fontPx / 2 - 6}
+                        width={fontPx * 7.5} height={fontPx + 12} fill={fam.fg} rx={3} />
+                  <text x={polyPoints[0].x + r0 * 4 + fontPx * 0.4}
+                        y={polyPoints[0].y + fontPx / 2 - 1}
+                        fill="#FFFFFF" fontSize={fontPx} fontWeight="bold">
+                    TAP TO CLOSE
+                  </text>
+                </g>
               )}
               {live != null && polyPoints.length >= 2 && (
                 <>
