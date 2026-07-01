@@ -10,15 +10,30 @@
 // missing slots produce a visible "MISSING" tag at the end so Claude
 // gets explicit signal in `missing_elevations`.
 //
+// Iter 79f (Feb 2026) — Phase 1 of Howard's guided-flow ask: interleave
+// annotation between captures instead of forcing the contractor to
+// annotate all 8 photos at the end. After each capture we upload the
+// photo to the server (so it's safe even if the wizard is closed
+// mid-flow) and offer "Annotate this photo now?" — clicking Annotate
+// opens PhotoAnnotateModal on that just-captured photo, pre-tagged with
+// the elevation label so the contractor knows what wall they're on. On
+// modal close, wizard advances to the next capture step.
+//
 // Layout: full-screen modal on mobile, large central card on desktop.
 // Each step shows a diagram (text-only ASCII for now — can swap to SVG
 // later), the standing position instructions, a Camera/Choose button,
 // thumbnail preview once a photo is captured, and Next/Skip controls.
 //
-// Output: parent gets onComplete({ photos: [{ file, elevation }, ...] })
-// — parent owns upload + AIMeasureButton session integration.
+// Output: parent gets onComplete({ photos: [{ file, elevation, key,
+// name, annotations }, ...] }) — `name` is the server filename (skip
+// re-upload) and `annotations` is the per-photo tag payload from
+// PhotoAnnotateModal (elevation + scale ref + zones + windows +
+// profileBoxes).
 import React, { useRef, useState } from "react";
-import { Camera, X, Check, ChevronRight, ChevronLeft, SkipForward } from "lucide-react";
+import { Camera, X, Check, ChevronRight, ChevronLeft, SkipForward, Tags, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import api from "@/lib/api";
+import PhotoAnnotateModal from "@/components/estimate/PhotoAnnotateModal";
 
 // 8 standard capture positions. HOVER uses this exact sequence — it
 // gives each wall TWO photos from different angles (corner shots show
@@ -85,8 +100,17 @@ const STEPS = [
 export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
   const fileRef = useRef();
   const [stepIdx, setStepIdx] = useState(0);
-  // captured: { [key]: { file, previewUrl, elevation } | null }
+  // captured: { [key]: { file, previewUrl, elevation, name?, uploading?,
+  //                      annotations?, annotated? } | null }
+  //   name         — server filename once /api/uploads returns
+  //   uploading    — true while the POST is in flight (Annotate button is
+  //                  disabled until the URL is ready)
+  //   annotations  — payload from PhotoAnnotateModal.onSave, or null
+  //   annotated    — true after the annotator was opened + saved
   const [captured, setCaptured] = useState({});
+  // Iter 79f — annotator state. When the contractor clicks "Annotate
+  // this photo" we open PhotoAnnotateModal on the current step's photo.
+  const [annotateOpen, setAnnotateOpen] = useState(false);
 
   if (!open) return null;
   const step = STEPS[stepIdx];
@@ -98,9 +122,45 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
     const url = URL.createObjectURL(f);
     setCaptured((prev) => ({
       ...prev,
-      [step.key]: { file: f, previewUrl: url, elevation: step.elevation },
+      [step.key]: {
+        file: f,
+        previewUrl: url,
+        elevation: step.elevation,
+        uploading: true,
+        name: null,
+        annotations: null,
+        annotated: false,
+      },
     }));
     if (e.target) e.target.value = "";
+    // Iter 79f — upload immediately so PhotoAnnotateModal has a stable
+    // server URL to render (blob URLs don't survive a wizard close). If
+    // upload fails we mark the step as not-uploaded and hide the
+    // Annotate button; the contractor can still Next/Skip and the
+    // parent will retry the upload from the File object on wizard
+    // complete.
+    (async () => {
+      try {
+        const fd = new FormData();
+        fd.append("file", f);
+        const { data } = await api.post("/uploads", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 60000,
+        });
+        setCaptured((prev) => {
+          const cur = prev[step.key];
+          if (!cur || cur.file !== f) return prev; // retook already
+          return { ...prev, [step.key]: { ...cur, name: data?.name || null, uploading: false } };
+        });
+      } catch {
+        setCaptured((prev) => {
+          const cur = prev[step.key];
+          if (!cur || cur.file !== f) return prev;
+          return { ...prev, [step.key]: { ...cur, uploading: false } };
+        });
+        toast.error("Upload failed for this photo — you can still Next/Skip, we'll retry at the end.");
+      }
+    })();
   };
   const retake = () => {
     if (taken?.previewUrl) URL.revokeObjectURL(taken.previewUrl);
@@ -110,6 +170,27 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
       return next;
     });
     fileRef.current?.click();
+  };
+
+  // Iter 79f — annotator handlers. Open the existing PhotoAnnotateModal
+  // on this step's uploaded photo. On save, stash the annotation
+  // payload per step-key so it can be handed back to the parent (which
+  // applies it to photoAnnotations[name] and hands it to the AI Measure
+  // worker as ground-truth hints).
+  const openAnnotate = () => {
+    if (!taken?.name) {
+      toast.error("Photo is still uploading — try again in a sec.");
+      return;
+    }
+    setAnnotateOpen(true);
+  };
+  const handleAnnotateSave = (payload) => {
+    setCaptured((prev) => {
+      const cur = prev[step.key];
+      if (!cur) return prev;
+      return { ...prev, [step.key]: { ...cur, annotations: payload, annotated: true } };
+    });
+    setAnnotateOpen(false);
   };
   const next = () => {
     if (stepIdx < STEPS.length - 1) setStepIdx((i) => i + 1);
@@ -121,9 +202,20 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
   };
   const back = () => setStepIdx((i) => Math.max(0, i - 1));
   const finish = () => {
-    const photos = STEPS.map((s) => captured[s.key])
-      .filter(Boolean)
-      .map((c) => ({ file: c.file, elevation: c.elevation, key: c.key }));
+    const photos = STEPS.map((s) => {
+      const c = captured[s.key];
+      if (!c) return null;
+      return {
+        file: c.file,
+        elevation: c.elevation,
+        key: s.key,
+        // Iter 79f — hand the server filename + per-photo annotations
+        // back to the parent so it can skip the re-upload path and
+        // apply the annotations to photoAnnotations[name].
+        name: c.name || null,
+        annotations: c.annotations || null,
+      };
+    }).filter(Boolean);
     // Release object URLs — parent only needs the File objects from here
     STEPS.forEach((s) => {
       const c = captured[s.key];
@@ -180,23 +272,28 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
           />
         </div>
 
-        {/* Step dots */}
+        {/* Step dots — Iter 79f: annotated steps get a distinct
+            ring so contractor sees at a glance which elevations still
+            need annotations. */}
         <div className="flex justify-center gap-1.5 py-2 bg-[#FAFAFA] border-b border-[#E4E4E7]">
           {STEPS.map((s, i) => {
-            const done = !!captured[s.key];
+            const cap = captured[s.key];
+            const done = !!cap;
+            const annotated = !!cap?.annotated;
             const active = i === stepIdx;
+            const bg = active
+              ? "bg-[#7C3AED] text-white ring-2 ring-[#7C3AED]/30 ring-offset-1"
+              : annotated
+                ? "bg-[#16A34A] text-white ring-2 ring-[#0EA5E9]/60"
+                : done
+                  ? "bg-[#16A34A] text-white"
+                  : "bg-[#E4E4E7] text-[#71717A] hover:bg-[#D4D4D8]";
             return (
               <button
                 key={s.key}
                 onClick={() => setStepIdx(i)}
-                className={`w-6 h-6 rounded-full text-[10px] font-bold transition ${
-                  active
-                    ? "bg-[#7C3AED] text-white ring-2 ring-[#7C3AED]/30 ring-offset-1"
-                    : done
-                      ? "bg-[#16A34A] text-white"
-                      : "bg-[#E4E4E7] text-[#71717A] hover:bg-[#D4D4D8]"
-                }`}
-                title={s.title}
+                className={`w-6 h-6 rounded-full text-[10px] font-bold transition ${bg}`}
+                title={`${s.title}${annotated ? " · annotated" : done ? " · captured" : ""}`}
                 data-testid={`guided-capture-dot-${i}`}
               >
                 {done ? "✓" : i + 1}
@@ -266,6 +363,47 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
               </button>
             </div>
           )}
+
+          {/* Iter 79f — Annotate-this-photo gate. Appears once the photo
+              is uploaded (photoUrl is stable + PhotoAnnotateModal can
+              render). Skipping is always fine — annotations improve
+              Claude's accuracy but aren't required. */}
+          {taken && (
+            <div className="mt-4 bg-[#FAFAFA] border border-[#E4E4E7] p-4">
+              <div className="text-xs uppercase tracking-wider text-[#71717A] font-bold mb-1">
+                Annotate this photo?
+              </div>
+              <div className="text-sm text-[#52525B] mb-3">
+                Mark Wall · Window · Mask · Style · Profile · Calibrate so Claude
+                gets ground truth instead of guessing. Takes 20-40 seconds.
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <button
+                  type="button"
+                  onClick={openAnnotate}
+                  disabled={taken.uploading || !taken.name}
+                  className="px-3 py-2 bg-[#7C3AED] text-white hover:bg-[#6D28D9] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40"
+                  data-testid="guided-capture-annotate-btn"
+                >
+                  {taken.uploading ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</>
+                  ) : taken.annotated ? (
+                    <><Tags className="w-3.5 h-3.5" /> Edit annotations</>
+                  ) : (
+                    <><Tags className="w-3.5 h-3.5" /> Annotate {step.elevation}</>
+                  )}
+                </button>
+                {taken.annotated && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-[#16A34A]"
+                    data-testid="guided-capture-annotated-badge"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Annotated
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -315,6 +453,25 @@ export default function GuidedCaptureWizard({ open, onClose, onComplete }) {
           </div>
         </div>
       </div>
+      {/* Iter 79f — inline annotator. Opens on the current step's
+          uploaded photo, pre-tagged with the elevation label. On save,
+          the annotations get stashed per step-key in `captured[key].
+          annotations` and handed to the parent at wizard finish. */}
+      {annotateOpen && taken?.name && (
+        <PhotoAnnotateModal
+          open={annotateOpen}
+          onClose={() => setAnnotateOpen(false)}
+          photoUrl={`/api/uploads/${taken.name}`}
+          elevation={step.elevation}
+          reference={taken.annotations?.reference || null}
+          windowReference={taken.annotations?.windowReference || null}
+          zones={taken.annotations?.zones || []}
+          targetPin={taken.annotations?.targetPin || null}
+          windows={taken.annotations?.windows || []}
+          profileBoxes={taken.annotations?.profileBoxes || []}
+          onSave={handleAnnotateSave}
+        />
+      )}
     </div>
   );
 }

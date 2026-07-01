@@ -668,8 +668,21 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     }
     const batch = photos.slice(0, room);
     setFiles((prev) => [...prev, ...batch.map((p) => p.file)]);
+    // Iter 79f — wizard uploads each photo inline (right after capture)
+    // so most photos arrive here with a pre-populated `name` field and
+    // don't need to hit /api/uploads again. Fall back to a re-upload
+    // if the inline upload failed (e.g. flaky connection) — the parent
+    // still owns the retry path.
     const uploaded = await Promise.all(
       batch.map(async (p) => {
+        if (p.name) {
+          return {
+            name: p.name,
+            elevation: p.elevation,
+            annotations: p.annotations || null,
+            file: p.file,
+          };
+        }
         try {
           const fd = new FormData();
           fd.append("file", p.file);
@@ -677,7 +690,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
             headers: { "Content-Type": "multipart/form-data" },
             timeout: 60000,
           });
-          return { name: data.name, elevation: p.elevation };
+          return {
+            name: data.name,
+            elevation: p.elevation,
+            annotations: p.annotations || null,
+            file: p.file,
+          };
         } catch (err) {
           toast.error(`Upload failed for ${p.file.name}`);
           return null;
@@ -686,16 +704,30 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     );
     const ok = uploaded.filter(Boolean);
     setPhotoUrls((prev) => [...prev, ...ok.map((u) => u.name)]);
-    // Apply the elevation tags from the wizard so Claude gets ground truth.
+    // Apply BOTH the elevation tags AND any per-photo annotations the
+    // contractor recorded inline in the wizard so Claude gets ground
+    // truth in one shot (elevation label + scale ref + zones + tagged
+    // windows + profile boxes).
     setPhotoAnnotations((prev) => {
       const next = { ...prev };
-      ok.forEach(({ name, elevation }) => {
-        next[name] = { ...(next[name] || {}), elevation };
+      ok.forEach(({ name, elevation, annotations }) => {
+        const merged = { ...(next[name] || {}), elevation };
+        if (annotations) {
+          if (annotations.reference !== undefined) merged.reference = annotations.reference;
+          if (annotations.windowReference !== undefined) merged.windowReference = annotations.windowReference;
+          if (annotations.zones !== undefined) merged.zones = annotations.zones;
+          if (annotations.targetPin !== undefined) merged.targetPin = annotations.targetPin;
+          if (annotations.windows !== undefined) merged.windows = annotations.windows;
+          if (annotations.profileBoxes !== undefined) merged.profileBoxes = annotations.profileBoxes;
+        }
+        next[name] = merged;
       });
       return next;
     });
     setFiles((prev) => prev.filter((f) => !batch.find((b) => b.file === f)));
-    toast.success(`${ok.length} photo${ok.length !== 1 ? "s" : ""} added & elevation-tagged from wizard`);
+    const annotatedCount = ok.filter((u) => u.annotations).length;
+    const annotatedNote = annotatedCount > 0 ? ` (${annotatedCount} annotated)` : "";
+    toast.success(`${ok.length} photo${ok.length !== 1 ? "s" : ""} added & elevation-tagged from wizard${annotatedNote}`);
   };
 
   // Iter 56c: pull a free Esri aerial tile for the estimate's address
