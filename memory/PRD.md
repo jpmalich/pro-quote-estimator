@@ -944,3 +944,9 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - **What it does NOT do**: Does NOT override the in-photo Wall Reference / Window Reference lines the contractor draws — those are Claude's primary scale anchors. Calibration is only an additional prompt hint that helps on walls where a red/blue reference line can't reach every opening.
   - **Files**: `frontend/src/components/estimate/AIMeasureButton.jsx` only. Lint clean.
   - **Status**: SHIPPED. USER VERIFICATION PENDING.
+
+- **Iter 79j.12 — AI Measure panel cleanup (2026-02-28)**: Two changes per Howard's feedback.
+  - (1) **Removed the "Elevation Drawings · HOVER-style 2D editor · drag any opening to nudge" block**. The auto-generated 2D house diagrams sometimes didn't match the actual home structure closely enough and hinted at inaccuracy to the contractor. Wall breakdown table below still shows the same underlying data. Removed unused `ElevationDrawing` / `Elevation3DPreview` imports + `show3DPreview` state. `buildElevationsFromAIMeasure` is still used for the report-PDF sheet layout.
+  - (2) **Footer cleanup**: The button row was wrapping erratically because labels like "Start Over" and "Apply Measurements" broke mid-word. Changed the footer to `flex-col md:flex-row` with `flex-wrap items-center justify-end gap-2` on the button group + `[&_button]:whitespace-nowrap` on the container. All buttons now stay on one line each with even heights, and the row cleanly wraps to a second line only if the modal is too narrow.
+  - **Files**: `frontend/src/components/estimate/AIMeasureButton.jsx` only. Lint clean.
+  - **Status**: SHIPPED. USER VERIFICATION PENDING.

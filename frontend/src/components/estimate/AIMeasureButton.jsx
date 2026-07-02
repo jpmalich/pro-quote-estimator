@@ -22,10 +22,9 @@ import GuidedCaptureWizard from "@/components/estimate/GuidedCaptureWizard";
 import { renderAnnotated, describeAnnotations } from "@/lib/photoAnnotate";
 // Iter 78s — HOVER-style elevation drawings, generated from the AI Measure
 // raw_ai output.
-import ElevationDrawing from "@/components/estimate/ElevationDrawing";
-// Iter 78u — Optional 3D preview (Three.js orthographic). Same scene
-// factory the headless PNG renderer uses for the customer Quote PDF.
-import Elevation3DPreview from "@/components/estimate/Elevation3DPreview";
+// Iter 79j.12 — ElevationDrawing / Elevation3DPreview imports removed
+// with the Elevation Drawings preview block. `buildElevationsFromAIMeasure`
+// is still used further down for the report PDF sheet layout.
 import { buildElevationsFromAIMeasure } from "@/lib/elevationBuilder";
 // Iter 78z (P1.3) — Per-Elevation Breakdown card + "+ Add Accent" override
 import PerElevationBreakdownCard from "@/components/estimate/PerElevationBreakdownCard";
@@ -269,10 +268,8 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // reads the saved session and renders a 1–2 page report with photos,
   // confidence chips, openings schedule, and notes.
   const [reportBusy, setReportBusy] = useState(false);
-  // Iter 78u — Toggle between 2D nudgeable SVG editor and the 3D
-  // orthographic preview (what the customer will see when 3D
-  // drawings are re-enabled in the Quote PDF).
-  const [show3DPreview, setShow3DPreview] = useState(false);
+  // Iter 79j.12 — show3DPreview state removed with the Elevation
+  // Drawings preview block.
   const downloadReportPdf = async () => {
     if (!estimateId) {
       toast.error("Save the estimate first — the report needs an estimate ID");
@@ -1715,88 +1712,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       }));
                     }}
                   />
-                  {/* Iter 78s — HOVER-style elevation drawings, generated
-                      from raw_ai.walls + raw_ai.openings. Includes any
-                      contractor-applied nudges + roof-shape overrides
-                      stashed on preview.measurements._ai_elevation_edits. */}
-                  {(() => {
-                    const elevs = buildElevationsFromAIMeasure({
-                      walls: preview.raw_ai?.walls,
-                      openings: preview.raw_ai?.openings,
-                      avg_wall_height_ft: preview.measurements?._ai_avg_wall_height_ft,
-                    });
-                    if (!elevs.length) return null;
-                    const edits = preview.measurements?._ai_elevation_edits || {};
-                    const handleNudge = (elevLabel) => (opId, xPct, yPct) => {
-                      setPreview((p) => {
-                        if (!p) return p;
-                        const cur = p.measurements?._ai_elevation_edits || {};
-                        const elevEdits = cur[elevLabel] || { openings: {}, roof_style: null };
-                        const next = {
-                          ...cur,
-                          [elevLabel]: {
-                            ...elevEdits,
-                            openings: { ...(elevEdits.openings || {}), [opId]: { x_pct: xPct, y_pct: yPct } },
-                          },
-                        };
-                        return { ...p, measurements: { ...p.measurements, _ai_elevation_edits: next } };
-                      });
-                    };
-                    const handleRoof = (elevLabel) => (shape) => {
-                      setPreview((p) => {
-                        if (!p) return p;
-                        const cur = p.measurements?._ai_elevation_edits || {};
-                        const elevEdits = cur[elevLabel] || { openings: {}, roof_style: null };
-                        const next = { ...cur, [elevLabel]: { ...elevEdits, roof_style: shape } };
-                        return { ...p, measurements: { ...p.measurements, _ai_elevation_edits: next } };
-                      });
-                    };
-                    // Merge edits into each elevation's openings + roof
-                    const merged = elevs.map((e) => {
-                      const editsForElev = edits[e.label] || {};
-                      const opEdits = editsForElev.openings || {};
-                      return {
-                        ...e,
-                        roof_style: editsForElev.roof_style || e.roof_style,
-                        openings: e.openings.map((op) =>
-                          opEdits[op.id]
-                            ? { ...op, x_pct: opEdits[op.id].x_pct, y_pct: opEdits[op.id].y_pct }
-                            : op
-                        ),
-                      };
-                    });
-                    return (
-                      <div className="mb-4" data-testid="ai-elevation-drawings">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-[#A1A1AA] mb-2 flex items-center justify-between">
-                          <span>Elevation Drawings <span className="text-[9px] not-italic text-[#71717A]">· {show3DPreview ? "3D orthographic preview — customer PDF look" : "HOVER-style 2D editor · drag any opening to nudge"}</span></span>
-                          <button
-                            type="button"
-                            onClick={() => setShow3DPreview((v) => !v)}
-                            className="text-[9px] uppercase tracking-wider font-bold text-[#7C3AED] bg-[#FAF5FF] border border-[#E9D5FF] px-2 py-0.5 hover:bg-[#F3E8FF]"
-                            data-testid="toggle-3d-elevation-preview"
-                          >
-                            {show3DPreview ? "Edit (2D)" : "View 3D"}
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {merged.map((e) => (
-                            show3DPreview ? (
-                              <Elevation3DPreview key={e.label} elevation={e} pxHeight={220} />
-                            ) : (
-                              <ElevationDrawing
-                                key={e.label}
-                                elevation={e}
-                                editable
-                                compact
-                                onOpeningMove={handleNudge(e.label)}
-                                onRoofToggle={handleRoof(e.label)}
-                              />
-                            )
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {/* Iter 79j.12 — Elevation Drawings block removed per
+                      Howard's feedback (2026-02-28): the auto-generated 2D
+                      diagrams often didn't match the actual house
+                      structure closely enough and hinted at inaccuracy
+                      to the contractor. Wall breakdown table below still
+                      shows the same underlying data. */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                     {Object.entries(preview.measurements)
                       .filter(([k, v]) => !k.startsWith("_") && v !== 0 && v !== null && v !== undefined)
@@ -2387,7 +2308,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
               )}
             </div>
 
-            <div className="border-t border-[#E4E4E7] px-5 py-4 flex justify-between items-center relative">
+            <div className="border-t border-[#E4E4E7] px-5 py-4 flex flex-col md:flex-row md:justify-between md:items-center gap-3 relative">
               {/* Iter 57h — inline calibration popover. Hidden by default;
                   pops up just above the Run button when the contractor
                   hits the "Calibrate window sizing" link. Stays out of
@@ -2471,12 +2392,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                   </label>
                 </div>
               )}
-              <div className="text-[10px] text-[#A1A1AA] flex items-center gap-3">
-                <span>Powered by Claude Opus 4.5</span>
+              <div className="text-[10px] text-[#A1A1AA] flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0">
+                <span className="whitespace-nowrap">Powered by Claude Opus 4.5</span>
                 <button
                   type="button"
                   onClick={() => setCalibOpen((v) => !v)}
-                  className={`text-[10px] uppercase tracking-wider font-bold flex items-center gap-1 ${
+                  className={`text-[10px] uppercase tracking-wider font-bold flex items-center gap-1 whitespace-nowrap ${
                     (brickCourse || sidingExposure || deepDormerScan) ? "text-[#7C3AED]" : "text-[#A1A1AA] hover:text-[#7C3AED]"
                   }`}
                   data-testid="ai-measure-course-sizing-toggle"
@@ -2486,7 +2407,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                   {(brickCourse || sidingExposure || deepDormerScan) ? "Calibration on" : "Calibrate window sizing"}
                 </button>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2 min-w-0 [&_button]:whitespace-nowrap">
                 <button
                   type="button"
                   className="px-3 py-2 bg-white text-[#52525B] border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold uppercase tracking-wider"
