@@ -9,8 +9,8 @@ can accept online.
 measure a house from 8 phone photos, a HOVER PDF, architectural blueprints, or satellite imagery,
 and produce the complete material list with pricing.
 
-📖 **Full documentation:** [DOCUMENTATION.md](DOCUMENTATION.md) — usage, workflows, architecture,
-database, API, system requirements, and roadmap.
+📖 **Full documentation:** [docs/](docs/README.md) — usage, workflows, architecture,
+database, API, system requirements, and roadmap, one file per section with Mermaid diagrams.
 
 ## Features
 
@@ -44,7 +44,7 @@ database, API, system requirements, and roadmap.
 ## Quick Start
 
 ```bash
-# Backend — requires MongoDB and a backend/.env (see DOCUMENTATION.md §8);
+# Backend — requires MongoDB and a backend/.env (see docs/08-system-requirements.md);
 # the server fails closed without JWT_SECRET, ADMIN_PASSWORD, MONGO_URL, DB_NAME, CORS_ORIGINS
 cd backend
 pip install -r requirements.txt
@@ -74,6 +74,6 @@ backend/         FastAPI app — routes/, pricing engine (services.py), seeders,
 frontend/        React SPA — pages/, components/, domain logic in src/lib/
 memory/          PRD.md (full product history) · REMINDERS.md (backlog)
 Resource_Docs/   Recorded conversation with the creator + transcript
-DOCUMENTATION.md Full application documentation
+docs/            Full application documentation (one file per section)
 CLAUDE.md        Guidance for AI coding agents
 ```
