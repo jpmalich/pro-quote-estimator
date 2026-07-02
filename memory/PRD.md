@@ -950,3 +950,7 @@ User uploaded a self-contained Vinyl Siding Estimator HTML and asked to turn it 
   - (2) **Footer cleanup**: The button row was wrapping erratically because labels like "Start Over" and "Apply Measurements" broke mid-word. Changed the footer to `flex-col md:flex-row` with `flex-wrap items-center justify-end gap-2` on the button group + `[&_button]:whitespace-nowrap` on the container. All buttons now stay on one line each with even heights, and the row cleanly wraps to a second line only if the modal is too narrow.
   - **Files**: `frontend/src/components/estimate/AIMeasureButton.jsx` only. Lint clean.
   - **Status**: SHIPPED. USER VERIFICATION PENDING.
+
+- **Iter 79j.13 — Elevation drawings stripped from Report PDF (2026-02-28)**: Removed the "Per-elevation diagrams" page (2D SVG wall drawings) from the AI Measure Report PDF export. Same reasoning as iter 79j.12: the auto-generated diagrams sometimes didn't match the real house structure and hurt credibility with the homeowner. What still ships in the PDF: summary tiles · per-wall breakdown table with confidence chips · per-wall summary cards (photo + measurements + confidence reasoning) · openings schedule · full-size photo strip · notes. Deleted `_wall_diagram_svg` and `_build_wall_diagrams_section` helpers along with the `{wall_diagrams_html}` insertion. Backend reloads cleanly, lint clean.
+  - **Files**: `backend/routes/measure_report.py` only.
+  - **Status**: SHIPPED. USER VERIFICATION PENDING.
