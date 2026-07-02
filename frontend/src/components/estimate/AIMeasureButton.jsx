@@ -113,6 +113,14 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // Iter 57h — popover state for the inline "📐 Calibrate window sizing"
   // mini-panel that hangs next to the Run AI Measure button.
   const [calibOpen, setCalibOpen] = useState(false);
+  // Iter 79j.11 — pre-Guided-Capture calibration prompt. Fires when
+  // the contractor taps "Guided Capture" so they set the CURRENT
+  // siding exposure BEFORE the first photo (contractor is at the
+  // house, has line of sight to the wall — ideal moment). Does NOT
+  // override the Wall / Window Reference lines the contractor draws
+  // in-photo; it's an additional prompt hint to Claude on walls
+  // where a red/blue reference line isn't reachable per opening.
+  const [calibPrepOpen, setCalibPrepOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // Iter 57q — when AI Measure is running, show the worker's current
   // stage ("claude" → "dormer_scan" → "aggregating" → "mapping") in the
@@ -1435,7 +1443,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       <div className="mt-2">
                         <button
                           type="button"
-                          onClick={() => setWizardOpen(true)}
+                          onClick={() => setCalibPrepOpen(true)}
                           disabled={photoUrls.length >= 9}
                           className="px-3 py-1.5 bg-[#7C3AED] text-white hover:bg-[#6D28D9] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5 disabled:opacity-50"
                           data-testid="ai-measure-wizard-btn"
@@ -2873,6 +2881,124 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         onClose={() => setWizardOpen(false)}
         onComplete={handleWizardComplete}
       />
+
+      {/* Iter 79j.11 — Pre-Guided-Capture calibration prompt. Fires
+          when the contractor taps "Guided Capture" so they set the
+          CURRENT siding exposure BEFORE the first photo. Chips route
+          to sidingExposure (or brickCourse for the Brick chip).
+          Skip is allowed — some jobs the contractor genuinely can't
+          eyeball the row height. */}
+      {calibPrepOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4" data-testid="calib-prep-modal">
+          <div className="bg-white max-w-md w-full shadow-2xl border border-[#7C3AED]">
+            <div className="bg-[#7C3AED] px-4 py-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-white text-sm font-heading font-bold uppercase tracking-wider">Calibrate window sizing</div>
+                <div className="text-white/80 text-[11px] mt-0.5 leading-snug">
+                  What&apos;s currently on this house? Claude uses this to size windows accurately. Pick the closest match to what you see on the walls right now (not the scope).
+                </div>
+              </div>
+              <button type="button" onClick={() => setCalibPrepOpen(false)}
+                      className="text-white/80 hover:text-white" title="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Current siding on the house</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: "Vinyl D4",    val: "4",  field: "siding" },
+                  { label: "Vinyl D5",    val: "5",  field: "siding" },
+                  { label: "Vinyl D6",    val: "6",  field: "siding" },
+                  { label: "Vinyl D7",    val: "7",  field: "siding" },
+                  { label: "Ascend CI",   val: "7",  field: "siding" },
+                  { label: 'LP 8" Lap',   val: "8",  field: "siding" },
+                  { label: 'Cedar 4"',    val: "4",  field: "siding" },
+                  { label: "Brick",       val: "8",  field: "brick"  },
+                ].map((c) => {
+                  const active = c.field === "siding"
+                    ? sidingExposure === c.val && !brickCourse
+                    : brickCourse === c.val && !sidingExposure;
+                  return (
+                    <button
+                      key={c.label}
+                      type="button"
+                      onClick={() => {
+                        if (c.field === "siding") {
+                          setSidingExposure(c.val);
+                          setBrickCourse("");
+                        } else {
+                          setBrickCourse(c.val);
+                          setSidingExposure("");
+                        }
+                      }}
+                      className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wider border ${
+                        active ? "bg-[#7C3AED] text-white border-[#7C3AED]" : "bg-white text-[#52525B] border-[#E4E4E7] hover:bg-[#F4F4F5]"
+                      }`}
+                      data-testid={`calib-prep-chip-${c.label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
+                    >
+                      {c.label}
+                      <div className={`text-[9px] font-normal mt-0.5 ${active ? "text-white/80" : "text-[#A1A1AA]"}`}>
+                        {c.val}&quot; {c.field === "brick" ? "course" : "exposure"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="pt-2 border-t border-[#E4E4E7] space-y-1">
+                <div className="text-[9px] uppercase tracking-wider text-[#A1A1AA] font-bold">Or enter exposure directly (in)</div>
+                <input
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  className="w-full px-3 py-2 border border-[#E4E4E7] text-sm focus:outline-none focus:border-[#7C3AED]"
+                  placeholder='e.g. 4.5" cedar shake'
+                  value={sidingExposure}
+                  onChange={(e) => { setSidingExposure(e.target.value); if (e.target.value) setBrickCourse(""); }}
+                  data-testid="calib-prep-siding-input"
+                />
+              </div>
+
+              {(sidingExposure || brickCourse) && (
+                <div className="text-[11px] text-[#16A34A] font-bold flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" />
+                  Calibration set — Claude will cross-check window heights against this.
+                </div>
+              )}
+            </div>
+            <div className="border-t border-[#E4E4E7] px-4 py-3 flex justify-between items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSidingExposure("");
+                  setBrickCourse("");
+                  setCalibPrepOpen(false);
+                  setWizardOpen(true);
+                }}
+                className="px-3 py-2 bg-white text-[#71717A] border border-[#E4E4E7] hover:bg-[#F4F4F5] text-xs font-bold uppercase tracking-wider"
+                data-testid="calib-prep-skip"
+                title="Proceed without calibration — Claude will still snap to standard window sizes"
+              >
+                Skip · I&apos;ll eyeball it
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCalibPrepOpen(false);
+                  setWizardOpen(true);
+                }}
+                disabled={!sidingExposure && !brickCourse}
+                className="px-4 py-2 bg-[#16A34A] text-white hover:bg-[#15803D] text-xs font-bold uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                data-testid="calib-prep-start"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Start Capture →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Iter 78z — Profile Annotator (Tag Shake / B&B / etc.) */}
       {profileAnnotatorOpen && estimateId && (
         <ProfileAnnotator
