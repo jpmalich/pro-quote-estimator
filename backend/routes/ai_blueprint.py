@@ -43,7 +43,7 @@ from typing import Optional
 
 import pypdfium2 as pdfium
 from PIL import Image
-from emergentintegrations.llm.chat import (
+from llm import (
     ImageContent,
     LlmChat,
     UserMessage,
@@ -605,9 +605,9 @@ async def ai_blueprint(
         # Already capped on the PDF side, but guard against image overflow too.
         image_payloads = image_payloads[:MAX_PAGES_HARD]
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     user_id = user["id"]
     run_id = uuid.uuid4().hex
@@ -697,9 +697,9 @@ async def ai_blueprint_rerun(
             detail="Cached blueprint pages are no longer on disk — re-upload",
         )
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     run_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc)

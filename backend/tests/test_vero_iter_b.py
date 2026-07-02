@@ -8,7 +8,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://app-converter-170.preview.emergentagent.com",
+    "https://app.pro-quotes.com",
 ).rstrip("/")
 ADMIN_TOKEN = os.environ.get("SUPPLIER_ADMIN_TOKEN", "test-admin-token")
 ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}

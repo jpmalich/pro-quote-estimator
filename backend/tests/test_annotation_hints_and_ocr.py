@@ -17,7 +17,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 import requests
 from routes.ai_measure import _build_annotation_hint
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL") or "https://app-converter-170.preview.emergentagent.com"
+BASE = os.environ.get("REACT_APP_BACKEND_URL") or "https://app.pro-quotes.com"
 API = f"{BASE}/api"
 ADMIN_EMAIL = "hhunt6677@yahoo.com"
 ADMIN_PW = "Admin123!"

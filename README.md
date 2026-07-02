@@ -37,11 +37,20 @@ database, API, system requirements, and roadmap, one file per section with Merma
 |---|---|
 | Frontend | React 19 (CRA + craco), Tailwind + Radix/shadcn, react-router 7, three.js, PWA |
 | Backend | FastAPI (Python 3.11), Motor/MongoDB, JWT cookie auth, WeasyPrint PDF |
-| AI | Anthropic Claude vision via Emergent's LLM layer |
+| AI | Anthropic Claude vision (official `anthropic` SDK) |
 | Email | Resend (+ Svix-verified webhooks) |
-| Hosting | Emergent platform (`app.pro-quotes.com`) |
+| Hosting | Self-hostable via Docker Compose · production at `app.pro-quotes.com` |
 
 ## Quick Start
+
+### Docker (full stack: MongoDB + backend + frontend)
+
+```bash
+cp backend/.env.example backend/.env   # fill in JWT_SECRET, ADMIN_PASSWORD, API keys…
+docker compose up --build             # frontend on :3000, API on :8000
+```
+
+### Manual
 
 ```bash
 # Backend — requires MongoDB and a backend/.env (see docs/08-system-requirements.md);

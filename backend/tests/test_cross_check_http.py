@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Frontend public URL — what the user actually sees
-BASE_URL = "https://app-converter-170.preview.emergentagent.com"
+BASE_URL = "https://app.pro-quotes.com"
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "hhunt6677@yahoo.com"

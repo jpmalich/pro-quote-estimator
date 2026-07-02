@@ -10,7 +10,7 @@
 | Node.js + Yarn | Yarn 1.22.x (pinned via `packageManager`); CRA 5 / react-scripts |
 | MongoDB | Any Motor/pymongo-4-compatible instance; TTL index support |
 | WeasyPrint system deps | Pango/Cairo/GDK-PixBuf native libraries (for PDF rendering) |
-| Outbound network | api.anthropic.com (via Emergent LLM proxy), api.resend.com, maps.googleapis.com |
+| Outbound network | api.anthropic.com, api.resend.com, maps.googleapis.com |
 
 ## Environment variables (backend `.env`)
 
@@ -24,7 +24,7 @@ The server *fails closed at import* without the critical ones:
 | `CORS_ORIGINS` | ✅ (else all cross-origin refused) | Explicit origin allowlist |
 | `SUPPLIER_ADMIN_TOKEN` | for admin panel | `X-Admin-Token` value |
 | `SIGNUP_CODE` | recommended | Contractor access code (stable fallback derived from JWT_SECRET) |
-| `EMERGENT_LLM_KEY` | for AI features | Claude access via Emergent |
+| `ANTHROPIC_API_KEY` | for AI features | Direct Anthropic Claude access |
 | `RESEND_API_KEY`, `SENDER_EMAIL`, `RESEND_WEBHOOK_SECRET` | for email | Quote sending + tracking |
 | `GOOGLE_MAPS_API_KEY` | for satellite measure | Geocode + imagery |
 | `JWT_TTL_SECONDS` | optional (default 7 days) | Session length |
@@ -38,13 +38,22 @@ The server *fails closed at import* without the critical ones:
 - Installable as a PWA (Add to Home Screen on iOS/Android); static shell works cache-first offline,
   but all data operations require connectivity.
 
-## Running locally
+## Running with Docker (recommended)
+
+The repo ships a self-contained stack — MongoDB + backend + frontend:
+
+```bash
+cp backend/.env.example backend/.env     # fill in JWT_SECRET, ADMIN_PASSWORD, keys…
+docker compose up --build                # frontend on :3000, API on :8000
+```
+
+## Running locally (without Docker)
 
 ```bash
 # Backend
 cd backend
 pip install -r requirements.txt          # needs WeasyPrint native libs present
-# create .env with the required variables above
+cp .env.example .env                     # then fill in the required variables
 uvicorn server:app --reload              # http://localhost:8000
 
 # Frontend

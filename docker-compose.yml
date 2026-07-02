@@ -1,0 +1,54 @@
+# Self-hosted Pro-Quote stack: MongoDB + FastAPI backend + React frontend.
+#
+#   1. cp backend/.env.example backend/.env   # then fill in the secrets
+#   2. docker compose up --build
+#   3. open http://localhost:3000
+#
+# The frontend bakes REACT_APP_BACKEND_URL in at build time — change
+# FRONTEND_BACKEND_URL below (or export it) if the API is not on
+# http://localhost:8000 from the browser's point of view.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    # No host port by default — the backend reaches it on the compose
+    # network. Uncomment to inspect the DB from the host:
+    # ports:
+    #   - "27017:27017"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      # Compose-network Mongo overrides whatever is in .env
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: proquote
+      # Must match the origin the browser loads the frontend from —
+      # derived from FRONTEND_PORT so the two can't drift apart.
+      CORS_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_PORT:-3000}}
+    volumes:
+      - backend-uploads:/app/backend/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: ${FRONTEND_BACKEND_URL:-http://localhost:8000}
+    restart: unless-stopped
+    ports:
+      # Override the host port with FRONTEND_PORT if :3000 is taken
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
+  backend-uploads:

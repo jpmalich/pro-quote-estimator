@@ -19,7 +19,7 @@ flowchart LR
 
     DB[("MongoDB<br/>16 collections<br/>(Motor, async)")]
 
-    CLAUDE["Anthropic Claude<br/>vision measure · PDF parsing<br/>(via emergentintegrations)"]
+    CLAUDE["Anthropic Claude<br/>vision measure · PDF parsing<br/>(official anthropic SDK via llm.py)"]
     RESEND["Resend<br/>quote email · Svix webhooks"]
     GMAPS["Google Maps<br/>geocode + satellite imagery"]
 
@@ -85,7 +85,7 @@ flowchart TD
 
 | Service | Used for | Notes |
 |---|---|---|
-| **Anthropic Claude** (via Emergent's `emergentintegrations` LLM layer) | All vision/measurement AI: photo measure, blueprint reading, HOVER PDF parsing, cross-checks, OCR scale detection | Opus-class model for vision runs; Sonnet-class for HOVER text parsing. Keyed by `EMERGENT_LLM_KEY`. |
+| **Anthropic Claude** (official `anthropic` SDK, wrapped by `backend/llm.py`) | All vision/measurement AI: photo measure, blueprint reading, HOVER PDF parsing, cross-checks, OCR scale detection | Opus-class model for all runs. Keyed by `ANTHROPIC_API_KEY`. |
 | **Resend** | Quote emails, acceptance notifications, contractor invites; delivery/open/click webhooks (Svix-verified) | Verified sending domain `pro-quotes.com` (SPF/DKIM/DMARC). |
 | **Google Maps** | Geocoding + satellite imagery for aerial measure | `GOOGLE_MAPS_API_KEY`. |
 | **HOVER** | Not an API integration — contractors upload HOVER PDFs they already own | Positioning: this app *replaces* new HOVER purchases. |

@@ -25,7 +25,7 @@ import re
 from typing import Optional
 
 import fitz  # PyMuPDF — already imported elsewhere in hover.py
-from emergentintegrations.llm.chat import (
+from llm import (
     ImageContent,
     LlmChat,
     UserMessage,
@@ -130,8 +130,8 @@ def _render_pdf_pages(pdf_bytes: bytes, max_pages: int = MAX_ELEVATION_PAGES) ->
             except Exception as e:
                 logger.warning("Iter 78p: page %d render failed: %s", page_num, e)
                 continue
-            # Sanity cap on image size — emergentintegrations chokes on
-            # very large payloads. ~1.5MB is plenty for a 144-DPI page.
+            # Sanity cap on image size — keeps LLM payloads lean.
+            # ~1.5MB is plenty for a 144-DPI page.
             if len(png_bytes) > 2_500_000:
                 logger.info("Iter 78p: page %d image %.1fMB, skipping",
                             page_num, len(png_bytes) / 1e6)

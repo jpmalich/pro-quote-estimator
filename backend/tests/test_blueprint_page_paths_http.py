@@ -26,7 +26,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 BASE_URL = (
     os.environ.get("REACT_APP_BACKEND_URL")
-    or "https://app-converter-170.preview.emergentagent.com"
+    or "https://app.pro-quotes.com"
 ).rstrip("/")
 
 ADMIN_EMAIL = "hhunt6677@yahoo.com"

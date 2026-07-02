@@ -35,7 +35,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from emergentintegrations.llm.chat import (
+from llm import (
     ImageContent,
     LlmChat,
     UserMessage,
@@ -1456,9 +1456,9 @@ async def ai_measure(
         ("image/jpeg", _compress_for_claude(raw)) for _ctype, raw in image_payloads
     ]
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     user_id = user["id"]
     run_id = uuid.uuid4().hex
@@ -1552,9 +1552,9 @@ async def ai_measure_rerun(
             detail="Cached photos are no longer on disk — re-upload",
         )
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     new_run_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc)
@@ -2206,9 +2206,9 @@ async def ai_cross_check(
     else:
         summary = "First pass produced no per-elevation breakdown. Build one from scratch."
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     session_id = f"ai-cross-check-{user['id']}-{uuid.uuid4().hex[:8]}"
     chat = LlmChat(
@@ -2335,9 +2335,9 @@ async def ocr_scale(
     if not raw:
         raise HTTPException(status_code=400, detail="upload is empty")
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     # Compress through the same pipeline Claude already uses elsewhere.
     img_bytes = _compress_for_claude(raw)

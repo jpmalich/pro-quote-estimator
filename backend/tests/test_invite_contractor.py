@@ -16,7 +16,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://app-converter-170.preview.emergentagent.com",
+    "https://app.pro-quotes.com",
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 

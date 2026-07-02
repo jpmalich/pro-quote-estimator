@@ -23,8 +23,9 @@ flowchart TD
 
 | Path | Contents |
 |---|---|
-| `backend/` | FastAPI app ([Architecture §5.2](05-architecture.md)) — `routes/`, pricing engine (`services.py`), boot seeding (`startup.py`), per-brand seed data, `tests/` |
-| `frontend/` | React SPA ([Architecture §5.3](05-architecture.md)) — `src/pages`, `src/components`, domain logic in `src/lib` |
+| `backend/` | FastAPI app ([Architecture §5.2](05-architecture.md)) — `routes/`, pricing engine (`services.py`), boot seeding (`startup.py`), LLM client (`llm.py`), per-brand seed data, `tests/`, `Dockerfile`, `.env.example` |
+| `frontend/` | React SPA ([Architecture §5.3](05-architecture.md)) — `src/pages`, `src/components`, domain logic in `src/lib`, `Dockerfile` + `nginx.conf` |
+| `docker-compose.yml` | Self-hosted stack: MongoDB + backend + frontend |
 | `memory/` | `PRD.md` (full product history, iteration log) · `REMINDERS.md` (backlog) |
 | `Resource_Docs/` | Recorded conversation with the creator + transcript |
 | `docs/` | This documentation set |

@@ -15,7 +15,7 @@ import requests
 import pytest
 from reportlab.pdfgen import canvas
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app-converter-170.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://app.pro-quotes.com").rstrip("/")
 LOGIN_EMAIL = "hhunt6677@yahoo.com"
 LOGIN_PASSWORD = "Admin123!"
 

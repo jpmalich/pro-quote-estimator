@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Pro-Quote Estimating Tool" — a supplier-distributed B2B SaaS siding/window estimator. Alside Supply (the supplier) owns the platform and distributes it to contractor customers, who build branded estimates for homeowners. Full product context lives in `memory/PRD.md`; deferred work and follow-ups live in `memory/REMINDERS.md` (read both at session start). The project was scaffolded on the Emergent platform (`.emergent/`).
+"Pro-Quote Estimating Tool" — a supplier-distributed B2B SaaS siding/window estimator. Alside Supply (the supplier) owns the platform and distributes it to contractor customers, who build branded estimates for homeowners. Full product context lives in `memory/PRD.md`; deferred work and follow-ups live in `memory/REMINDERS.md` (read both at session start). The project was originally scaffolded on the Emergent platform but has been decoupled: AI calls go through `backend/llm.py` (official `anthropic` SDK, `ANTHROPIC_API_KEY`) and the stack self-hosts via `docker-compose.yml`.
 
 ## Commands
 

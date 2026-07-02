@@ -11,7 +11,6 @@ Flow:
    payload the frontend can preview + commit.
 
 Why text extraction first instead of sending the PDF binary to the LLM:
-- `FileContentWithMimeType` in emergentintegrations only works with Gemini.
 - HOVER PDFs are pure text (no scanned images we need to OCR).
 - Sending ~40KB of text is ~10x cheaper + faster than the binary.
 
@@ -32,7 +31,7 @@ from typing import Optional
 
 import pdfplumber
 from dotenv import load_dotenv
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from llm import LlmChat, UserMessage
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -1519,9 +1518,9 @@ def _strip_json_fence(s: str) -> str:
 
 
 async def _ask_claude(text: str, session_id: str) -> dict:
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
     chat = LlmChat(
         api_key=api_key,
         session_id=session_id,
@@ -1535,13 +1534,13 @@ async def _ask_claude(text: str, session_id: str) -> dict:
         # errors instead of generic 500s. Budget exhaustion is by far the
         # most likely cause once a contractor runs a few large HOVER PDFs.
         msg = str(e).lower()
-        if "budget" in msg and "exceed" in msg:
+        if ("budget" in msg and "exceed" in msg) or "credit balance" in msg:
             raise HTTPException(
                 status_code=402,
                 detail=(
-                    "Universal LLM key budget exceeded. Add balance in your "
-                    "Emergent profile (Profile → Universal Key → Add Balance) "
-                    "and retry the HOVER import."
+                    "LLM API credit exhausted. Add balance on the Anthropic "
+                    "account backing ANTHROPIC_API_KEY and retry the HOVER "
+                    "import."
                 ),
             ) from e
         if "rate" in msg and "limit" in msg:
@@ -1865,7 +1864,7 @@ async def hover_deep_verify(
         # Same-user scope: a contractor can only Deep Verify their own
         # cached imports.
         raise HTTPException(status_code=403, detail="Access denied")
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="LLM key not configured")
     from routes.hover_vision import deep_verify_elevation, reconcile_deep_verify
@@ -1921,9 +1920,9 @@ async def hover_import(
             detail="Could not extract text from PDF — is this a scanned/image PDF?",
         )
 
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY missing on server")
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
     if db is None:
         raise HTTPException(status_code=500, detail="Database unavailable")
 

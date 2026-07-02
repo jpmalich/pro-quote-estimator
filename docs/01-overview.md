@@ -44,3 +44,8 @@ meeting.
 Hosting on Emergent costs on the order of **$10/month** in platform credits, plus per-run AI costs
 (photo measure ~13–30¢; blueprint runs at the top of that range because of multi-pass AI calls).
 See [Operating Costs](09-operating-costs.md).
+
+> **Note:** the codebase has since been decoupled from the Emergent platform — AI calls go
+> directly to the Anthropic API (`ANTHROPIC_API_KEY`) and the stack self-hosts anywhere via
+> Docker Compose (see [System Requirements](08-system-requirements.md)). The Emergent details
+> above are kept as historical context.

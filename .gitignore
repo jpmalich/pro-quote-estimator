@@ -113,3 +113,6 @@ credentials.json
 *.key
 .credentials
 Resource_Docs/*.mp3
+
+# keep the config template tracked despite the .env.* rule above
+!.env.example
