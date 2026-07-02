@@ -40,7 +40,7 @@ meeting.
 
 | Environment | URL |
 |---|---|
-| Production (published) | `app.proquotes.com` |
+| Production (published) | `app.pro-quotes.com` |
 | Build preview (Emergent) | `app-converter-170.preview.emergentagent.com` |
 
 Hosting on Emergent costs on the order of **$10/month** in platform credits, plus per-run AI costs

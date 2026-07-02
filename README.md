@@ -39,7 +39,7 @@ database, API, system requirements, and roadmap.
 | Backend | FastAPI (Python 3.11), Motor/MongoDB, JWT cookie auth, WeasyPrint PDF |
 | AI | Anthropic Claude vision via Emergent's LLM layer |
 | Email | Resend (+ Svix-verified webhooks) |
-| Hosting | Emergent platform (`app.proquotes.com`) |
+| Hosting | Emergent platform (`app.pro-quotes.com`) |
 
 ## Quick Start
 
