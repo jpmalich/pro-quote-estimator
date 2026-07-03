@@ -21,6 +21,22 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
       *(Only untested piece of the decoupling.)*
 - [ ] **Decide production hosting for the self-hosted stack** (docker-compose is ready:
       Mongo + API + SPA) and set real secrets in `backend/.env`.
+- [ ] **Re-evaluate the whole admin concept** — the current model is a single static
+      shared secret (`SUPPLIER_ADMIN_TOKEN`) pasted into a hidden URL
+      (`/branding-admin?token=…`). It's clumsy and a real breach risk: anyone who
+      obtains the token has full supplier control (all tier pricing, branding, signup
+      code, contractor invitations, company deletion) with no identity, no expiry, no
+      revocation short of rotating the env var, and no audit trail of who did what.
+      The `?token=` page unlock also still lands in browser history/bookmarks even
+      though the API itself is header-only (SEC-006). Proposed direction: retire the
+      shared token in favor of **role-based admin on real user accounts** — supplier
+      admins log in like any user (existing JWT cookie auth + login rate limiting
+      already apply), with a `supplier_admin` role gating the `/api/admin/*` routes and
+      the admin UI; add an admin **audit log** (who changed which price/tier/company,
+      when); optional hardening: MFA for admin accounts, short-lived break-glass token
+      for emergencies only. Interim quick wins while the redesign lands:
+      `hmac.compare_digest` for the token check (already in tech debt), rate-limit
+      admin-token failures like login, and rotate the current production token.
 
 ## 🟠 P1 — Product (next up)
 
@@ -132,6 +148,19 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
       Suggested path: design-system spec first (like `docs/specs/theme-picker.md`), with
       before/after mockups of Dashboard + Estimate editor for Howard's sign-off before
       any code.
+- [ ] **Bring the admin pages into the theme system + modernization scope** — the six
+      established themes should fully apply to `/branding-admin` and
+      `/lp-formula-preview` too. The theme codemod did migrate those pages and the
+      `components/admin/*` panels to semantic tokens, and the FOUC guard applies the
+      persisted theme on every route — but the admin pages render OUTSIDE the app
+      `Layout`, so they have **no ThemePicker in their header** (no way to switch theme
+      from there), and they haven't been visually audited under all six themes
+      (especially Jobsite Dark — some dark-header literals were intentionally kept).
+      Work: add the ThemePicker (and LangToggle?) to the BrandingAdmin header, sweep
+      both admin pages + the four pricing panels under every theme with the
+      `validate-themes.py` gates in mind, and explicitly include these pages in the
+      full-app modernization redesign above (same business-grade treatment — today they
+      read as the least polished surfaces in the app).
 - [ ] **UI theme picker — Phase 3 remainders** (Phases 0–2 shipped 2026-07-03, see
       Recently Completed): sync theme choice to the user profile so it follows login
       across devices; supplier-pinned company default theme; expand toward Howard's 8–10
