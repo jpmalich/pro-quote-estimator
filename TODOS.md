@@ -65,6 +65,94 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
 - [ ] **Per-section rollup totals** in the estimate editor. *(Howie: low value — "most guys
       just care about the final number".)*
 
+## 🔍 UI/UX audit findings (2026-07-02)
+
+From a three-part audit (baseline-ui, accessibility, motion/performance + field-use UX)
+plus a live visual review. Contrast/color items are excluded (fixed earlier that day).
+
+### High impact
+
+- [ ] **Adopt the existing Radix Dialog/AlertDialog for the ~22 hand-rolled modals** —
+      `components/ui/dialog.jsx` exists but every product modal is a raw `fixed inset-0`
+      div: no Escape-to-close, no focus trap/restore, no `role="dialog"`. Start with the
+      simple ones (`TabPickerModal`, `BulkApplyConfirm`, `ElevationCompareModal`); for the
+      giant canvas modals at minimum add role/aria-modal/Escape/initial-focus.
+- [ ] **Dashboard estimate rows are click-only divs** — the app's primary navigation is
+      keyboard-unreachable (`Dashboard.jsx:337`). Make the row a real `<Link>` or add
+      `role`/`tabIndex`/Enter.
+- [ ] **Name the estimate-grid inputs** — qty/mat/lab inputs (dozens per estimate) have no
+      accessible name at any breakpoint (`SectionAccordion.jsx:244–315`); add per-input
+      `aria-label` (item name + column). Same for the app-wide `.label` pattern — only one
+      `htmlFor` exists in the entire app (Login, JobInfoPanel color selects, admin panels).
+- [ ] **Surface autosave failures** — autosave errors only `console.warn`
+      (`useEstimate.js:481`); a contractor in a dead zone can silently lose 30 min of
+      edits. Add a persistent saved/saving/error chip near the StickyBar, retry with
+      backoff, and a localStorage snapshot + "Restore unsaved changes?" on load.
+- [ ] **Offline resilience** — no `navigator.onLine` handling, no axios timeout (a hung
+      PUT blocks all future autosaves via `savingRef`), and the service worker only
+      pre-caches `/` (can white-screen after deploys: stale index.html → deleted hashed
+      bundles). Fix: 15s axios timeout, offline banner, network-first navigations +
+      runtime caching of `/static/*`, cache-bust per release.
+- [ ] **Confirm-or-undo on one-tap destruction** — photo remove (`PhotosPanel.jsx:55`),
+      custom misc rows (`SectionAccordion.jsx:574`), and fully-configured Vero/Mezzo
+      window openings all delete on a single (gloved) tap with no undo. Also replace the
+      8 `window.confirm`/`alert` call sites with the AlertDialog primitive.
+- [ ] **Code-split the bundle** — zero `React.lazy` anywhere; login-only users download the
+      entire 17k-line estimate-editor tree (AIMeasureButton alone is 3k lines). Lazy-load
+      routes in `App.js` and the measure/annotate modals at their trigger buttons.
+
+### Medium impact
+
+- [ ] **`h-screen` → `h-dvh`** (16 occurrences) and **PWA safe-area support** — add
+      `viewport-fit=cover` to the viewport meta (without it the one existing
+      `env(safe-area-inset-*)` is a no-op) + safe-area padding on `.sell-bar`/header for
+      notched iPhones in standalone mode.
+- [ ] **Estimate-editor render performance** — every keystroke maps the full merged lines
+      array and re-renders all unmemoized accordions (`useEstimate.js:159`,
+      `EstimateEditor.jsx:101,187`); memoize `SectionAccordion`, hoist `onToggle`, memo
+      `linesBySection`. Also: Catalog deep-clones the whole catalog per keystroke
+      (`Catalog.jsx:47` `JSON.parse(JSON.stringify)`), Dashboard recomputes row totals per
+      render, `ProfileAnnotator` zoom animates `width` (use transform like
+      `PhotoAnnotateModal`), pinch/pan sets React state per pointermove, `QuoteModal` puts
+      `backdrop-blur` on the full scrolling viewport.
+- [ ] **Icon-only buttons without accessible names** (~13: modal closes, annotation
+      Trash2s) + reset buttons named only "↺" + placeholder-only inputs (Team rename,
+      Dashboard search, QuoteModal email).
+- [ ] **Double-submit guards** — TotalsSummary's Quote/Materials/Print/CSV buttons don't
+      disable during their multi-second async handlers.
+- [ ] **Sub-44px touch targets** — photo-remove X (~22px), mat/lab reset ↺ (20px), adder
+      qty input (28px), "Switch workspace" text button.
+- [ ] **Form errors not announced** — Login error div needs `role="alert"` +
+      `aria-invalid`/`aria-describedby`; AI-run stage progress needs `role="status"`
+      `aria-live="polite"`; several flows are toast-only (ISS autosave, Team,
+      BrandingAdmin) and need inline error text near the action.
+- [ ] **Semantics** — estimate grid/Catalog/Dashboard column headers are divs (no
+      table/grid roles); `EstimateEditor` renders zero headings; accordions missing
+      `aria-expanded`; EN/ES + create/join toggles missing `aria-pressed`.
+- [ ] **z-index scale** — ad-hoc z-40/50/[60]/[70]/[100] literals exist only to outbid each
+      other; define theme tokens (header/sticky/modal/stacked/toast).
+- [ ] **Purple AI-feature styling** — gradients (`from-[#7C3AED] to-[#A855F7]` etc.) and a
+      second accent color clash with the flat black/orange system; decide the policy
+      (solid purple as a sanctioned "AI" accent, or restyle to brand).
+- [ ] **AI-run progress is lost on SPA navigation** — polling lives in the modal; add a
+      persistent "AI measure running…" pill (StickyBar) keyed off the run id.
+
+### Low impact / cleanup
+
+- [ ] Skeleton loading states (`ui/skeleton.jsx` exists, unused) instead of bare spinners.
+- [ ] Dead-weight cleanup: `recharts` (zero imports), ~30 unused shadcn `ui/*` components,
+      the dead shadcn toast stack (sonner is the live system), `Elevation3DPreview`/three.js
+      (currently unreferenced — delete or lazy-load when it returns).
+- [ ] Bilingual gaps: hardcoded-English `aria-label`s, `printTakeoff.js` hardcodes
+      `lang="en"` (materialList/emailQuote do it right); AI Measure modal untranslated.
+- [ ] Skip-to-content link; `cn()` adoption for the 137 template-literal classNames;
+      `w-N h-N` → `size-N`; `text-balance`/`text-pretty` on headings/paragraphs.
+- [ ] Small fixes: `Object.assign(est, data)` state mutation after quote send
+      (`EstimateEditor.jsx:428`), navigation-during-render on load failure
+      (`EstimateEditor.jsx:149`), Dashboard delete lacks try/catch, `window.alert` for PDF
+      errors, persistent `will-change` on the photo pan layer, Login hero image not
+      full-bleed (white letterboxing on the right pane).
+
 ## 🔧 Tech debt
 
 - [ ] Reject unsupported upload MIME types with 415 instead of silently coercing.
