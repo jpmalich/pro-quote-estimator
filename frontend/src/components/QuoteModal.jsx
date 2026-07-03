@@ -15,7 +15,9 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
   const { user } = useAuth();
   const { lang: uiLang } = useLang();
   const t = useT();
-  const [email, setEmail] = useState("");
+  // Prefill from the estimate's customer email (or the legacy bare
+  // recipient_email persisted by the first send).
+  const [email, setEmail] = useState(estimate?.customer_email || estimate?.recipient_email || "");
   // Per-estimate send language — defaults to the contractor's current UI lang,
   // but the contractor can flip it before sending. Note for the contractor only:
   // the message body resets when they change languages so they don't accidentally
@@ -153,6 +155,11 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
               data-testid="email-recipient"
               style={{ minWidth: 240 }}
             />
+            {!estimate?.customer_email && (
+              <span className="text-[11px] text-[#92400E] whitespace-nowrap" data-testid="email-will-save">
+                {t("quote.emailWillSave")}
+              </span>
+            )}
             <button
               className="btn-primary h-12 md:h-9 justify-center md:justify-start"
               onClick={handleEmail}
@@ -263,8 +270,19 @@ export default function QuoteModal({ estimate, totals, onClose, emailConfigured,
               <div className="text-[10px] uppercase tracking-[0.2em] text-[#71717A] mb-1 font-bold">
                 Prepared For
               </div>
+              {estimate.customer_company && (
+                <div className="font-bold text-[#09090B]">{estimate.customer_company}</div>
+              )}
               <div className="font-semibold text-[#09090B]">{estimate.customer_name || "—"}</div>
               <div className="text-sm text-[#52525B]">{estimate.address || ""}</div>
+              {(estimate.customer_phone || estimate.customer_email) && (
+                <div className="text-xs text-[#52525B] mt-0.5">
+                  {[estimate.customer_phone, estimate.customer_email].filter(Boolean).join(" · ")}
+                </div>
+              )}
+              {estimate.billing_address && (
+                <div className="text-xs text-[#71717A] mt-0.5">Billing: {estimate.billing_address}</div>
+              )}
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-[#71717A] mb-1 font-bold">

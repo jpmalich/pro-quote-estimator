@@ -61,7 +61,9 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
 - [ ] **J-block disambiguation aid** — AI can't tell light/split/UL/jumbo/dri-vent blocks
       apart; give contractors a quicker correction UI on import.
 - [ ] **Quote status workflow** (draft → sent → won/lost) + duplicate-as-template.
-- [ ] **Customer/contact directory + e-sign capture.**
+- [ ] **Customer/contact directory + e-sign capture.** *(Partially advanced 2026-07-03:
+      estimates now carry a full customer contact/company record — email, phones, fax,
+      company, billing address, lead source. A cross-estimate directory view remains.)*
 - [ ] **Lead-source field + "$ closed by channel" contractor analytics.**
 - [ ] **Role-based catalog editing** (owner-only).
 - [ ] **Job complexity presets** — Standard / Second Story / Hard Access / Steep Pitch
@@ -172,6 +174,11 @@ plus a live visual review. Contrast/color items are excluded (fixed earlier that
       style fill, missed by the class-based contrast sweep).
 
 ## ✅ Recently completed
+
+- [x] **Customer contact & company fields on estimates** — 10 new fields (email, cell +
+      secondary phone, fax, preferred contact, company + title, billing address, lead
+      source), "Contact & Lead" block in Job Info, two-way email sync with the send-quote
+      dialog, quote-document + CSV integration *(2026-07-03)*
 
 - [x] **Theme picker (Phases 0–2)** — semantic token migration (~2,100 class replacements),
       six WCAG-validated themes incl. Jobsite Dark, header + Team-page picker, FOUC guard,

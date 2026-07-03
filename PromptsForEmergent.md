@@ -201,3 +201,107 @@ flash of the default.
 ```
 
 ---
+
+## 3 — Customer contact & company fields on estimates (2026-07-03)
+
+**What changed here:** 10 new customer fields on the estimate (email, cell + secondary
+phone, fax, preferred contact method, company + contact title, billing address, lead
+source + detail), a "Contact & Lead" block in the Job Information panel, two-way email
+sync with the send-quote dialog, and the fields flowing into the quote document and CSVs.
+
+**Prompt for Emergent:**
+
+```
+Add customer contact/company fields to estimates. Everything is optional — nothing blocks
+drafting or autosave; email is only needed to send a quote.
+
+STEP 1 — backend/models.py, class EstimateIn (after `notes`): add ten fields, each
+`Optional[str] = None` (NOT ""), so the PUT handler's model_dump(exclude_none=True) means
+partial payloads never clobber stored values: customer_email, customer_phone (cell),
+customer_phone_alt (landline), customer_fax, customer_contact_method (slug
+cell|landline|email|text|""), customer_company, customer_contact_title, billing_address
+(empty string means "same as job address" — no boolean flag), lead_source (slug),
+lead_source_detail (free text). ALSO add structured address parts (the composed `address`
+and `billing_address` strings stay canonical — every consumer keeps reading them):
+address_street, address_city, address_state, address_zip, billing_street, billing_city,
+billing_state, billing_zip.
+
+STEP 2 — frontend/src/lib/useEstimate.js buildPayload (the explicit whitelist): add one
+line per field after `notes`; .trim() the email/phone/fax values; plain `|| ""` for the
+rest. Loading needs no change (initial load spreads the API doc).
+
+STEP 3 — JobInfoPanel.jsx: reorganize the whole Job Information form grid into FOUR
+logically grouped sections, each introduced by the small uppercase mini-header pattern
+(same style as the Material Colors header):
+1. "Customer" — Customer name (cust-name) · Company (cust-company) · Contact Title
+   (cust-contact-title).
+2. "Contact & Lead" — Row 1: Cell Phone (type=tel, cust-phone) · Secondary Phone
+   (cust-phone-alt) · Fax (cust-fax). Row 2: Email (type=email, cust-email) · Preferred
+   Contact select (cust-contact-method: — /Cell/Landline/Email/Text) · Lead Source select
+   (lead-source) with presets referral, repeat_customer, web, social, yard_sign,
+   truck_wrap, home_show, supplier, door_knock, other (slug values persist; labels via
+   i18n); when the value is "other" or "referral", reveal a small text input
+   lead-source-detail in the same cell.
+3. "Job & Billing Address" — the job address is FOUR fields on one row: Street
+   (cust-street, half width) · City (cust-city) · State (cust-state, a select of the 50
+   US state + DC abbreviations) · ZIP (cust-zip, inputMode numeric, maxLength 10). On any
+   part change, also recompose the canonical single-line `address` string
+   ("street, city, ST zip") so quote docs/CSVs/geocoding keep working. When the
+   structured parts are all empty but a legacy `address` string exists, best-effort
+   parse it (zip regex at end, 2-letter state token, first comma segment = street) for
+   display only — persist parts on first edit. Below it, a full-width checkbox "Billing
+   address same as job address" (billing-same-checkbox), CHECKED when billing_address is
+   empty; unchecking copies the job parts into billing_street/city/state/zip +
+   billing_address and reveals the same four-field grid (billing-street/-city/-state/
+   -zip); re-checking clears all five billing fields.
+4. "Estimate" — Estimate # (est-num) · Date (est-date) · Estimator (estimator-name), then
+   the full-width Scope of Work textarea (notes-input).
+Every label gets htmlFor/id.
+Header: when customer_email is empty, show the standard lightbulb hint badge (hint tokens
++ Lightbulb icon) reading "Add email to send quotes" (testid contact-hint), visible even
+when the panel is collapsed. Collapsed summary line: append customer_company after the
+name and one contact chip (customer_phone || customer_email).
+
+STEP 4 — two-way email sync. QuoteModal: initialize the recipient input from
+estimate.customer_email || estimate.recipient_email; when the estimate has no
+customer_email, show a small note "This email will be saved to the estimate." In
+EstimateEditor's onEmail success path: if the sent address differs from
+est.customer_email, call update({ customer_email: recipient_email }) so autosave persists
+it; ALSO replace the `Object.assign(est, data)` post-send refresh with a proper state
+update (the mutation never re-renders). Same write-back in ISSEstimateEditor's onEmail via
+its updateField.
+
+STEP 5 — ISS editor customer grid: add Email (iss-customer-email, type=email) and Cell
+Phone (iss-customer-phone, type=tel) inputs. Its payload spreads the whole estimate, so no
+payload change is needed.
+
+STEP 6 — displays/exports. Quote "Prepared For" block in BOTH QuoteModal's printable area
+and lib/emailQuote.js buildEmailHtml: company name (bold) above the customer name; a small
+"phone · email" line under the address; a "Billing: …" line when billing_address is set.
+NEVER print lead_source, fax, or contact method on customer documents.
+backend/routes/estimates.py: all-estimates CSV gains Email, Phone, Company, Lead Source
+columns after Address; the single-estimate CSV gains rows for all ten fields.
+Dashboard search filter: also match customer_email, customer_phone, customer_company.
+AcceptPage, material list, print takeoff, measurement report: unchanged.
+
+STEP 6b — browser autofill: these are the CUSTOMER's details, not the signed-in user's,
+so give every contact/address input autoComplete="off"; and since Chrome may autofill
+anyway, add a CSS override so autofilled inputs keep the theme colors instead of Chrome's
+pale-blue fill: .input:-webkit-autofill (+ :hover/:focus and select.input variant) with
+-webkit-box-shadow: 0 0 0 1000px var(--surface) inset; -webkit-text-fill-color: var(--ink);
+caret-color: var(--ink); and a very long background-color transition.
+
+STEP 7 — i18n: add EN + ES keys for every new label (est.contactInfo "Contact & Lead"/
+"Contacto y Origen", est.email, est.phoneCell, est.phoneAlt, est.fax, est.contactMethod +
+.cell/.landline/.email/.text, est.company, est.contactTitle, est.billingSame,
+est.billingAddress, est.leadSource + the ten preset keys, est.leadSourceDetail,
+est.contactHint, quote.emailWillSave).
+
+Verify: PUT an estimate with the new fields then GET returns them; a PUT omitting them
+does not clobber; fill the fields in the editor, reload, they persist; the billing
+checkbox round-trips; QuoteModal prefills from the saved email and sending to a new
+address updates the estimate; both CSVs include the new columns; the hint badge
+disappears once an email is entered; Spanish labels render.
+```
+
+---

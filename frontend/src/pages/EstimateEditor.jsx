@@ -422,10 +422,15 @@ export default function EstimateEditor() {
                 accept_token,
               });
               toast.success(t("quote.sentToast"));
+              // Two-way email sync: sending to a new address saves it back
+              // to the estimate (autosave persists the patch).
+              if (recipient_email && recipient_email !== est.customer_email) {
+                update({ customer_email: recipient_email });
+              }
               // Refresh local estimate so the dashboard badge updates.
               try {
                 const { data } = await api.get(`/estimates/${id}`);
-                if (data) Object.assign(est, data);
+                if (data) update({ status_label: data.status_label, last_sent_at: data.last_sent_at });
               } catch (err) {
                 // Non-fatal: the email already sent successfully, we just
                 // couldn't refresh the local copy. Logs help diagnose if

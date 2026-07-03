@@ -479,6 +479,26 @@ export default function ISSEstimateEditor() {
                 data-testid="iss-date"
               />
             </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] font-bold block mb-0.5">Email</label>
+              <input
+                type="email"
+                className="input h-9 text-sm w-full"
+                value={est.customer_email || ""}
+                onChange={(e) => updateField("customer_email", e.target.value)}
+                data-testid="iss-customer-email"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] font-bold block mb-0.5">Cell Phone</label>
+              <input
+                type="tel"
+                className="input h-9 text-sm w-full"
+                value={est.customer_phone || ""}
+                onChange={(e) => updateField("customer_phone", e.target.value)}
+                data-testid="iss-customer-phone"
+              />
+            </div>
           </div>
 
           {/* Scope of Work — same field as siding estimates (notes) so it
@@ -1025,6 +1045,10 @@ export default function ISSEstimateEditor() {
                 accept_token,
               });
               toast.success("Quote sent");
+              // Two-way email sync (autosave persists the change).
+              if (recipient_email && recipient_email !== est.customer_email) {
+                updateField("customer_email", recipient_email);
+              }
               return true;
             } catch (e) {
               toast.error(formatApiError(e.response?.data?.detail));

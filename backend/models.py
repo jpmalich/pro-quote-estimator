@@ -142,6 +142,31 @@ class EstimateIn(BaseModel):
     estimate_date: str = ""
     estimator: str = ""
     notes: str = ""
+    # Customer contact / company block. Optional[…] = None (not "") so the
+    # PUT handler's model_dump(exclude_none=True) means clients that don't
+    # send these fields never clobber stored values; the UI sends explicit
+    # "" to clear a field intentionally.
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None       # cell (primary)
+    customer_phone_alt: Optional[str] = None   # secondary / landline
+    customer_fax: Optional[str] = None
+    customer_contact_method: Optional[str] = None  # "cell"|"landline"|"email"|"text"|""
+    customer_company: Optional[str] = None     # commercial customers
+    customer_contact_title: Optional[str] = None
+    # Structured address parts — the composed `address` / `billing_address`
+    # strings remain the canonical value every consumer reads (quote docs,
+    # CSVs, geocoding); the UI keeps them in sync when the parts change.
+    address_street: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    billing_address: Optional[str] = None      # empty = same as job address
+    billing_street: Optional[str] = None
+    billing_city: Optional[str] = None
+    billing_state: Optional[str] = None
+    billing_zip: Optional[str] = None
+    lead_source: Optional[str] = None          # slug from the UI preset list
+    lead_source_detail: Optional[str] = None   # free text for "other"/referrer name
     # Estimate-level color choices (one per material family). Print on the
     # material list so the supplier knows exactly which colors to pull.
     siding_color: str = ""

@@ -9,7 +9,7 @@ import BlueprintMeasureButton from "@/components/estimate/BlueprintMeasureButton
 import PairToLpButton from "@/components/estimate/PairToLpButton";
 // Iter 78u — Compare Drawings modal trigger
 import { useState } from "react";
-import { Upload, FileText, Sparkles, Layers, ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
+import { Upload, FileText, Sparkles, Layers, ChevronDown, ChevronUp, MoreHorizontal, Lightbulb } from "lucide-react";
 import ElevationCompareModal, { countSources } from "@/components/estimate/ElevationCompareModal";
 
 // Iter 78z+++ — Cleaner job-info header. Three equal-width "tool tiles"
@@ -40,6 +40,50 @@ function ToolTile({ icon: Icon, label, sub, children, testid, accent = "#7C3AED"
       <div className="flex flex-wrap gap-1.5 items-start">{children}</div>
     </div>
   );
+}
+
+// Lead-source presets — slugs persist (analytics-friendly), labels via i18n.
+const LEAD_SOURCES = [
+  ["referral", "est.leadSource.referral"],
+  ["repeat_customer", "est.leadSource.repeat"],
+  ["web", "est.leadSource.web"],
+  ["social", "est.leadSource.social"],
+  ["yard_sign", "est.leadSource.yardSign"],
+  ["truck_wrap", "est.leadSource.truckWrap"],
+  ["home_show", "est.leadSource.homeShow"],
+  ["supplier", "est.leadSource.supplier"],
+  ["door_knock", "est.leadSource.doorKnock"],
+  ["other", "est.leadSource.other"],
+];
+
+const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WV","WI","WY"];
+
+// Compose the canonical single-line address every existing consumer reads
+// (quote docs, CSVs, dashboard, geocoding). "123 Main St, Pittsburgh, PA 15222".
+function composeAddress({ street, city, state, zip }) {
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, cityStateZip].filter(Boolean).join(", ");
+}
+
+// Best-effort parse of a legacy free-text address into parts for display.
+// Only used when the structured fields are all empty; nothing is saved
+// until the contractor edits a part.
+function parseAddress(str) {
+  const out = { street: "", city: "", state: "", zip: "" };
+  const t = (str || "").trim();
+  if (!t) return out;
+  let rest = t;
+  const zipM = rest.match(/(\d{5}(?:-\d{4})?)\s*$/);
+  if (zipM) { out.zip = zipM[1]; rest = rest.slice(0, zipM.index).trim().replace(/,$/, ""); }
+  const stateM = rest.match(/[,\s]([A-Za-z]{2})$/);
+  if (stateM && US_STATES.includes(stateM[1].toUpperCase())) {
+    out.state = stateM[1].toUpperCase();
+    rest = rest.slice(0, stateM.index).trim().replace(/,$/, "");
+  }
+  const parts = rest.split(",").map((x) => x.trim()).filter(Boolean);
+  out.street = parts[0] || "";
+  out.city = parts.slice(1).join(", ");
+  return out;
 }
 
 export default function JobInfoPanel({ est, update, save, setInstallMethod, setHomePre1978 }) {
@@ -77,6 +121,34 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
   // palette across every applicable color picker, with renamed labels
   // ("LP Siding Color", "Trim Color") and no Window Wrap dropdown.
   const isLp = est?.kind === "lp_smart";
+  // Structured address parts. Parts are canonical once set; legacy
+  // estimates that only carry the composed string get a display-time parse.
+  const jobParts = (est?.address_street || est?.address_city || est?.address_state || est?.address_zip)
+    ? { street: est.address_street || "", city: est.address_city || "", state: est.address_state || "", zip: est.address_zip || "" }
+    : parseAddress(est?.address);
+  const billParts = (est?.billing_street || est?.billing_city || est?.billing_state || est?.billing_zip)
+    ? { street: est.billing_street || "", city: est.billing_city || "", state: est.billing_state || "", zip: est.billing_zip || "" }
+    : parseAddress(est?.billing_address);
+  const setJobPart = (field, value) => {
+    const merged = { ...jobParts, [field]: value };
+    update({
+      address_street: merged.street,
+      address_city: merged.city,
+      address_state: merged.state,
+      address_zip: merged.zip,
+      address: composeAddress(merged),
+    });
+  };
+  const setBillPart = (field, value) => {
+    const merged = { ...billParts, [field]: value };
+    update({
+      billing_street: merged.street,
+      billing_city: merged.city,
+      billing_state: merged.state,
+      billing_zip: merged.zip,
+      billing_address: composeAddress(merged),
+    });
+  };
   return (
     <section className="card p-5 sm:p-6 mb-6" data-testid="job-info">
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
@@ -85,8 +157,20 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
           {collapsed && basicsFilled && (
             <div className="text-xs text-[var(--ink-2)] flex items-center gap-2 flex-wrap" data-testid="job-info-summary">
               <span className="font-bold text-[var(--ink)]">{est.customer_name}</span>
+              {est.customer_company && (
+                <>
+                  <span className="text-[var(--muted)]">·</span>
+                  <span>{est.customer_company}</span>
+                </>
+              )}
               <span className="text-[var(--muted)]">·</span>
               <span>{est.address}</span>
+              {(est.customer_phone || est.customer_email) && (
+                <>
+                  <span className="text-[var(--muted)]">·</span>
+                  <span className="text-[var(--muted)]">{est.customer_phone || est.customer_email}</span>
+                </>
+              )}
               {est.estimate_number && (
                 <>
                   <span className="text-[var(--muted)]">·</span>
@@ -94,6 +178,15 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                 </>
               )}
             </div>
+          )}
+          {!(est.customer_email || "").trim() && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 bg-[var(--hint-bg-2)] border border-[var(--hint-line)] text-[var(--hint-ink-2)] flex items-center gap-1"
+              data-testid="contact-hint"
+            >
+              <Lightbulb className="w-3 h-3" aria-hidden="true" />
+              {t("est.contactHint")}
+            </span>
           )}
         </div>
         {basicsFilled && (
@@ -201,27 +294,290 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
         className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${collapsed ? "hidden" : ""}`}
         data-testid="job-info-form"
       >
+        {/* ---- Customer: who ---- */}
+        <div className="sm:col-span-2 lg:col-span-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] font-bold">
+            {t("est.customerInfo")}
+          </div>
+        </div>
         <div>
-          <label className="label">{t("est.customer")}</label>
+          <label className="label" htmlFor="cust-name">{t("est.customer")}</label>
           <input
+            id="cust-name"
             className="input"
             value={est.customer_name || ""}
             onChange={(e) => update({ customer_name: e.target.value })}
-            data-testid="cust-name"
-          />
-        </div>
-        <div className="lg:col-span-2">
-          <label className="label">{t("est.address")}</label>
-          <input
-            className="input"
-            value={est.address || ""}
-            onChange={(e) => update({ address: e.target.value })}
-            data-testid="cust-address"
+            autoComplete="off"
+              data-testid="cust-name"
           />
         </div>
         <div>
-          <label className="label">{t("est.estimateNum")}</label>
+          <label className="label" htmlFor="cust-company">{t("est.company")}</label>
           <input
+            id="cust-company"
+            className="input"
+            value={est.customer_company || ""}
+            onChange={(e) => update({ customer_company: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-company"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-contact-title">{t("est.contactTitle")}</label>
+          <input
+            id="cust-contact-title"
+            className="input"
+            value={est.customer_contact_title || ""}
+            onChange={(e) => update({ customer_contact_title: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-contact-title"
+          />
+        </div>
+
+        {/* ---- Contact & Lead: how to reach them ---- */}
+        <div className="sm:col-span-2 lg:col-span-3 pt-2">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] font-bold">
+            {t("est.contactInfo")}
+          </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-phone">{t("est.phoneCell")}</label>
+          <input
+            id="cust-phone"
+            className="input"
+            type="tel"
+            value={est.customer_phone || ""}
+            onChange={(e) => update({ customer_phone: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-phone"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-phone-alt">{t("est.phoneAlt")}</label>
+          <input
+            id="cust-phone-alt"
+            className="input"
+            type="tel"
+            value={est.customer_phone_alt || ""}
+            onChange={(e) => update({ customer_phone_alt: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-phone-alt"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-fax">{t("est.fax")}</label>
+          <input
+            id="cust-fax"
+            className="input"
+            type="tel"
+            value={est.customer_fax || ""}
+            onChange={(e) => update({ customer_fax: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-fax"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-email">{t("est.email")}</label>
+          <input
+            id="cust-email"
+            className="input"
+            type="email"
+            autoComplete="off"
+            value={est.customer_email || ""}
+            onChange={(e) => update({ customer_email: e.target.value })}
+            data-testid="cust-email"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="cust-contact-method">{t("est.contactMethod")}</label>
+          <select
+            id="cust-contact-method"
+            className="input"
+            value={est.customer_contact_method || ""}
+            onChange={(e) => update({ customer_contact_method: e.target.value })}
+            autoComplete="off"
+              data-testid="cust-contact-method"
+          >
+            <option value="">—</option>
+            <option value="cell">{t("est.contactMethod.cell")}</option>
+            <option value="landline">{t("est.contactMethod.landline")}</option>
+            <option value="email">{t("est.contactMethod.email")}</option>
+            <option value="text">{t("est.contactMethod.text")}</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="lead-source">{t("est.leadSource")}</label>
+          <select
+            id="lead-source"
+            className="input"
+            value={est.lead_source || ""}
+            onChange={(e) => update({ lead_source: e.target.value })}
+            data-testid="lead-source"
+          >
+            <option value="">—</option>
+            {LEAD_SOURCES.map(([slug, key]) => (
+              <option key={slug} value={slug}>{t(key)}</option>
+            ))}
+          </select>
+          {(est.lead_source === "other" || est.lead_source === "referral") && (
+            <input
+              className="input mt-2"
+              placeholder={t("est.leadSourceDetail")}
+              aria-label={t("est.leadSourceDetail")}
+              value={est.lead_source_detail || ""}
+              onChange={(e) => update({ lead_source_detail: e.target.value })}
+              autoComplete="off"
+              data-testid="lead-source-detail"
+            />
+          )}
+        </div>
+
+        {/* ---- Addresses: where ---- */}
+        <div className="sm:col-span-2 lg:col-span-3 pt-2">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] font-bold">
+            {t("est.addresses")}
+          </div>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="sm:col-span-2 lg:col-span-3">
+            <label className="label" htmlFor="cust-street">{t("est.street")}</label>
+            <input
+              id="cust-street"
+              className="input"
+              autoComplete="off"
+              value={jobParts.street}
+              onChange={(e) => setJobPart("street", e.target.value)}
+              data-testid="cust-street"
+            />
+          </div>
+          <div className="lg:col-span-1">
+            <label className="label" htmlFor="cust-city">{t("est.city")}</label>
+            <input
+              id="cust-city"
+              className="input"
+              value={jobParts.city}
+              onChange={(e) => setJobPart("city", e.target.value)}
+              autoComplete="off"
+              data-testid="cust-city"
+            />
+          </div>
+          <div className="lg:col-span-1">
+            <label className="label" htmlFor="cust-state">{t("est.state")}</label>
+            <select
+              id="cust-state"
+              className="input"
+              value={jobParts.state}
+              onChange={(e) => setJobPart("state", e.target.value)}
+              autoComplete="off"
+              data-testid="cust-state"
+            >
+              <option value="">—</option>
+              {US_STATES.map((st) => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </select>
+          </div>
+          <div className="lg:col-span-1">
+            <label className="label" htmlFor="cust-zip">{t("est.zip")}</label>
+            <input
+              id="cust-zip"
+              className="input"
+              inputMode="numeric"
+              maxLength={10}
+              value={jobParts.zip}
+              onChange={(e) => setJobPart("zip", e.target.value)}
+              autoComplete="off"
+              data-testid="cust-zip"
+            />
+          </div>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ink-2)]">
+            <input
+              type="checkbox"
+              checked={!(est.billing_address || "").trim()}
+              onChange={(e) =>
+                e.target.checked
+                  ? update({ billing_address: "", billing_street: "", billing_city: "", billing_state: "", billing_zip: "" })
+                  : update({
+                      billing_address: est.address || "",
+                      billing_street: jobParts.street,
+                      billing_city: jobParts.city,
+                      billing_state: jobParts.state,
+                      billing_zip: jobParts.zip,
+                    })
+              }
+              data-testid="billing-same-checkbox"
+            />
+            {t("est.billingSame")}
+          </label>
+          {!!(est.billing_address || "").trim() && (
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="sm:col-span-2 lg:col-span-3">
+                <label className="label" htmlFor="billing-street">{t("est.street")}</label>
+                <input
+                  id="billing-street"
+                  className="input"
+                  value={billParts.street}
+                  onChange={(e) => setBillPart("street", e.target.value)}
+                  autoComplete="off"
+              data-testid="billing-street"
+                />
+              </div>
+              <div className="lg:col-span-1">
+                <label className="label" htmlFor="billing-city">{t("est.city")}</label>
+                <input
+                  id="billing-city"
+                  className="input"
+                  value={billParts.city}
+                  onChange={(e) => setBillPart("city", e.target.value)}
+                  autoComplete="off"
+              data-testid="billing-city"
+                />
+              </div>
+              <div className="lg:col-span-1">
+                <label className="label" htmlFor="billing-state">{t("est.state")}</label>
+                <select
+                  id="billing-state"
+                  className="input"
+                  value={billParts.state}
+                  onChange={(e) => setBillPart("state", e.target.value)}
+                  autoComplete="off"
+              data-testid="billing-state"
+                >
+                  <option value="">—</option>
+                  {US_STATES.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="lg:col-span-1">
+                <label className="label" htmlFor="billing-zip">{t("est.zip")}</label>
+                <input
+                  id="billing-zip"
+                  className="input"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={billParts.zip}
+                  onChange={(e) => setBillPart("zip", e.target.value)}
+                  autoComplete="off"
+              data-testid="billing-zip"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ---- Estimate: job meta ---- */}
+        <div className="sm:col-span-2 lg:col-span-3 pt-2">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] font-bold">
+            {t("est.estimateMeta")}
+          </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="est-num">{t("est.estimateNum")}</label>
+          <input
+            id="est-num"
             className="input"
             value={est.estimate_number || ""}
             onChange={(e) => update({ estimate_number: e.target.value })}
@@ -229,8 +585,9 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
           />
         </div>
         <div>
-          <label className="label">{t("est.date")}</label>
+          <label className="label" htmlFor="est-date">{t("est.date")}</label>
           <input
+            id="est-date"
             className="input"
             type="date"
             value={est.estimate_date || ""}
@@ -239,8 +596,9 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
           />
         </div>
         <div>
-          <label className="label">{t("est.estimator")}</label>
+          <label className="label" htmlFor="estimator-name">{t("est.estimator")}</label>
           <input
+            id="estimator-name"
             className="input"
             value={est.estimator || ""}
             onChange={(e) => update({ estimator: e.target.value })}
@@ -248,8 +606,9 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
           />
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
-          <label className="label">{t("est.scope")}</label>
+          <label className="label" htmlFor="notes-input">{t("est.scope")}</label>
           <textarea
+            id="notes-input"
             className="input"
             rows="3"
             value={est.notes || ""}

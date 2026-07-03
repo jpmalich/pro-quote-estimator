@@ -294,8 +294,11 @@ export function buildEmailHtml({ estimate, totals, company, branding, message, a
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
             <td width="50%" valign="top" style="padding-right:12px;font-family:${FONT};">
               <div style="font-family:${FONT};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${C.faint};font-weight:bold;margin-bottom:4px;">${esc(t("email.preparedFor"))}</div>
+              ${estimate.customer_company ? `<div style="font-family:${FONT};font-size:15px;font-weight:700;color:${C.ink};">${esc(estimate.customer_company)}</div>` : ""}
               <div style="font-family:${FONT};font-size:15px;font-weight:600;color:${C.ink};">${esc(estimate.customer_name || "—")}</div>
               <div style="font-family:${FONT};font-size:13px;color:${C.muted};">${esc(estimate.address || "")}</div>
+              ${estimate.customer_phone || estimate.customer_email ? `<div style="font-family:${FONT};font-size:12px;color:${C.muted};margin-top:2px;">${esc([estimate.customer_phone, estimate.customer_email].filter(Boolean).join(" · "))}</div>` : ""}
+              ${estimate.billing_address ? `<div style="font-family:${FONT};font-size:12px;color:${C.faint};margin-top:2px;">Billing: ${esc(estimate.billing_address)}</div>` : ""}
             </td>
             <td width="50%" valign="top" style="padding-left:12px;font-family:${FONT};">
               <div style="font-family:${FONT};font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${C.faint};font-weight:bold;margin-bottom:4px;">${esc(t("email.estimator"))}</div>

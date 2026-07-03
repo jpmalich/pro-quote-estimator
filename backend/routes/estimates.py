@@ -342,7 +342,8 @@ async def export_estimates_csv(user: dict = Depends(get_current_user)):
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        "Estimate #", "Customer", "Address", "Date", "Estimator",
+        "Estimate #", "Customer", "Address", "City", "State", "ZIP", "Email", "Phone", "Company", "Lead Source",
+        "Date", "Estimator",
         "Material", "Labor", "Tax", "Base", "Pricing Mode", "Margin/Markup %", "Sell Price", "Profit",
         "Created By", "Updated At",
     ])
@@ -350,7 +351,11 @@ async def export_estimates_csv(user: dict = Depends(get_current_user)):
         t = calc_totals(e)
         writer.writerow([
             e.get("estimate_number", ""), e.get("customer_name", ""),
-            e.get("address", ""), e.get("estimate_date", ""), e.get("estimator", ""),
+            e.get("address", ""),
+            e.get("address_city", "") or "", e.get("address_state", "") or "", e.get("address_zip", "") or "",
+            e.get("customer_email", "") or "", e.get("customer_phone", "") or "",
+            e.get("customer_company", "") or "", e.get("lead_source", "") or "",
+            e.get("estimate_date", ""), e.get("estimator", ""),
             f"{t['sub_mat']:.2f}", f"{t['sub_lab']:.2f}", f"{t['tax']:.2f}",
             f"{t['base']:.2f}", e.get("pricing_mode") or "markup", e.get("margin_pct", 0),
             f"{t['sell']:.2f}", f"{t['profit']:.2f}",
@@ -377,6 +382,20 @@ async def export_estimate_csv(est_id: str, user: dict = Depends(get_current_user
         ("Estimate #", est.get("estimate_number", "")),
         ("Customer", est.get("customer_name", "")),
         ("Address", est.get("address", "")),
+        ("Street", est.get("address_street", "") or ""),
+        ("City", est.get("address_city", "") or ""),
+        ("State", est.get("address_state", "") or ""),
+        ("ZIP", est.get("address_zip", "") or ""),
+        ("Email", est.get("customer_email", "") or ""),
+        ("Cell Phone", est.get("customer_phone", "") or ""),
+        ("Secondary Phone", est.get("customer_phone_alt", "") or ""),
+        ("Fax", est.get("customer_fax", "") or ""),
+        ("Preferred Contact", est.get("customer_contact_method", "") or ""),
+        ("Company", est.get("customer_company", "") or ""),
+        ("Contact Title", est.get("customer_contact_title", "") or ""),
+        ("Billing Address", est.get("billing_address", "") or ""),
+        ("Lead Source", est.get("lead_source", "") or ""),
+        ("Lead Source Detail", est.get("lead_source_detail", "") or ""),
         ("Date", est.get("estimate_date", "")),
         ("Estimator", est.get("estimator", "")),
         ("Notes", (est.get("notes", "") or "").replace("\n", " ")),

@@ -169,6 +169,18 @@ input[type="number"].input, textarea.input {
 }
 /* Focus indicator must hit 3:1 against --surface (WCAG 1.4.11) — per-theme --focus. */
 .input:focus { border-color: var(--focus); }
+/* Chrome/WebKit autofill forces a pale blue/yellow fill via an internal inset
+   box-shadow that ignores the page theme (very jarring in Jobsite Dark).
+   Paint over it with the theme surface and keep the theme text color. */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus,
+select.input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  transition: background-color 999999s ease-in-out 0s;
+}
 .input.num { text-align: right; font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, monospace; }
 textarea.input { height: auto; min-height: 80px; padding: 10px 12px; }
 
