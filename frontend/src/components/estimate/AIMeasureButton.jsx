@@ -9,7 +9,7 @@
 // shape as HOVER, so we hand it to the same `onApply` callback the page
 // already uses for HOVER.
 import React, { useEffect, useRef, useState } from "react";
-import { Sparkles, X, Check, Loader2, AlertTriangle, Camera, Upload, Ruler, RotateCcw, Wand2, FileText, Printer, Lightbulb, ScanSearch } from "lucide-react";
+import { Sparkles, X, Check, Loader2, AlertTriangle, Camera, Upload, Ruler, RotateCcw, Wand2, FileText, Printer, Lightbulb, ScanSearch, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import PhotoMeasureButton from "@/components/estimate/PhotoMeasureButton";
@@ -29,6 +29,8 @@ import { buildElevationsFromAIMeasure } from "@/lib/elevationBuilder";
 // Iter 78z (P1.3) — Per-Elevation Breakdown card + "+ Add Accent" override
 import PerElevationBreakdownCard from "@/components/estimate/PerElevationBreakdownCard";
 import { printTakeoff } from "@/lib/printTakeoff";
+// Iter 79j.22 — 3D House Model view (parametric Three.js render from raw_ai)
+import HouseModel3D from "@/components/estimate/HouseModel3D";
 
 const ELEVATION_OPTIONS = [
   { key: "",            label: "Untagged" },
@@ -63,7 +65,7 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 const unitOf = (k) =>
   k.endsWith("_sqft") ? "ft²" : k.endsWith("_lf") ? "LF" : "";
 
-export default function AIMeasureButton({ kind, onApply, address, overhangIn, estimateId }) {
+export default function AIMeasureButton({ kind, onApply, address, overhangIn, estimateId, estimate }) {
   const fileRef = useRef();
   // `files` is the locally-selected file objects (used for previews until
   // upload completes); `photoUrls` is the canonical server-side list that
@@ -109,6 +111,22 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // scan only adds ~5-10s and catches what the main pass misses
   // because phone photos get downsized to ~1568px before tokenization.
   const [deepDormerScan, setDeepDormerScan] = useState(true);
+  // Iter 79j.15 — A/B model dropdown. Persisted so a contractor's
+  // last choice survives modal close/reopen. Keys must match the
+  // backend `_MODEL_CHOICES` registry.
+  const [modelChoice, setModelChoice] = useState(() => {
+    try {
+      return localStorage.getItem("aiMeasureModelChoice") || "claude-opus-4-5";
+    } catch {
+      return "claude-opus-4-5";
+    }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("aiMeasureModelChoice", modelChoice); } catch { /* ignore */ }
+  }, [modelChoice]);
+  // Iter 79j.16 — Model Comparison history state moved below `open`
+  // and `preview` state declarations to avoid TDZ (state hooks
+  // referenced by the effect must exist first).
   // Iter 57h — popover state for the inline "📐 Calibrate window sizing"
   // mini-panel that hangs next to the Run AI Measure button.
   const [calibOpen, setCalibOpen] = useState(false);
@@ -128,6 +146,32 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   const [busyStage, setBusyStage] = useState("");
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState(null); // {measurements, raw_ai}
+  // Iter 79j.22 — Preview / 3D Model tab toggle inside the results block.
+  // Auto-resets to "preview" whenever a new run lands so contractors see
+  // the numbers first, then choose to switch to 3D for structural review.
+  const [previewTab, setPreviewTab] = useState("preview");
+  useEffect(() => {
+    if (preview) setPreviewTab("preview");
+  }, [preview?.run_id, preview?.session_id, preview?.model]);
+  // Iter 79j.16 — Model Comparison history. Refetched whenever the
+  // preview flips to a new run OR the modal opens. Empty until at
+  // least one "done" run exists for this estimate. Declared here so
+  // both `open` and `preview` are in scope (avoids TDZ).
+  const [modelHistory, setModelHistory] = useState([]);
+  useEffect(() => {
+    if (!estimateId || !open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/measure/ai-measure/history/${estimateId}?limit=5`);
+        if (!cancelled) setModelHistory(Array.isArray(data?.runs) ? data.runs : []);
+      } catch {
+        if (!cancelled) setModelHistory([]);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Re-fetch every time a fresh preview lands (new run completed).
+  }, [estimateId, open, preview?.session_id]);
   // Iter 57r — Resume support. When the modal opens we ask the
   // backend for the most recent AI Measure run for this estimate
   // (regardless of status). If it's still "running" or finished within
@@ -566,6 +610,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     if (!estimateId || !open || !sessionChecked) return;
     // Skip empty initial state to avoid creating an empty session doc.
     if (!photoUrls.length && !preview) return;
+    // Iter 79j.29 — Do NOT clobber a session that already has photos
+    // with an empty photo_urls array when a preview exists. This was
+    // the root cause of the "Re-Run does nothing" bug — an empty
+    // photo_urls + non-null preview mismatch poisoned the session so
+    // Resume rehydrated 0 photos and Re-Run silently bailed.
+    if (!photoUrls.length && preview) return;
     const t = setTimeout(() => {
       api
         .put(`/measure/sessions/${estimateId}`, {
@@ -590,22 +640,41 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     return () => clearTimeout(t);
   }, [estimateId, open, sessionChecked, photoUrls, refDim, wallHeight, sidingPct, overhangIn, preview, photoAnnotations]);
 
-  const resumeSession = () => {
+  const resumeSession = async () => {
     const data = window.__aiMeasurePendingSession;
     if (!data) {
       setResumePrompt(false);
       return;
     }
-    setPhotoUrls(data.photo_urls || []);
+    // Iter 79j.29 — if the session's photo_urls is empty but a preview
+    // exists, the session was clobbered by an earlier autosave bug.
+    // Fall back to the last completed run doc's photo_paths so the
+    // contractor's grid + Re-Run still work.
+    let urls = data.photo_urls || [];
+    if ((!urls || urls.length === 0) && data.preview) {
+      try {
+        const r = await api.get(`/measure/ai-measure/history/${estimateId}`, { params: { limit: 1 } });
+        const last = r.data?.runs?.[0];
+        const paths = (last?.photo_paths || "").split(",").map((s) => s.trim()).filter(Boolean);
+        if (paths.length) {
+          urls = paths;
+          toast.success(`Recovered ${paths.length} photos from the last run`);
+        }
+      } catch {
+        // Non-fatal — the loud banner below handles the "no photos" case.
+      }
+    }
+    setPhotoUrls(urls);
     setRefDim(data.reference_dim || "");
     setWallHeight(data.wall_height || "");
     setSidingPct(data.siding_pct || "");
     if (data.preview) setPreview(data.preview);
-    // Iter 56f: also restore per-photo annotations.
     if (data.photo_annotations) setPhotoAnnotations(data.photo_annotations);
     setResumePrompt(false);
     delete window.__aiMeasurePendingSession;
-    toast.success("Resumed your last AI Measure session");
+    if (urls.length > 0) {
+      toast.success("Resumed your last AI Measure session");
+    }
   };
 
   const startOver = async () => {
@@ -739,6 +808,74 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       });
       return next;
     });
+    // Iter 79j.18 — CRITICAL fix: persist profile boxes from the
+    // Guided Capture Wizard to the estimate's `profile_annotations`
+    // in Mongo. Previously the wizard's `handleAnnotateSave` only
+    // stored payloads in local wizard state — they never reached the
+    // AI Measure worker, so a contractor's shake polygon drawn during
+    // guided capture produced ZERO shake ft² in the final quote. This
+    // block extracts profileBoxes from each just-uploaded photo,
+    // transforms them into the backend shape (identical to the
+    // AIMeasureButton's per-photo save path), and PUTs the merged
+    // annotations bundle. Keyed by photo INDEX (post-append) so it
+    // stays in sync with `apply_annotations_to_breakdown`'s expected
+    // shape.
+    if (estimateId) {
+      const baseIdx = photoUrls.length; // pre-append offset
+      setSavedProfileAnnotations((prev) => {
+        const next = { ...(prev || {}) };
+        const refs = { ...((prev && prev._scale_refs) || {}) };
+        ok.forEach(({ elevation, annotations }, i) => {
+          const idx = baseIdx + i;
+          const boxes = annotations?.profileBoxes || [];
+          if (!boxes.length) return;
+          const dims = annotations?.imageDims;
+          const naturalW = dims?.w || 1;
+          const naturalH = dims?.h || 1;
+          const boxesForBackend = boxes.map((b) => {
+            const xs = b.points.map((p) => p.x);
+            const ys = b.points.map((p) => p.y);
+            const minX = Math.min(...xs), minY = Math.min(...ys);
+            const maxX = Math.max(...xs), maxY = Math.max(...ys);
+            return {
+              shape: b.shape,
+              elevation_label: elevation || "other",
+              profile: b.profile,
+              location: b.location,
+              sqft: b.sqft,
+              callout: b.note || "",
+              ...(b.shape === "polygon"
+                ? { points: b.points.map((p) => ({ x_norm: p.x / naturalW, y_norm: p.y / naturalH })) }
+                : {
+                    x_norm: minX / naturalW,
+                    y_norm: minY / naturalH,
+                    w_norm: (maxX - minX) / naturalW,
+                    h_norm: (maxY - minY) / naturalH,
+                  }),
+            };
+          });
+          next[String(idx)] = boxesForBackend;
+          // Persist the wall scale anchor too so the backend safety-
+          // net can recompute polygon sqft server-side if a box's
+          // sqft slipped through as the sentinel 50.
+          const ref = annotations?.reference;
+          if (ref && Array.isArray(ref?.p1) === false && ref?.p1 && ref?.p2 && ref?.inches) {
+            refs[String(idx)] = {
+              p1_x_norm: ref.p1.x / naturalW,
+              p1_y_norm: ref.p1.y / naturalH,
+              p2_x_norm: ref.p2.x / naturalW,
+              p2_y_norm: ref.p2.y / naturalH,
+              inches: ref.inches,
+            };
+          }
+        });
+        next._scale_refs = refs;
+        // Fire-and-forget PUT — non-fatal if the network hiccups.
+        api.put(`/estimates/${estimateId}/profile-annotations`, { annotations: next })
+          .catch((err) => console.warn("wizard profile-annotations persist failed:", err?.message));
+        return next;
+      });
+    }
     setFiles((prev) => prev.filter((f) => !batch.find((b) => b.file === f)));
     const annotatedCount = ok.filter((u) => u.annotations).length;
     const annotatedNote = annotatedCount > 0 ? ` (${annotatedCount} annotated)` : "";
@@ -819,6 +956,15 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
   // can go back and capture the missing ones — or bypass with "Run
   // anyway" if they have a valid reason (e.g. inaccessible side yard).
   const [missingWallsModal, setMissingWallsModal] = useState(null);
+  // Iter 79j.29 — inline "no photos" banner shown when Re-Run is
+  // clicked with an empty photo grid. Auto-clears on next successful
+  // upload or run.
+  const [noPhotosBanner, setNoPhotosBanner] = useState(false);
+  // Iter 79j.30 — persistent inline error banner shown when a run
+  // fails. Sonner toasts are hidden behind the modal and auto-dismiss
+  // in 4s — for a $-affecting failure like budget-exceeded that's not
+  // enough. Cleared automatically on the next successful run.
+  const [runError, setRunError] = useState(null);
   const primaryWallsCovered = () => {
     const covered = new Set();
     for (const name of photoUrls) {
@@ -836,18 +982,31 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
     return ["front", "back", "left", "right"].filter((w) => !c.has(w));
   };
 
-  const runMeasure = async () => {
+  const runMeasure = async (opts = {}) => {
     if (!photoUrls.length) {
-      toast.error("Add at least one photo");
+      // Iter 79j.29 — LOUD failure. Sonner toasts aren't visible when
+      // the main modal covers the screen, so we also flash an inline
+      // banner state that blocks further clicks until the contractor
+      // re-uploads. Prior behavior was a silent no-op that looked
+      // exactly like "the Re-Run button is broken".
+      toast.error("Add at least one photo before running");
+      setNoPhotosBanner(true);
       return;
     }
-    // Iter 79i — pre-flight guardrail. Skip if we already showed the
-    // modal + contractor clicked "Run anyway" (missingWallsModal set to
-    // "bypassed" tag).
-    const missing = missingPrimaryWalls();
-    if (missing.length > 0 && missingWallsModal !== "bypassed") {
-      setMissingWallsModal({ missing });
-      return;
+    setNoPhotosBanner(false);
+    // Iter 79i — pre-flight guardrail. Skip if the caller passes
+    // `bypassMissingWallsGuard: true` (from the "Run anyway" button in
+    // the missing-walls modal). Iter 79j.20: switched from a state
+    // sentinel to an explicit param because setTimeout captured the
+    // stale `missingWallsModal` value from the render at click time,
+    // so the guard re-fired on the "bypassed" run and the modal
+    // reappeared with nothing happening.
+    if (!opts.bypassMissingWallsGuard) {
+      const missing = missingPrimaryWalls();
+      if (missing.length > 0) {
+        setMissingWallsModal({ missing });
+        return;
+      }
     }
     setMissingWallsModal(null);
     setBusy(true);
@@ -937,6 +1096,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
       const elevTagList = [...passThroughElevs, ...annotatedElevs];
       if (elevTagList.length) {
         fd.append("elevation_tags", elevTagList.join(","));
+      }
+      // Iter 79j.15 — A/B model choice. Contractor-selectable via the
+      // dropdown next to the Run AI Measure button. Blank/unknown =
+      // backend default (Opus 4.5).
+      if (modelChoice) {
+        fd.append("model_choice", modelChoice);
       }
       // Iter 57r — link the run to this estimate so a later modal open
       // can offer to Resume / Restore the most recent run for this job.
@@ -1034,6 +1199,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         setWallsDirty(false);
       }
       setPreview(data);
+      setRunError(null);   // Iter 79j.30 — clear any prior failure banner
       // Iter 57: auto-apply Claude's per-photo elevation guesses to
       // any photo that isn't already explicitly tagged. Saves the
       // contractor 4-8 dropdown taps per measurement. Manual tags
@@ -1063,7 +1229,13 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
         });
       }
     } catch (e) {
-      toast.error(e?.response?.data?.detail || e.message || "AI measure failed");
+      // Iter 79j.30 — Toasts get covered by the modal + auto-dismiss.
+      // Surface the error as a persistent inline banner too. Budget
+      // exceeded is common enough (the Anthropic API credit runs out) that it
+      // gets its own recognizable copy + link to the fix.
+      const msg = e?.response?.data?.detail || e?.message || "AI measure failed";
+      setRunError(String(msg));
+      toast.error(msg);
     } finally {
       setBusy(false);
       setBusyStage("");
@@ -1301,6 +1473,42 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
             </div>
 
             <div className="overflow-y-auto flex-1 p-5">
+              {/* Iter 79j.30 — persistent run-error banner shown at the
+                  very top of the modal body (above Resume) so a budget-
+                  exceeded or worker failure ALWAYS surfaces, even when
+                  the user has no preview yet. Budget errors get their
+                  own actionable copy pointing at Anthropic billing. */}
+              {runError && (
+                <div
+                  className="mb-4 p-3 border border-[var(--danger)] bg-[#FEE2E2] text-[#7F1D1D] text-[11px] flex items-start gap-2"
+                  data-testid="ai-measure-run-error-banner"
+                >
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--danger-text)]" />
+                  <div className="flex-1">
+                    <div className="font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center justify-between">
+                      <span>{/Budget/i.test(runError) ? "AI credit exhausted" : "AI Measure failed"}</span>
+                      <button
+                        type="button"
+                        className="text-[10px] font-normal text-[#7F1D1D] underline hover:no-underline"
+                        onClick={() => setRunError(null)}
+                        data-testid="ai-measure-run-error-dismiss"
+                      >
+                        dismiss
+                      </button>
+                    </div>
+                    {/Budget/i.test(runError) ? (
+                      <div>
+                        The AI credit backing this app is spent. Add balance on the
+                        Anthropic account backing <b>ANTHROPIC_API_KEY</b>
+                        {" "}(or toggle Auto Top-up). Once topped up, click Run AI Measure
+                        again — nothing on this estimate is lost.
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">{runError}</div>
+                    )}
+                  </div>
+                </div>
+              )}
               {resumePrompt && (
                 <div
                   className="mb-4 p-3 border border-[#0EA5E9] bg-sky-50 flex items-center justify-between gap-3 flex-wrap"
@@ -1657,6 +1865,28 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                     <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 border ${confColor}`} data-testid="ai-measure-confidence">
                       Confidence: {conf}
                     </span>
+                    {preview.model && (
+                      <span
+                        className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 border border-[var(--ai)] text-[var(--ai)] bg-[#FAF5FF]"
+                        data-testid="ai-measure-model-badge"
+                        title={`Ran on ${preview.model_provider || ""} · ${preview.model}`}
+                      >
+                        {(() => {
+                          // Compact label from the full model id.
+                          const m = String(preview.model).toLowerCase();
+                          if (m.includes("opus-4-5")) return "Opus 4.5";
+                          if (m.includes("opus-4-8")) return "Opus 4.8";
+                          if (m.includes("sonnet-4-6")) return "Sonnet 4.6";
+                          if (m.includes("fable-5")) return "Fable 5";
+                          if (m.includes("gemini-3.5")) return "Gemini 3.5 Flash";
+                          if (m.includes("gemini-3.1")) return "Gemini 3.1 Pro";
+                          if (m.includes("gemini-3-flash")) return "Gemini 3 Flash";
+                          if (m.includes("gpt-5.5")) return "GPT-5.5";
+                          if (m.includes("gpt-5.4")) return "GPT-5.4";
+                          return preview.model;
+                        })()}
+                      </span>
+                    )}
                     <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
                       Reference: {preview.measurements._ai_reference_used || "none"}
                     </span>
@@ -1676,6 +1906,82 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       </span>
                     )}
                   </div>
+
+                  {/* Iter 79j.16 — Model Comparison panel. Renders only
+                      when 2+ runs on this estimate have used at least 2
+                      DIFFERENT models — nothing to compare otherwise. */}
+                  {(() => {
+                    const uniqueModels = new Set(modelHistory.map((r) => r.model_choice));
+                    if (modelHistory.length < 2 || uniqueModels.size < 2) return null;
+                    const MODEL_LABELS = {
+                      "claude-opus-4-5":     "Opus 4.5",
+                      "claude-opus-4-8":     "Opus 4.8",
+                      "claude-sonnet-4-6":   "Sonnet 4.6",
+                      "claude-fable-5":      "Fable 5",
+                      "gemini-3.5-flash":    "Gemini 3.5 Flash",
+                      "gemini-3.1-pro":      "Gemini 3.1 Pro",
+                      "gpt-5.5":             "GPT-5.5",
+                      "gpt-5.4":             "GPT-5.4",
+                    };
+                    const fmtCost = (c) => (c == null ? "—" : `$${c.toFixed(3)}`);
+                    const totalCost = modelHistory.reduce((sum, r) => sum + (r.cost_estimate_usd || 0), 0);
+                    const fmtElapsed = (ms) => {
+                      if (!ms) return "—";
+                      if (ms < 60000) return `${(ms / 1000).toFixed(0)}s`;
+                      return `${(ms / 60000).toFixed(1)}m`;
+                    };
+                    return (
+                      <div className="mb-3 border border-[var(--ai)] bg-[#FAF5FF]" data-testid="ai-measure-model-comparison">
+                        <div className="px-3 py-1.5 border-b border-[var(--ai)] bg-[var(--ai)] text-white text-[10px] uppercase tracking-wider font-bold flex items-center justify-between gap-2 flex-wrap">
+                          <span>Model Comparison · last {modelHistory.length} runs on this estimate</span>
+                          <span className="text-[10px] font-normal flex items-center gap-2">
+                            <span className="bg-white/20 px-2 py-0.5 rounded-sm" title="Approximate USD spent A/B testing on this house across all listed runs">
+                              A/B spend: <span className="font-bold font-mono-num tabular-nums">${totalCost.toFixed(3)}</span>
+                            </span>
+                            <span className="opacity-80">Higher = winner</span>
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="border-b border-[#E9D5FF] bg-[var(--surface)]">
+                                <th className="text-left px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Model</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Conf</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Windows</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Doors</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Walls</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Siding ft²</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Eaves LF</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Time</th>
+                                <th className="text-right px-2 py-1.5 font-bold text-[var(--muted)] uppercase tracking-wider text-[9px]">Cost</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {modelHistory.map((r, i) => (
+                                <tr key={r.run_id} className={i === 0 ? "bg-[var(--ai-soft)] font-medium" : "bg-[var(--surface)]"}>
+                                  <td className="px-2 py-1.5 font-bold text-[var(--ink)]">
+                                    {MODEL_LABELS[r.model_choice] || r.model_choice}
+                                    {i === 0 && <span className="ml-1 text-[8px] uppercase text-[var(--ai)]">(latest)</span>}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{r.confidence != null ? r.confidence : "—"}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{r.window_count}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{r.door_count}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{r.wall_count}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{Math.round(r.siding_sqft || 0).toLocaleString()}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums">{Math.round(r.eaves_lf || 0)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums text-[var(--muted)]">{fmtElapsed(r.elapsed_ms)}</td>
+                                  <td className="px-2 py-1.5 text-right font-mono-num tabular-nums text-[var(--muted)]">{fmtCost(r.cost_estimate_usd)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="px-3 py-1.5 border-t border-[#E9D5FF] bg-[var(--surface)] text-[9px] text-[var(--muted)] italic">
+                          Cost is an approximation using published list prices · Compare Conf + counts vs your ground-truth field measurement.
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {preview.measurements._ai_story_count_reasoning && (
                     <div className="text-[11px] text-[var(--muted)] mb-2 italic">
                       Story count: {preview.measurements._ai_story_count_reasoning}
@@ -1699,6 +2005,73 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       {preview.measurements._ai_notes}
                     </div>
                   )}
+                  {/* Iter 79j.22 — Preview / 3D Model tab toggle. Auto-lands
+                      on Preview each new run; contractor can flip to 3D
+                      Model to sanity-check the parametric geometry
+                      Claude/Gemini inferred (pitch, eave, wall widths,
+                      opening layout). All estimate line quantities remain
+                      SSOT — the 3D side panel READS from preview.lines,
+                      never re-computes.  */}
+                  <div className="flex items-center gap-1 mb-3 border-b border-[var(--border)]">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab("preview")}
+                      className={`px-3 py-2 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                        previewTab === "preview"
+                          ? "border-[var(--ai)] text-[var(--ai)]"
+                          : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"
+                      }`}
+                      data-testid="ai-measure-preview-tab"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTab("3d")}
+                      className={`px-3 py-2 text-[11px] font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-1.5 ${
+                        previewTab === "3d"
+                          ? "border-[var(--ai)] text-[var(--ai)]"
+                          : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"
+                      }`}
+                      data-testid="ai-measure-3d-tab"
+                    >
+                      3D Model
+                      <span className="text-[9px] px-1.5 py-0.5 bg-[#F3F4F6] text-[var(--ai)] tracking-normal">BETA</span>
+                    </button>
+                  </div>
+
+                  {/* Iter 79j.29 — photos-lost banner. When preview
+                      exists but the photo grid is empty (typically an
+                      older run whose upload names were never persisted),
+                      the Re-Run button is disabled and the contractor
+                      can't tell why. Explicit inline banner spells it
+                      out and points to the upload input. */}
+                  {photoUrls.length === 0 && (
+                    <div
+                      className="mb-3 p-3 bg-[#FEF3C7] border border-[#F59E0B] text-[#78350F] text-[11px] flex items-start gap-2"
+                      data-testid="ai-measure-photos-lost-banner"
+                    >
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--warning-text)]" />
+                      <div className="flex-1">
+                        <div className="font-bold uppercase tracking-wider text-[10px] mb-0.5">Photos missing</div>
+                        <div>
+                          The measurements below are from an older run whose photo files
+                          were not persisted. <b>Re-upload the same photos above</b> to
+                          enable Re-Run · Refine on Photo · A/B model comparison. Nothing
+                          in the current takeoff will be lost.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {previewTab === "3d" && (
+                    <div className="mb-4" data-testid="ai-measure-3d-panel">
+                      <HouseModel3D preview={preview} estimate={estimate} />
+                    </div>
+                  )}
+
+                  {previewTab === "preview" && (
+                  <>
                   {/* Iter 78z (P1.3 + Cross-Check) — Per-Elevation Breakdown,
                       "+ Add Accent", and "🔁 Re-check with AI" button */}
                   <PerElevationBreakdownCard
@@ -1769,7 +2142,7 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                               guess: { bg: "bg-[#DC2626]", label: "GUESS" },
                             }[confTier];
                             return (
-                              <tr key={i} className="border-b border-[var(--bg-app)]">
+                              <tr key={i} className="border-b border-[#F4F4F5]">
                                 <td className="py-1 font-bold text-[var(--ink-2)] uppercase tracking-wider text-[10px]">{w.label}</td>
                                 <td>
                                   <input
@@ -2304,6 +2677,8 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                   )}
 
 
+                  </>
+                  )}
                 </>
               )}
             </div>
@@ -2393,7 +2768,24 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                 </div>
               )}
               <div className="text-[10px] text-[var(--muted)] flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0">
-                <span className="whitespace-nowrap">Powered by Claude Opus 4.5</span>
+                <span className="whitespace-nowrap">Powered by</span>
+                {/* Iter 79j.15 — A/B model picker. Compact select so
+                    contractors can flip models per-run without leaving
+                    the modal. Persisted in localStorage. */}
+                <select
+                  value={modelChoice}
+                  onChange={(e) => setModelChoice(e.target.value)}
+                  className="text-[10px] font-bold uppercase tracking-wider bg-[var(--surface)] border border-[var(--border)] px-1 py-0.5 focus:outline-none focus:border-[var(--ai)]"
+                  data-testid="ai-measure-model-select"
+                  title="Which Claude vision model runs the measurement pass. Opus 4.5 is the current default; try others to A/B accuracy vs cost."
+                >
+                  {/* Claude-only until llm.py grows multi-provider support
+                      (see TODOS.md "Multi-provider AI model support"). */}
+                  <option value="claude-opus-4-5">Claude Opus 4.5</option>
+                  <option value="claude-opus-4-8">Claude Opus 4.8</option>
+                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                  <option value="claude-fable-5">Claude Fable 5</option>
+                </select>
                 <button
                   type="button"
                   onClick={() => setCalibOpen((v) => !v)}
@@ -2496,6 +2888,28 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
                       title="Show / hide the Refine on Photo manual-measure tool"
                     >
                       {showAdvanced ? "Hide" : "Advanced"}
+                    </button>
+                    {/* Iter 79j.16 — Re-run button so contractors can
+                        A/B a different model on the SAME photos without
+                        hitting Start Over. Uses the current model in
+                        the "Powered by" dropdown. */}
+                    <button
+                      type="button"
+                      onClick={runMeasure}
+                      disabled={busy || photoUrls.length === 0 || files.length > 0}
+                      className="px-3 py-2 bg-[var(--ai)] text-white hover:bg-[#6D28D9] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-50"
+                      data-testid="ai-measure-rerun-btn"
+                      title="Run the measure again — usually with a different model in the Powered by dropdown to A/B compare accuracy"
+                    >
+                      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      {busy
+                        ? (busyStage === "claude" ? "Vision…"
+                          : busyStage === "dormer_scan" ? "Dormer scan…"
+                          : busyStage === "aggregating" ? "Aggregating…"
+                          : busyStage === "mapping" ? "Mapping…"
+                          : busyStage === "starting" ? "Starting…"
+                          : "Running…")
+                        : "Re-run"}
                     </button>
                     {/* Merge-mode picker — controls how Refine on Photo
                         deltas roll into the AI's aggregate measurements.
@@ -2996,10 +3410,12 @@ export default function AIMeasureButton({ kind, onApply, address, overhangIn, es
               <button
                 type="button"
                 onClick={() => {
-                  setMissingWallsModal("bypassed");
-                  // Re-invoke runMeasure now that the guard is bypassed.
-                  // Async fire-and-forget — the modal closes immediately.
-                  setTimeout(() => { runMeasure(); }, 50);
+                  setMissingWallsModal(null);
+                  // Iter 79j.20 — explicit bypass param instead of the
+                  // "bypassed" state sentinel. Avoids the stale-closure
+                  // bug where setTimeout captured the old runMeasure
+                  // and re-fired the guard.
+                  runMeasure({ bypassMissingWallsGuard: true });
                 }}
                 className="px-3 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-muted)] text-xs font-bold uppercase tracking-wider"
                 data-testid="ai-measure-missing-walls-run-anyway"

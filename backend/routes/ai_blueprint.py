@@ -488,7 +488,133 @@ def _aggregate_to_hover_shape(raw: dict, annotations: dict | None = None) -> dic
         "_ai_dormer_sqft": round(dormer_sqft, 1),
         "_ai_notes": raw.get("notes") or "",
         "_blueprint_sheets": raw.get("sheets_identified") or [],
+        # Iter 79j.34 — Second producer of the 3D house JSON. Every
+        # field below is READ from stated blueprint dimensions rather
+        # than inferred from a photo, so the frontend renders the
+        # source badges as "BLUEPRINT" (green/verified) instead of
+        # "AI-derived" (amber). See HouseModel3D.buildHouseJson.
+        "_source_kind": "blueprint",
     }
+
+    # Iter 79j.34 — Roof type + dormer payload for the 3D viewer.
+    # A wall with printed gable_triangle_height_ft > 0 → gable end.
+    # Any wall with dormer_face_sqft > 0 → gable-shed-dormer.
+    # Otherwise → hip (all four walls end flat at the eave).
+    has_dormer = any(float(w.get("dormer_face_sqft") or 0) > 0 for w in walls)
+    inferred_roof_type = "hip"
+    if any_gable:
+        inferred_roof_type = "gable-shed-dormer" if has_dormer else "gable"
+    measurements["_ai_roof_type"] = inferred_roof_type
+    measurements["_ai_roof_type_confidence"] = 1.0
+    measurements["_ai_roof_type_reasoning"] = (
+        "gable-end walls (gable_triangle_height_ft > 0) read directly from elevation sheets"
+        if any_gable
+        else "no gable triangles printed on any elevation → hip roof"
+    )
+    if has_dormer:
+        # Pick the wall carrying the largest dormer area as the face.
+        # Back-solve width from face_sqft / knee assuming a 4 ft
+        # standard knee (matches HouseModel3D's default). Contractors
+        # can override in the 3D panel.
+        _dormer_wall = max(
+            walls, key=lambda w: float(w.get("dormer_face_sqft") or 0),
+        )
+        _face_sqft = float(_dormer_wall.get("dormer_face_sqft") or 0)
+        _knee = 4.0
+        _width = max(6.0, _face_sqft / _knee) if _face_sqft > 0 else 12.0
+        measurements["_ai_dormer"] = {
+            "face": (_dormer_wall.get("label") or "front").lower(),
+            "width_ft": round(_width, 1),
+            "knee_wall_height_ft": _knee,
+            "offset_x_ft": 0.0,
+        }
+    else:
+        measurements["_ai_dormer"] = None
+
+    # Iter 79j.34 — Materialize a `raw.openings[]` list in the same
+    # shape the AI Photo Measure emits, so HouseModel3D can consume
+    # both producers without a schema fork. Blueprint schedules
+    # don't record per-wall assignment for each mark, so we default
+    # every opening to the front elevation — contractors can move
+    # them in the AI Measure modal's wall dropdown. Style is derived
+    # from `type_hint`.
+    _hint_to_style = {
+        "double_hung": "Double Hung",
+        "casement":    "Casement",
+        "slider":      "2-Lite Slider",
+        "picture":     "Picture",
+        "fixed":       "Picture",
+        "awning":      "Awning",
+    }
+    _hint_to_door_type = {
+        "entry":          "entry_door",
+        "patio_slider":   "patio_door",
+        "patio_french":   "patio_door",
+        "garage":         "garage_door",
+    }
+    derived_openings = []
+    for win in windows:
+        try:
+            qty = max(1, int(win.get("qty") or 1))
+        except (TypeError, ValueError):
+            qty = 1
+        style = _hint_to_style.get((win.get("type_hint") or "").lower(), "")
+        for _ in range(qty):
+            derived_openings.append({
+                "type": "window",
+                "style": style,
+                "style_confidence": 100 if style else 0,
+                "width_in": float(win.get("width_in") or 0),
+                "height_in": float(win.get("height_in") or 0),
+                "wall": "front",
+                "on_dormer": False,
+            })
+    for d in doors:
+        try:
+            qty = max(1, int(d.get("qty") or 1))
+        except (TypeError, ValueError):
+            qty = 1
+        door_type = _hint_to_door_type.get((d.get("type_hint") or "").lower(), "entry_door")
+        for _ in range(qty):
+            derived_openings.append({
+                "type": door_type,
+                "style": "",
+                "style_confidence": 0,
+                "width_in": float(d.get("width_in") or 0),
+                "height_in": float(d.get("height_in") or 0),
+                "wall": "front",
+                "on_dormer": False,
+            })
+    # Mutate `raw` in place so the caller emits `raw_ai.openings` to
+    # the frontend without a second code path.
+    raw["openings"] = derived_openings
+
+    # Iter 79j.34 — Sanity reconciliation. The 3D viewer computes its
+    # per-wall siding sqft from raw.walls[] using the SAME formula the
+    # aggregator uses for `siding_sqft`. If they ever diverge >2%,
+    # something drifted in one of the two calculators — surface a
+    # warning field the preview banner picks up.
+    threed_sqft = 0.0
+    for w in walls:
+        _wft = float(w.get("width_ft") or 0)
+        _eh = float(w.get("height_ft") or 0)
+        _pct = float(w.get("siding_pct_this_wall") or 100.0)
+        if 0 < _pct < 1:
+            _pct *= 100.0
+        _pct = min(max(_pct, 0.0), 100.0)
+        threed_sqft += _wft * _eh * (_pct / 100.0)
+        _gh = float(w.get("gable_triangle_height_ft") or 0)
+        if _gh > 0 and _wft > 0:
+            threed_sqft += 0.5 * _wft * _gh
+        threed_sqft += float(w.get("dormer_face_sqft") or 0)
+    if siding_sqft > 0:
+        _delta_pct = 100.0 * abs(threed_sqft - siding_sqft) / siding_sqft
+        if _delta_pct > 2.0:
+            measurements["_source_reconciliation_warning"] = (
+                f"3D-derived siding {threed_sqft:.0f} ft² vs blueprint takeoff "
+                f"{siding_sqft:.0f} ft² ({_delta_pct:.1f}% delta) — extraction "
+                f"disagrees with itself, verify walls[] before quoting."
+            )
     # Iter 78z (P1.2) — Per-elevation profile breakdown so the catalog
     # mapper can split siding into per-profile SKU lines AND so the
     # frontend can render a per-elevation breakdown card. Mirrors the

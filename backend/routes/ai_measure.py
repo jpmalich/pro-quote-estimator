@@ -65,6 +65,39 @@ MAX_BYTES_PER_FILE = 12 * 1024 * 1024  # 12 MB pre-base64 (Iter 56b: bumped from
 # are unchanged.
 MODEL_NAME = "claude-opus-4-5-20251101"
 
+# Iter 79j.15 — A/B model registry. The main AI-measure Claude call can
+# now run against any of these models per-run (see `model_choice`
+# parameter on POST /measure/ai-measure). Contractors flip between them
+# from the AI Measure modal to compare accuracy + cost on the same
+# house. The default stays Opus 4.5 until we have field data proving a
+# swap is worth it. The provider string maps to emergentintegrations'
+# `.with_model(provider, model_name)` call.
+# Claude-only for now: this app talks directly to the Anthropic API via
+# llm.py (no Emergent universal-key proxy), so Gemini/GPT routing is
+# unavailable until llm.py grows multi-provider support (see TODOS.md
+# "Multi-provider AI model support").
+_MODEL_CHOICES: dict[str, tuple[str, str]] = {
+    # key                    -> (provider,   model_name)
+    "claude-opus-4-5":         ("anthropic", "claude-opus-4-5-20251101"),
+    "claude-opus-4-8":         ("anthropic", "claude-opus-4-8"),
+    "claude-sonnet-4-6":       ("anthropic", "claude-sonnet-4-6"),
+    "claude-fable-5":          ("anthropic", "claude-fable-5"),
+}
+_DEFAULT_MODEL_KEY = "claude-opus-4-5"
+
+
+def _resolve_model(choice: str | None) -> tuple[str, str, str]:
+    """Return (key, provider, model_name) for the given contractor
+    choice, falling back to the default. Unknown keys log a warning
+    but don't fail the run — we still want a measurement even if the
+    contractor typed something weird into a URL param."""
+    key = (choice or _DEFAULT_MODEL_KEY).strip()
+    if key not in _MODEL_CHOICES:
+        logger.warning("Unknown ai-measure model_choice %r, falling back to %s", key, _DEFAULT_MODEL_KEY)
+        key = _DEFAULT_MODEL_KEY
+    provider, model_name = _MODEL_CHOICES[key]
+    return key, provider, model_name
+
 
 def _compress_for_claude(img_bytes: bytes, max_raw_bytes: int = 5_500_000) -> bytes:
     """Ensure a single image fits under Anthropic's 10 MB base64 cap.
@@ -117,6 +150,40 @@ Schema:
   "story_count_reasoning": "<1 sentence — what visual cue told you the story count>",
   "avg_wall_height_ft": number,           // average EAVE height (floor to where the roof starts), NOT roof peak
   "siding_coverage_pct": number,          // 0-100, % of gross wall area actually clad in siding (NOT brick, stone, etc.)
+  // Iter 79j.26 — roof-type classification. Drives the 3D viewer and
+  // the estimator's siding takeoff:
+  //   gable              → 2-plane pitched roof, gable triangles at both ends
+  //   hip                → 4-plane pitched roof, NO gable triangles (all 4 walls end flat at eave)
+  //   gable-shed-dormer  → gable roof + a shed dormer on one slope with a vertical
+  //                        face wall that carries additional siding area + windows
+  // Classification cues:
+  //   • Gable ends visible (triangular wall peaks above the eave line)         → "gable"
+  //   • Roof slopes downward on ALL FOUR sides, no triangular walls anywhere   → "hip"
+  //   • A rectangular vertical wall (usually with windows) rises ABOVE the
+  //     main eave line and steps back INTO the roof slope                      → "gable-shed-dormer"
+  // Set roof_type_confidence to 0.0–1.0. Below 0.8 the app defaults to
+  // "gable" and flags this field as estimated for the contractor to review.
+  "roof_type": "gable" | "hip" | "gable-shed-dormer",
+  "roof_type_confidence": number,         // 0.0-1.0
+  "roof_type_reasoning": "<1 sentence — what visual cue drove your call>",
+  // Iter 79j.28 — Dominant flat colors per material family, sampled
+  // from the photos. Return a 6-digit hex (#RRGGBB) for each. Sample
+  // the AVERAGE color of a large clean patch — ignore shadows, glare,
+  // and small trim/accent details. These populate the 3D viewer walls,
+  // trim, roof, and doors. Leave any field null if no clean sample is
+  // possible.
+  "dominant_colors": {
+     "siding_hex": "#RRGGBB" | null,   // main field siding color
+     "trim_hex": "#RRGGBB" | null,     // window/door trim, corners, fascia
+     "roof_hex": "#RRGGBB" | null,     // shingles or metal
+     "door_hex": "#RRGGBB" | null      // primary entry door — often distinct from siding
+  },
+  // Fill only when roof_type === "gable-shed-dormer". `face` = which
+  // slope carries the dormer, `width_ft` = its X-extent across the roof,
+  // `knee_wall_height_ft` = how tall the vertical face wall stands above
+  // where the main roof would be at that Z position, `offset_x_ft` =
+  // horizontal offset from the wall center (0 = centered).
+  "dormer": {"face": "front" | "rear", "width_ft": number, "knee_wall_height_ft": number, "offset_x_ft": number} | null,
   "photos": [
     // ONE entry per photo IN THE EXACT ORDER they were sent to you.
     // photos[0] = the first attached image, photos[1] = the second, etc.
@@ -164,6 +231,14 @@ Schema:
      "confidence_reasoning": "<1 short sentence — what reduces or supports confidence on THIS wall>"
     }
   ],
+  // Iter 79j.32 — REQUIRED classification: EVERY trimmed penetration
+  // (window, entry door, patio door, garage door, large vent) MUST be
+  // emitted as a row in `openings[]`. Never bury a door or window in
+  // the masked/stone/siding_pct math — openings drive J-channel and
+  // surround trim takeoff downstream, and missing them under-quotes
+  // the job. Garage doors especially: a single 16 ft double garage
+  // door is ~112 ft² AND ~40 lf of J-channel — always emit it here
+  // with type=garage_door, never fold it into siding_pct_this_wall.
   "openings": [
     {"type": "window" | "entry_door" | "patio_door" | "garage_door" | "vent" | "other",
      "style": "Double Hung" | "Single Hung" | "Casement" | "Twin Casement" | "Awning" | "Hopper" | "2-Lite Slider" | "3-Lite Slider" | "Picture" | "Twin Double Hung" | "Twin Single Hung" | "Triple Double Hung" | "Bay Window" | "Bow Window" | "Half-Round" | "Quarter-Round" | "Arch" | "Octagon" | "Hexagon" | "Garden Window" | "Other Shape" | "",
@@ -173,7 +248,15 @@ Schema:
      // arrows on the photo AND place each opening at its TRUE
      // x-position on the 2D wall diagram instead of guessing.
      "photo_idx": number,                // 0-based index of the photo this opening is visible in (matching the order you were given). If you can't pinpoint, omit.
-     "bbox": {"x": number, "y": number, "w": number, "h": number}  // normalized 0.0–1.0 bounding box of the opening on photo_idx. Origin top-left. Omit if you're not confident enough to draw the box.
+     "bbox": {"x": number, "y": number, "w": number, "h": number},  // normalized 0.0–1.0 bounding box of the opening on photo_idx. Origin top-left. Omit if you're not confident enough to draw the box.
+     // Iter 79j.27 — dormer classification. Set to true ONLY when the
+     // opening sits ABOVE the main eave line (on a shed-dormer face,
+     // gable-triangle, or upper cross-gable). These openings belong to
+     // the dormer face wall — their siding-cutout area is deducted from
+     // dormer_face_sqft, not from the main wall, and they anchor the
+     // dormer width. When roof_type is not "gable-shed-dormer", leave
+     // this field false or omit it.
+     "on_dormer": boolean
     }
   ],
   "openings_schedule": [
@@ -282,12 +365,19 @@ CRITICAL accuracy rules (read every time):
      The wall ref still governs the rest of the geometry; the two refs
      are complementary, not exclusive.
    • Colored hatched zones with a black label like "NO SIDING · Brick"
-     or "NO SIDING · Stone" or "NO SIDING · Garage door" — these areas
-     are NOT clad in siding. They must be EXCLUDED from
-     siding_pct_this_wall calculations for the wall they appear on.
+     or "NO SIDING · Stone" — masonry areas that are NOT clad in siding.
+     They must be EXCLUDED from siding_pct_this_wall calculations for
+     the wall they appear on.
      Example: a wall is 32×9 = 288 ft² gross, with a "NO SIDING · Brick"
      hatched zone covering the lower 3 ft (≈96 ft²) → the remaining
      siding is 192 ft² → siding_pct_this_wall = round(192 / 288 * 100) = 67.
+     NOTE (Iter 79j.32): A "NO SIDING · Garage door" or "NO SIDING · Entry
+     door" annotation, if drawn, is a HINT that a door exists at that
+     location — but doors are OPENINGS, not masked masonry. Emit the
+     door as an entry in `openings[]` with the correct type
+     (garage_door / entry_door / patio_door) and DO NOT reduce
+     siding_pct_this_wall for it. Only genuine masonry (brick, stone,
+     stucco, CMU) reduces siding_pct_this_wall.
    Trust the annotations OVER your own visual judgment of the same photo.
    If a photo has a red ref line you must use it; if it has a NO SIDING
    zone you must subtract it. These were placed deliberately by the
@@ -372,15 +462,63 @@ CRITICAL accuracy rules (read every time):
    on left elevation, ~12 ft × 6 ft = 72 ft² face; gable dormer on right,
    ~4 ft × 4 ft = 16 ft² face."
 
-5. SIDING COVERAGE: A wall area is NOT the same as a siding area.
-   Examine every wall for:
-     - Brick / stone wainscot or full-wall masonry (NO siding)
-     - Garage doors (NO siding behind them)
-     - Stucco / EIFS panels (NO siding)
+5. SIDING COVERAGE — MASKED vs OPENINGS (READ CAREFULLY, THIS IS A
+   HIGH-COST MISCLASSIFICATION):
+
+   There are TWO DIFFERENT categories of "not-siding" area on a wall,
+   and Claude has historically confused them. GET THIS RIGHT:
+
+   (a) MASKED / NON-SIDING (drives `siding_pct_this_wall` DOWN):
+       ONLY genuine, unframed, non-trimmed masonry / cladding that
+       replaces the siding field. Examples:
+         • Brick or stone wainscot / watertable
+         • Full-wall brick, stone, or CMU masonry
+         • Stucco / EIFS panel sections
+         • Attached structures with their own cladding (a stone chimney
+           face, an attached brick porch column wrap)
+       These areas get NO siding, NO J-channel, NO trim — they are
+       excluded from the siding takeoff entirely.
+
+   (b) OPENINGS (belong in `openings[]`, DO NOT reduce siding_pct):
+       Every trimmed penetration in the wall is an OPENING, not a
+       masked area. These MUST be emitted as rows in `openings[]`
+       with the correct `type`:
+         • Windows (all styles)                → type=window
+         • Entry doors / front doors / side    → type=entry_door
+           doors / mudroom doors
+         • Sliding / French / patio doors      → type=patio_door
+         • Garage doors (single OR double,     → type=garage_door
+           overhead OR carriage-style)
+         • Wall vents / attic vents / gable    → type=vent
+           vents / dryer vents (only when
+           large enough to require trim, ≥12")
+       Openings receive J-channel / surround trim in the takeoff.
+       Leaving them out of `openings[]` (or dumping them into masked
+       area via a low siding_pct_this_wall) DROPS the J-channel and
+       under-quotes the job. GARAGE DOORS ARE ESPECIALLY EASY TO GET
+       WRONG — a 16 ft double garage door is ~112 ft² of "not-siding",
+       and if you bake that into siding_pct_this_wall instead of
+       emitting it as `openings[]` type=garage_door, the trim/J-channel
+       takeoff loses ~40 lf of surround per door. ALWAYS emit garage
+       doors as openings.
+
+   Decision tree per non-siding region:
+     - Is there a rectangular framed hole with a trimmed edge?           → OPENING
+     - Is there a door slab (any type — walk, patio, garage)?            → OPENING
+     - Is it stone / brick / CMU / stucco with no trim boundary?         → MASKED (reduce siding_pct)
+     - Is it an attached masonry structure (chimney, brick column)?      → MASKED (reduce siding_pct)
+     - Everything else                                                   → SIDING
+
    For each wall, set siding_pct_this_wall to the visible fraction of
-   the wall actually clad in siding. Compute the global
-   siding_coverage_pct as a weighted average. If a house is 100% siding,
-   that's fine — but DON'T assume it.
+   the wall body that IS siding — i.e., after subtracting ONLY the
+   masked (masonry/stucco) region, NOT the openings. Openings are
+   subtracted separately downstream via the `openings[]` list, so
+   including them in siding_pct_this_wall would double-count.
+
+   Compute the global siding_coverage_pct as a weighted average. If a
+   house is 100% siding (with normal doors + windows but no masonry),
+   siding_coverage_pct should be 100 — the doors/windows come out of
+   the openings list, not the coverage pct.
 
 5b. SIDING PROFILE PER ELEVATION (Iter 78z — REQUIRED):
    Even on a single house, different SURFACES often use different
@@ -627,6 +765,67 @@ def _vero_for_style(style: str, width_in: float, height_in: float) -> tuple[str,
         return _STYLE_TO_VERO_PRODUCT_TYPE[style]
     from .hover import _guess_vero_product_type  # local import avoids cycle
     return (_guess_vero_product_type(width_in, height_in), 1)
+
+
+def apply_roof_type_material_math(raw: dict, walls: list, gable_sqft: float, dormer_sqft: float) -> tuple:
+    """Iter 79j.26 + 79j.27 — normalize walls[] based on Claude's roof-type
+    classification.
+
+    Behaviour matches the frontend HouseModel3D confidence threshold (0.8):
+      * roof_type "hip" ≥0.8   → zero every wall's gable_triangle_height_ft,
+                                 zero the gable_sqft summary
+      * roof_type "gable-shed-dormer" ≥0.8 + dormer payload
+                               → inflate the target facade's dormer_face_sqft
+                                 by (face + cheeks − on_dormer opening area)
+      * below 0.8 or missing   → no-op (return inputs unchanged)
+
+    Walls are mutated in place. Returns the (possibly adjusted)
+    (gable_sqft, dormer_sqft) totals.
+    """
+    roof_type_raw = raw.get("roof_type")
+    roof_type = roof_type_raw if roof_type_raw in ("gable", "hip", "gable-shed-dormer") else None
+    conf_raw = raw.get("roof_type_confidence")
+    try:
+        conf = float(conf_raw) if conf_raw is not None else 0.0
+    except (TypeError, ValueError):
+        conf = 0.0
+    if not roof_type or conf < 0.8:
+        return gable_sqft, dormer_sqft
+
+    if roof_type == "hip":
+        for w in walls:
+            w["gable_triangle_height_ft"] = 0
+        return 0.0, dormer_sqft
+
+    if roof_type == "gable-shed-dormer":
+        dormer_raw = raw.get("dormer") if isinstance(raw.get("dormer"), dict) else None
+        if not dormer_raw:
+            return gable_sqft, dormer_sqft
+        face = str(dormer_raw.get("face") or "front").lower()
+        d_w = float(dormer_raw.get("width_ft") or 0)
+        d_h = float(dormer_raw.get("knee_wall_height_ft") or 0)
+        if d_w <= 0 or d_h <= 0:
+            return gable_sqft, dormer_sqft
+        face_sqft = d_w * d_h
+        # 2 cheek triangles, base = knee height, height = knee height —
+        # matches the frontend geometry which uses knee for both.
+        cheek_sqft = 2 * 0.5 * d_h * d_h
+        openings_area = 0.0
+        for o in (raw.get("openings") or []):
+            if not o.get("on_dormer"):
+                continue
+            w_in = float(o.get("width_in") or 0)
+            h_in = float(o.get("height_in") or 0)
+            if w_in > 0 and h_in > 0:
+                openings_area += (w_in / 12.0) * (h_in / 12.0)
+        extra = max(0.0, face_sqft + cheek_sqft - openings_area)
+        for w in walls:
+            if (w.get("label") or "").lower() == face:
+                w["dormer_face_sqft"] = float(w.get("dormer_face_sqft") or 0) + extra
+                break
+        return gable_sqft, float(dormer_sqft) + extra
+
+    return gable_sqft, dormer_sqft
 
 
 def _build_vero_openings_from_ai(openings: list, schedule: list | None = None) -> list[dict]:
@@ -1334,6 +1533,48 @@ def _aggregate_to_hover_shape(raw: dict, annotations: dict | None = None) -> dic
         "_ai_photos": raw.get("photos") or [],
         "_ai_notes": raw.get("notes") or "",
     }
+    # Iter 79j.26 — Roof type classification. Cascade: valid Claude
+    # value → surface; else null. Confidence threshold enforced on the
+    # frontend (≥0.8 → apply; below → default to gable + amber flag).
+    # Material math post-processing runs BEFORE the breakdown so hip
+    # roofs get their gable_triangle_height zeroed and dormers get
+    # extra face+cheek sqft added into their facade's dormer_face_sqft.
+    roof_type_raw = raw.get("roof_type")
+    roof_type = roof_type_raw if roof_type_raw in ("gable", "hip", "gable-shed-dormer") else None
+    roof_type_conf = raw.get("roof_type_confidence")
+    try:
+        roof_type_conf = float(roof_type_conf) if roof_type_conf is not None else None
+    except (TypeError, ValueError):
+        roof_type_conf = None
+    measurements["_ai_roof_type"] = roof_type
+    measurements["_ai_roof_type_confidence"] = roof_type_conf
+    measurements["_ai_roof_type_reasoning"] = raw.get("roof_type_reasoning") or ""
+    dormer_raw = raw.get("dormer") if isinstance(raw.get("dormer"), dict) else None
+    measurements["_ai_dormer"] = dormer_raw
+
+    # Iter 79j.28 — dominant colors sampled from the photos. Each hex is
+    # validated (must match #RRGGBB) before surfacing so we don't feed
+    # garbage into the 3D viewer's color parser.
+    def _valid_hex(v):
+        if not isinstance(v, str):
+            return None
+        s = v.strip()
+        if len(s) == 7 and s[0] == "#" and all(c in "0123456789abcdefABCDEF" for c in s[1:]):
+            return s
+        return None
+
+    colors_raw = raw.get("dominant_colors") if isinstance(raw.get("dominant_colors"), dict) else {}
+    measurements["_ai_siding_color_hex"] = _valid_hex(colors_raw.get("siding_hex"))
+    measurements["_ai_trim_color_hex"] = _valid_hex(colors_raw.get("trim_hex"))
+    measurements["_ai_roof_color_hex"] = _valid_hex(colors_raw.get("roof_hex"))
+    measurements["_ai_door_color_hex"] = _valid_hex(colors_raw.get("door_hex"))
+
+    # Apply material math per roof type (extracted to
+    # apply_roof_type_material_math above so it's directly unit-testable).
+    gable_sqft, dormer_sqft = apply_roof_type_material_math(raw, walls, gable_sqft, dormer_sqft)
+    measurements["_ai_gable_sqft"] = round(gable_sqft, 1)
+    measurements["_ai_dormer_sqft"] = round(dormer_sqft, 1)
+
     # Iter 78z — Per-elevation breakdown (lap / shake / B&B / etc.) so
     # the takeoff card can render a profile-by-elevation table and the
     # catalog mapper can split siding into multiple SKU lines.
@@ -1389,6 +1630,10 @@ async def ai_measure(
     # return the most recent in-flight or done run, letting the
     # frontend "Resume" after a page reload / screen lock.
     estimate_id: Optional[str] = Form(None),
+    # Iter 79j.15 — A/B model choice. Allowed keys are the keys of
+    # `_MODEL_CHOICES` (claude-opus-4-5, claude-opus-4-8, gemini-3.5-flash,
+    # gpt-5.5, etc.). Blank / unknown → default (Opus 4.5).
+    model_choice: Optional[str] = Form(None),
     user: dict = Depends(get_current_user),
 ):
     """Kick off an async AI photo-measure run. Iter 57q: the old
@@ -1410,6 +1655,14 @@ async def ai_measure(
     """
     # Resolve raw image bytes from either source.
     image_payloads: list[tuple[str, bytes]] = []  # [(content_type, raw_bytes)]
+    # Iter 79j.29 — track ALL photo names so we can persist them on the
+    # run doc. Fresh file-uploads used to be discarded (bytes in memory
+    # only) — which meant that if the session doc's photo_urls got
+    # clobbered, the run was unrecoverable ("Re-run" silently failed
+    # with an empty photo grid). Now every file receives a name here
+    # AND is written to /api/uploads/ so the frontend can always find
+    # it again on Resume / Restore-preview.
+    all_photo_names: list[str] = []
     if photo_paths:
         from config import UPLOAD_DIR  # local import to avoid top-level cycle
         for name in [p.strip() for p in photo_paths.split(",") if p.strip()]:
@@ -1423,7 +1676,10 @@ async def ai_measure(
             ext = name.rsplit(".", 1)[-1].lower()
             ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
             image_payloads.append((ctype, data))
+            all_photo_names.append(name)
     if files:
+        import uuid as _uuid
+        from config import UPLOAD_DIR  # local import to avoid top-level cycle
         for f in files:
             ctype = (f.content_type or "").lower()
             if ctype not in ACCEPTED_MIMES:
@@ -1435,6 +1691,11 @@ async def ai_measure(
             if len(raw) == 0:
                 continue
             image_payloads.append((ctype, raw))
+            # Persist to /api/uploads/ so it's addressable + recoverable.
+            ext = "jpg" if ctype == "image/jpeg" else ctype.split("/")[-1]
+            name = f"ai_{_uuid.uuid4().hex}.{ext}"
+            (UPLOAD_DIR / name).write_bytes(raw)
+            all_photo_names.append(name)
 
     if not image_payloads:
         raise HTTPException(status_code=400, detail="At least one photo is required")
@@ -1461,6 +1722,10 @@ async def ai_measure(
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY missing on server")
 
     user_id = user["id"]
+    # Iter 79j.15 — resolve the A/B model choice up front so the run doc
+    # persists it for reporting + the worker can hand it to LlmChat.
+    model_key, model_provider, model_name = _resolve_model(model_choice)
+
     run_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc)
     # Persist a "running" run doc so the status endpoint can return
@@ -1474,12 +1739,18 @@ async def ai_measure(
         "status": "running",
         "stage": "starting",
         "photo_count": len(image_payloads),
-        # Iter 57r — keep the original `photo_paths` string so resume can
-        # restore the contractor's photo grid without re-uploading.
-        "photo_paths": photo_paths,
+        # Iter 57r + 79j.29 — persist ALL photo names, including fresh
+        # uploads that came in via `files=`. Prior to 79j.29 fresh files
+        # weren't named/persisted, so `photo_paths` could be None on the
+        # run doc → resume paths silently failed to rehydrate photoUrls.
+        "photo_paths": ",".join(all_photo_names) if all_photo_names else photo_paths,
         "deep_dormer_scan": deep_dormer_scan,
         "kind": kind,
         "address": address,
+        # Iter 79j.15 — A/B model tracking
+        "model_choice": model_key,
+        "model_provider": model_provider,
+        "model_name": model_name,
         "created_at": now,
         "updated_at": now,
         "completed_at": None,
@@ -1502,6 +1773,8 @@ async def ai_measure(
         deep_dormer_scan=deep_dormer_scan,
         elevation_tags=elevation_tags,
         estimate_id=estimate_id,
+        model_provider=model_provider,
+        model_name=model_name,
     ))
 
     return {
@@ -1706,6 +1979,121 @@ async def ai_measure_latest_for_estimate(
     }
 
 
+# Iter 79j.16 — Per-run cost estimate for the Model Comparison panel.
+# Rough approximation using published Anthropic / OpenAI / Google list
+# prices as of Feb 2026. Token counts are estimated from photo count
+# (~2 K input tokens per image at Claude's 1568 px downscale, similar
+# for the other providers) + fixed system + typical output. Precise
+# enough for A/B decision-making — not a billing source of truth.
+_MODEL_PRICING_PER_M: dict[str, dict[str, float]] = {
+    # provider/model_name lowercase-key -> {input, output}
+    "claude-opus-4-5":       {"input": 5.00, "output": 25.00},
+    "claude-opus-4-8":       {"input": 5.00, "output": 25.00},
+    "claude-sonnet-4-6":     {"input": 3.00, "output": 15.00},
+    "claude-fable-5":        {"input": 10.00, "output": 50.00},
+    "gemini-3.5-flash":      {"input": 1.50, "output": 9.00},
+    "gemini-3.1-pro":        {"input": 5.00, "output": 25.00},
+    "gpt-5.5":               {"input": 5.00, "output": 30.00},
+    "gpt-5.4":               {"input": 5.00, "output": 30.00},
+}
+
+
+def _estimate_run_cost_usd(model_choice: str | None, photo_count: int, deep_dormer: bool) -> float | None:
+    """Approximate USD cost for one AI Measure run. Returns None if the
+    model isn't in the pricing table (e.g. an old run against a
+    now-deprecated model). Fine-grained enough to sort A/B runs, not a
+    billing document."""
+    if not model_choice:
+        return None
+    price = _MODEL_PRICING_PER_M.get(model_choice.strip().lower())
+    if not price:
+        return None
+    photos = max(1, int(photo_count or 1))
+    # Input: system+user prompt (~4K) + per-photo (~2K)
+    input_tokens = 4000 + (2000 * photos)
+    # Deep Dormer adds a parallel per-photo pass at ~1500 tok each.
+    if deep_dormer:
+        input_tokens += 1500 * photos
+    output_tokens = 2500
+    return round(
+        (input_tokens / 1_000_000) * price["input"]
+        + (output_tokens / 1_000_000) * price["output"],
+        4,
+    )
+
+
+@router.get("/ai-measure/history/{estimate_id}")
+async def ai_measure_history(
+    estimate_id: str,
+    limit: int = 5,
+    user: dict = Depends(get_current_user),
+):
+    """Iter 79j.16 — Model comparison history. Returns the last N
+    completed runs for this estimate with just the fields needed to
+    A/B compare models side-by-side (model + confidence + counts +
+    approximate cost). Used by the Model Comparison panel on the AI
+    Measure preview. Only runs with `status == 'done'` are returned so
+    the panel never shows in-flight or failed runs."""
+    user_id = user.get("id") or "anon"
+    limit = max(1, min(int(limit or 5), 20))
+    cursor = db.ai_measure_runs.find(
+        {"user_id": user_id, "estimate_id": estimate_id, "status": "done"},
+        sort=[("completed_at", -1)],
+        limit=limit,
+    )
+    runs = []
+    async for doc in cursor:
+        result = doc.get("result") or {}
+        measurements = result.get("measurements") or {}
+        raw_ai = result.get("raw_ai") or {}
+        # Confidence: try raw_ai first (0-100), fall back to
+        # measurements._ai_overall_confidence, then None.
+        conf = raw_ai.get("overall_confidence")
+        if conf is None:
+            conf = measurements.get("_ai_overall_confidence")
+        try:
+            conf = int(round(float(conf))) if conf is not None else None
+        except (TypeError, ValueError):
+            conf = None
+        # Wall / opening counts from raw_ai
+        walls = raw_ai.get("walls") or []
+        openings = raw_ai.get("openings") or []
+        window_count = sum(1 for o in openings if (o.get("type") or "").lower() == "window")
+        door_count = sum(
+            int(o.get("count") or 1)
+            for o in openings
+            if (o.get("type") or "").lower() in {"entry_door", "patio_door", "garage_door"}
+        )
+        cost_usd = _estimate_run_cost_usd(
+            doc.get("model_choice"),
+            int(doc.get("photo_count") or 0),
+            bool(doc.get("deep_dormer_scan")),
+        )
+        completed = _as_aware_utc(doc.get("completed_at"))
+        created = _as_aware_utc(doc.get("created_at"))
+        elapsed_ms = None
+        if created is not None and completed is not None:
+            elapsed_ms = int((completed - created).total_seconds() * 1000)
+        runs.append({
+            "run_id": doc.get("run_id"),
+            "model_choice": doc.get("model_choice") or "claude-opus-4-5",
+            "model_provider": doc.get("model_provider"),
+            "model_name": doc.get("model_name") or result.get("model"),
+            "completed_at": completed.isoformat() if completed else None,
+            "elapsed_ms": elapsed_ms,
+            "photo_count": doc.get("photo_count") or 0,
+            "deep_dormer_scan": bool(doc.get("deep_dormer_scan")),
+            "confidence": conf,
+            "wall_count": len(walls),
+            "window_count": window_count,
+            "door_count": door_count,
+            "siding_sqft": measurements.get("siding_sqft") or 0,
+            "eaves_lf": measurements.get("eaves_lf") or 0,
+            "cost_estimate_usd": cost_usd,
+        })
+    return {"runs": runs}
+
+
 async def _execute_ai_measure_worker(
     *,
     run_id: str,
@@ -1721,6 +2109,10 @@ async def _execute_ai_measure_worker(
     deep_dormer_scan: bool,
     elevation_tags: Optional[str],
     estimate_id: Optional[str] = None,
+    # Iter 79j.15 — A/B model selection. Defaults match the run-doc
+    # defaults so the rerun path (which doesn't pass these) still works.
+    model_provider: str = "anthropic",
+    model_name: str = MODEL_NAME,
 ):
     """Background worker — runs the Claude call(s), aggregates, maps to
     catalog lines, and writes the final result back to the run doc.
@@ -1759,7 +2151,7 @@ async def _execute_ai_measure_worker(
             api_key=api_key,
             session_id=session_id,
             system_message=SYSTEM_PROMPT,
-        ).with_model("anthropic", MODEL_NAME)
+        ).with_model(model_provider, model_name)
 
         prompt_parts = []
         if address:
@@ -1886,7 +2278,8 @@ async def _execute_ai_measure_worker(
                 raw.get("openings_schedule") or [],
             ),
             "raw_ai": raw,
-            "model": MODEL_NAME,
+            "model": model_name,          # Iter 79j.15 — actual model used (may differ from MODEL_NAME default)
+            "model_provider": model_provider,
             "session_id": session_id,
             "warnings": warnings,
         }

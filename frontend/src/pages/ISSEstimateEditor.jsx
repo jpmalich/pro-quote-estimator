@@ -429,6 +429,7 @@ export default function ISSEstimateEditor() {
             </ISSToolTile>
             <ISSToolTile icon={Sparkles} label="AI Photo Measure" accent="#7C3AED" testid="iss-tile-ai">
               <AIMeasureButton
+                estimate={est}
                 kind="iss"
                 address={est?.address}
                 overhangIn={est?.overhang_in ?? 12}

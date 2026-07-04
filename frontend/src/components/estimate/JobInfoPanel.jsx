@@ -5,6 +5,9 @@ import { tColor, tColorGroup } from "@/lib/catalogTranslations";
 import { vinylSidingColorGroupsForEstimate, accessoryColorGroupsForEstimate, ASCEND_COLORS, SHAKE_COLOR_GROUPS, BOARD_BATTEN_COLOR_GROUPS, SOFFIT_COLOR_GROUPS, GUTTER_COLORS, WINDOW_WRAP_COLORS, LP_SMARTSIDE_COLORS, MEZZO_EXTERIOR_COLOR_GROUPS, MEZZO_INTERIOR_COLOR_GROUPS, VERO_EXTERIOR_COLOR_GROUPS, VERO_INTERIOR_COLOR_GROUPS, VERO_LAMINATE_NAMES } from "@/lib/colorOptions";
 import HoverImportButton from "@/components/estimate/HoverImportButton";
 import AIMeasureButton from "@/components/estimate/AIMeasureButton";
+// Iter 79j.19 — bake current waste_pct into AI-generated cut-prone
+// lines on Apply, same as HOVER Import does.
+import { bakeWasteIntoLines } from "@/lib/wasteLogic";
 import BlueprintMeasureButton from "@/components/estimate/BlueprintMeasureButton";
 import PairToLpButton from "@/components/estimate/PairToLpButton";
 // Iter 78u — Compare Drawings modal trigger
@@ -252,7 +255,14 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
             address={est?.address}
             overhangIn={est?.overhang_in ?? 12}
             estimateId={est?.id}
+            estimate={est}
             onApply={async ({ lines: aiLines, measurements }) => {
+              // Iter 79j.19 — bake the contractor's waste % into cut-prone
+              // AI lines exactly like HOVER Import: raw measurement kept in
+              // raw_qty, qty bumped to raw × (1 + waste/100). Non-cut lines
+              // (labor, gutter, downspouts) pass through untouched.
+              const wastePct = Number(est?.waste_pct ?? 0);
+              const bakedLines = bakeWasteIntoLines(aiLines || [], wastePct);
               const existing = est.lines || [];
               const keyOf = (l) => `${l.tab || "vinyl"}::${l.section}::${l.name}`;
               const byKey = new Map(existing.map((l, i) => [keyOf(l), i]));
@@ -265,16 +275,19 @@ export default function JobInfoPanel({ est, update, save, setInstallMethod, setH
                 ? ["vinyl", "ascend"]
                 : ["vinyl", "ascend", "lp_smart"]);
               const WINDOWS_TABS = new Set(["windows"]);
-              for (const ln of aiLines || []) {
+              for (const ln of bakedLines) {
                 const isSiding = SIDING_TABS.has(ln.tab || "vinyl");
                 const isWindows = WINDOWS_TABS.has(ln.tab || "vinyl");
                 if (srcKind === "windows" ? !isWindows : !isSiding) continue;
                 const key = keyOf(ln);
                 const idx = byKey.get(key);
                 if (idx == null) {
-                  next.push({ tab: ln.tab || "vinyl", section: ln.section, name: ln.name, unit: ln.unit, qty: ln.qty, mat: 0, lab: 0 });
+                  // raw_qty preserved so future waste-% changes recompute correctly
+                  next.push({ tab: ln.tab || "vinyl", section: ln.section, name: ln.name, unit: ln.unit, qty: ln.qty, raw_qty: ln.raw_qty, mat: 0, lab: 0 });
                 } else {
-                  next[idx] = { ...next[idx], qty: ln.qty };
+                  // Only stamp raw_qty when the incoming AI line has one
+                  // (cut-prone); others keep the existing row's value.
+                  next[idx] = { ...next[idx], qty: ln.qty, ...(ln.raw_qty != null ? { raw_qty: ln.raw_qty } : {}) };
                 }
               }
               // Surface masked-out zones (brick, stone, garage, stucco) on

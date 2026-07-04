@@ -119,3 +119,6 @@ Resource_Docs/*.mp3
 Resource_Docs/*.pdf
 Resource_Docs/*.xls
 Resource_Docs/*.xlsx
+
+# Imported Emergent exports for feature merging — never commit
+HowieCode/

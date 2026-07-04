@@ -40,6 +40,16 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
 
 ## 🟠 P1 — Product (next up)
 
+- [ ] **Multi-provider AI model support (Gemini / GPT)** — the AI Measure A/B model
+      toggle merged from Howie's Emergent build (2026-07-04) originally offered Claude,
+      Gemini, and GPT models through Emergent's universal-key proxy. Our decoupled
+      `backend/llm.py` is Anthropic-only, so the registry (`_MODEL_CHOICES` in
+      `routes/ai_measure.py`) and the frontend dropdown were trimmed to the four Claude
+      models. To restore full A/B: extend `llm.py` to route per-provider (google-genai /
+      openai SDKs or litellm), add `GEMINI_API_KEY`/`OPENAI_API_KEY` env vars +
+      .env.example entries, and re-add the trimmed registry/dropdown/pricing rows (the
+      commented markers point at this TODO). The Model Comparison panel and per-run cost
+      math already work provider-agnostically.
 - [ ] **Stripe deposit on the Accept page** — homeowner clicks "I accept" → optional
       Stripe Checkout for a configurable deposit. *(PRD P0-next-up.)*
 - [ ] **Real PWA app icons** — currently programmatic placeholders.
@@ -170,8 +180,12 @@ App-affecting items also need a `PromptsForEmergent.md` entry when completed (se
       **Open questions for John/Howard:** supplier-pinned defaults (spec leans yes);
       AI purple accent constant vs per-theme (shipped constant, lightened in dark);
       supplier-flavored theme names (shipped with placeholder names).
-- [ ] **HOVER-style 3D house rendering** from measurements — the missing piece vs HOVER;
-      `elevation3D.js`/three.js groundwork exists.
+- [ ] **3D house rendering — polish & extend** — the interactive Three.js HouseModel3D
+      merged from Howie's build (2026-07-04) covers the core HOVER-style 3D ask on the
+      AI Measure + Blueprint previews. Remaining: theme-token alignment of its hardcoded
+      material/UI colors, exposing the model on the estimate/quote surfaces (not just
+      import previews), and Howie's definition-of-done validation run (was blocked by
+      his Emergent budget cap — we can run it on our Anthropic key).
 - [ ] **J-block disambiguation aid** — AI can't tell light/split/UL/jumbo/dri-vent blocks
       apart; give contractors a quicker correction UI on import.
 - [ ] **Quote status workflow** (draft → sent → won/lost) + duplicate-as-template.
@@ -288,6 +302,12 @@ plus a live visual review. Contrast/color items are excluded (fixed earlier that
 
 ## ✅ Recently completed
 
+- [x] **Merged Howie's Emergent feature drop (iters 79j.15→.34)** — interactive 3D house
+      model (AI Measure + Blueprint tabs), model A/B toggle (trimmed to Claude-only, see
+      multi-provider TODO), Model Comparison panel + per-run cost, Re-run button, waste %
+      baked into AI apply, photo persistence/recovery, persistent run-error banner,
+      masked-vs-openings prompt overhaul, profile-annotations 404 + wizard-polygon fixes,
+      4 new regression test files (24 tests, all passing) *(2026-07-04)*
 - [x] **Soft input validation + format tips** — email/phone/fax/ZIP placeholders,
       warn-on-blur messages with aria-invalid/describedby, phone auto-format to
       (AAA) BBB-CCCC, invalid-email gate on quote Send *(2026-07-03)*
